@@ -1,0 +1,1413 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jolanda — Round-by-round audit ledger</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f3efe4;
+        --surface: #fffdf7;
+        --surface-2: #eae2d3;
+        --elevated: #fffaf0;
+        --border: rgba(48, 37, 24, 0.13);
+        --border-strong: rgba(48, 37, 24, 0.24);
+        --text: #282017;
+        --dim: #766b5d;
+        --ink: #315847;
+        --ink-dim: rgba(49, 88, 71, 0.1);
+        --fixed: #397755;
+        --fixed-dim: rgba(57, 119, 85, 0.11);
+        --open: #a64032;
+        --open-dim: rgba(166, 64, 50, 0.11);
+        --warn: #a26c21;
+        --warn-dim: rgba(162, 108, 33, 0.12);
+        --mono: 'DM Mono', 'SFMono-Regular', Consolas, monospace;
+        --serif: 'Newsreader', Georgia, serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171b18;
+          --surface: #202620;
+          --surface-2: #293029;
+          --elevated: #252d26;
+          --border: rgba(244, 235, 214, 0.09);
+          --border-strong: rgba(244, 235, 214, 0.18);
+          --text: #eee8dc;
+          --dim: #aaa396;
+          --ink: #9cc5aa;
+          --ink-dim: rgba(156, 197, 170, 0.11);
+          --fixed: #8fd1a2;
+          --fixed-dim: rgba(143, 209, 162, 0.11);
+          --open: #ef9385;
+          --open-dim: rgba(239, 147, 133, 0.11);
+          --warn: #e6ba72;
+          --warn-dim: rgba(230, 186, 114, 0.11);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 36px;
+        color: var(--text);
+        background-color: var(--bg);
+        background-image:
+          linear-gradient(var(--border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border) 1px, transparent 1px),
+          radial-gradient(circle at 75% 0%, var(--ink-dim), transparent 38%);
+        background-size:
+          28px 28px,
+          28px 28px,
+          auto;
+        font-family: var(--serif);
+        overflow-wrap: break-word;
+      }
+
+      .wrap {
+        width: min(1480px, 100%);
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 190px minmax(0, 1fr);
+        gap: 0 36px;
+      }
+
+      .main {
+        min-width: 0;
+      }
+
+      .toc {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+        grid-row: 1 / -1;
+        max-height: calc(100dvh - 48px);
+        overflow-y: auto;
+        padding: 14px 0;
+      }
+
+      .toc-title,
+      .eyebrow,
+      .kpi-label,
+      .sec-kicker,
+      th,
+      .status,
+      code {
+        font-family: var(--mono);
+      }
+
+      .toc-title {
+        padding-bottom: 10px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+        color: var(--dim);
+        font-size: 9px;
+        font-weight: 500;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+
+      .toc a {
+        display: block;
+        margin-bottom: 2px;
+        padding: 7px 9px;
+        border-left: 2px solid transparent;
+        border-radius: 5px;
+        color: var(--dim);
+        font: 11px/1.35 var(--mono);
+        text-decoration: none;
+        transition: 0.15s ease;
+      }
+
+      .toc a:hover,
+      .toc a.active {
+        color: var(--text);
+        background: var(--surface-2);
+        border-left-color: var(--ink);
+      }
+
+      .hero {
+        padding: 44px;
+        border: 1px solid var(--border-strong);
+        border-radius: 4px 24px 4px 24px;
+        background: color-mix(in srgb, var(--surface) 93%, var(--ink) 7%);
+        box-shadow: 0 14px 40px rgba(24, 20, 14, 0.08);
+        animation: rise 0.4s ease-out both;
+      }
+
+      .eyebrow,
+      .sec-kicker {
+        color: var(--ink);
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 850px;
+        margin: 12px 0 14px;
+        font-size: clamp(42px, 7vw, 84px);
+        font-weight: 400;
+        line-height: 0.93;
+        letter-spacing: -2.5px;
+      }
+
+      .lede {
+        max-width: 830px;
+        margin: 0;
+        color: var(--dim);
+        font-size: 19px;
+        line-height: 1.55;
+      }
+
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 18px 0 34px;
+      }
+
+      .kpi {
+        min-width: 0;
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--elevated);
+        box-shadow: 0 3px 12px rgba(24, 20, 14, 0.05);
+        animation: rise 0.35s ease-out both;
+        animation-delay: calc(var(--i) * 0.05s);
+      }
+
+      .kpi-value {
+        color: var(--ink);
+        font-size: 40px;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .kpi-value.open {
+        color: var(--open);
+      }
+
+      .kpi-label {
+        margin-top: 8px;
+        color: var(--dim);
+        font-size: 9px;
+        letter-spacing: 1.3px;
+        text-transform: uppercase;
+      }
+
+      .callout {
+        margin: 0 0 32px;
+        padding: 18px 22px;
+        border-left: 4px solid var(--warn);
+        background: var(--warn-dim);
+        color: var(--text);
+        font-size: 15px;
+        line-height: 1.55;
+      }
+
+      .section {
+        margin: 42px 0 0;
+        scroll-margin-top: 24px;
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: end;
+        margin-bottom: 14px;
+        padding-bottom: 11px;
+        border-bottom: 1px solid var(--border-strong);
+      }
+
+      h2 {
+        margin: 5px 0 0;
+        font-size: 34px;
+        font-weight: 400;
+        line-height: 1.05;
+      }
+
+      .section-note {
+        max-width: 380px;
+        color: var(--dim);
+        font: 11px/1.5 var(--mono);
+        text-align: right;
+      }
+
+      .table-shell {
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+      }
+
+      .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      table {
+        width: 100%;
+        min-width: 940px;
+        border-collapse: collapse;
+        font-size: 14px;
+        line-height: 1.52;
+      }
+
+      thead {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+
+      th {
+        padding: 13px 16px;
+        border-bottom: 2px solid var(--border-strong);
+        background: var(--surface-2);
+        color: var(--dim);
+        font-size: 9px;
+        font-weight: 500;
+        letter-spacing: 1.4px;
+        text-align: left;
+        text-transform: uppercase;
+      }
+
+      td {
+        min-width: 0;
+        padding: 18px 16px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+
+      tbody tr:nth-child(even) {
+        background: var(--ink-dim);
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      tbody tr {
+        transition: background 0.15s ease;
+      }
+
+      tbody tr:hover {
+        background: var(--surface-2);
+      }
+
+      .round {
+        width: 95px;
+        color: var(--ink);
+        font: 500 13px var(--mono);
+        white-space: nowrap;
+      }
+
+      .count {
+        width: 70px;
+        color: var(--dim);
+        font: 12px var(--mono);
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .status-cell {
+        width: 145px;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        border-radius: 6px;
+        font-size: 9px;
+        font-weight: 500;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+        text-transform: uppercase;
+      }
+
+      .status::before {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        content: '';
+      }
+
+      .fixed {
+        color: var(--fixed);
+        background: var(--fixed-dim);
+      }
+
+      .unresolved {
+        color: var(--open);
+        background: var(--open-dim);
+      }
+
+      ol,
+      ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      code {
+        padding: 1px 4px;
+        border-radius: 3px;
+        background: var(--ink-dim);
+        color: var(--ink);
+        font-size: 0.82em;
+      }
+
+      .baseline {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .baseline-card {
+        min-width: 0;
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+
+      .baseline-card strong {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--ink);
+        font: 500 11px var(--mono);
+        text-transform: uppercase;
+      }
+
+      .baseline-card p {
+        margin: 0;
+        color: var(--dim);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .footnote {
+        margin: 28px 0 0;
+        padding: 18px;
+        border: 1px dashed var(--border-strong);
+        color: var(--dim);
+        font: 11px/1.55 var(--mono);
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-delay: 0ms !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      @media (max-width: 1050px) {
+        body {
+          padding: 0 28px 28px;
+        }
+
+        .wrap {
+          grid-template-columns: 1fr;
+        }
+
+        .toc {
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          grid-row: auto;
+          display: flex;
+          max-height: none;
+          gap: 4px;
+          margin: 0 -28px;
+          padding: 10px 28px;
+          overflow-x: auto;
+          background: var(--bg);
+          border-bottom: 1px solid var(--border);
+        }
+
+        .toc-title {
+          display: none;
+        }
+
+        .toc a {
+          flex-shrink: 0;
+          border-left: 0;
+          border-bottom: 2px solid transparent;
+          white-space: nowrap;
+        }
+
+        .toc a:hover,
+        .toc a.active {
+          border-left: 0;
+          border-bottom-color: var(--ink);
+        }
+
+        .main {
+          padding-top: 24px;
+        }
+
+        .section {
+          scroll-margin-top: 62px;
+        }
+      }
+
+      @media (max-width: 740px) {
+        body {
+          padding: 0 14px 20px;
+        }
+
+        .toc {
+          margin: 0 -14px;
+          padding-inline: 14px;
+        }
+
+        .hero {
+          padding: 26px 22px;
+          border-radius: 3px 17px 3px 17px;
+        }
+
+        h1 {
+          letter-spacing: -1.5px;
+        }
+
+        .lede {
+          font-size: 16px;
+        }
+
+        .kpis,
+        .baseline {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .section-head {
+          grid-template-columns: 1fr;
+        }
+
+        .section-note {
+          text-align: left;
+        }
+      }
+
+      @media (max-width: 430px) {
+        .kpis,
+        .baseline {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav class="toc" id="toc" aria-label="Audit sections">
+        <div class="toc-title">Audit ledger</div>
+        <a href="#overview">Overview</a>
+        <a href="#baseline">Initial audit</a>
+        <a href="#rounds-1-5">Rounds 1–5</a>
+        <a href="#rounds-6-10">Rounds 6–10</a>
+        <a href="#rounds-11-15">Rounds 11–15</a>
+        <a href="#round-16">Round 16 · open</a>
+      </nav>
+
+      <main class="main">
+        <header class="hero" id="overview">
+          <div class="eyebrow">Jolanda / independent review ledger</div>
+          <h1>Sixteen rounds of finding the sharp edges.</h1>
+          <p class="lede">
+            A complete round-by-round account of the correctness, privacy, accounting, prompt
+            injection, output-safety, lifecycle, deployment, and test-coverage issues found while
+            hardening the Discord bot. Rounds 1–15 were remediated before the next review. Round 16
+            is known but intentionally not applied.
+          </p>
+        </header>
+
+        <div class="kpis" aria-label="Audit summary">
+          <div class="kpi" style="--i: 1">
+            <div class="kpi-value">16</div>
+            <div class="kpi-label">Review rounds</div>
+          </div>
+          <div class="kpi" style="--i: 2">
+            <div class="kpi-value">108</div>
+            <div class="kpi-label">Requirements in rounds 1–15</div>
+          </div>
+          <div class="kpi" style="--i: 3">
+            <div class="kpi-value open">7</div>
+            <div class="kpi-label">Open round-16 classes</div>
+          </div>
+          <div class="kpi" style="--i: 4">
+            <div class="kpi-value">703</div>
+            <div class="kpi-label">Passing deterministic tests</div>
+          </div>
+        </div>
+
+        <div class="callout">
+          <strong>How to read “fixed.”</strong> It means the reported reproduction and its planned
+          regression coverage were addressed before the next round. Later rounds often discovered a
+          new presentation, grammar, or boundary variant in the same subsystem; those later variants
+          are listed separately rather than rewriting history.
+        </div>
+
+        <section class="section" id="baseline">
+          <div class="section-head">
+            <div>
+              <div class="sec-kicker">Before round one</div>
+              <h2>The six original risk areas</h2>
+            </div>
+            <div class="section-note">These shaped the first remediation plan.</div>
+          </div>
+          <div class="baseline">
+            <article class="baseline-card">
+              <strong>Spend enforcement</strong>
+              <p>
+                Cost envelopes, reservations, daily/monthly limits, provider ceilings, and
+                concurrency.
+              </p>
+            </article>
+            <article class="baseline-card">
+              <strong>Web isolation</strong>
+              <p>
+                Keep private Discord context out of the web-search stage and treat research as
+                untrusted.
+              </p>
+            </article>
+            <article class="baseline-card">
+              <strong>Recovery</strong>
+              <p>
+                Leases, shutdown draining, atomic settings, reservation recovery, and Mongo
+                transactions.
+              </p>
+            </article>
+            <article class="baseline-card">
+              <strong>User-data minimization</strong>
+              <p>
+                Pseudonymous identifiers, owner-bound conversations, TTLs, safe logs, and privacy
+                notices.
+              </p>
+            </article>
+            <article class="baseline-card">
+              <strong>Resource bounds</strong>
+              <p>
+                Admission before context, SSE/output/Discord bounds, timeouts, and deeper module
+                seams.
+              </p>
+            </article>
+            <article class="baseline-card">
+              <strong>Production verification</strong>
+              <p>
+                Coverage, Atlas integration, Discord contracts, paid compatibility, Docker, and
+                audits.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="rounds-1-5">
+          <div class="section-head">
+            <div>
+              <div class="sec-kicker">Rounds 1–5</div>
+              <h2>Money, lifecycle, citations, and first parser defenses</h2>
+            </div>
+            <div class="section-note">44 grouped release requirements · remediated</div>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Round</th>
+                    <th>All findings</th>
+                    <th>Count</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="round">Round 1</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Incomplete or non-finite provider cost could settle at zero instead of
+                          charging the conservative reservation.
+                        </li>
+                        <li>
+                          Two-stage inference lacked one overall deadline; leases and conversation
+                          locks were not safely bounded/tokenized.
+                        </li>
+                        <li>
+                          Mongo transactions used unsupported parallel operations; settings
+                          races/recovery and partial client initialization needed deterministic
+                          handling.
+                        </li>
+                        <li>
+                          Shutdown could close Mongo with unresolved settlements instead of retrying
+                          and refusing unsafe closure.
+                        </li>
+                        <li>
+                          SSE reads/frames could materialize unbounded data rather than incremental
+                          bounded parsing.
+                        </li>
+                        <li>
+                          Output links were not restricted to exact public research sources;
+                          unsafe/private/bare/invented links, incomplete streams, and stale Discord
+                          chunks needed controls.
+                        </li>
+                        <li>
+                          Pre-inference Discord work needed cancellation/bounds and
+                          unrelated/rejected traffic containment.
+                        </li>
+                        <li>
+                          Application logs could serialize arbitrary third-party errors instead of
+                          an allowlist.
+                        </li>
+                        <li>
+                          Production Mongo URI options could disable transport security; Railway
+                          examples were ambiguous.
+                        </li>
+                        <li>
+                          Privacy docs did not clearly say transcript content remains plaintext even
+                          when identifiers are pseudonymous.
+                        </li>
+                        <li>
+                          Coverage gaps remained for missing usage, overall abort, SSE/output
+                          bounds, links, shutdown, races/recovery, bilingual injection, live
+                          red-team behavior, and sensitive per-file floors.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">11</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 2</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Only structured OpenRouter <code>url_citation</code> annotations—not model
+                          prose—could authorize sources.
+                        </li>
+                        <li>
+                          The URL filter missed fuzzy/IDN domains, email, Markdown destinations, and
+                          uncommon/one-character schemes.
+                        </li>
+                        <li>
+                          Mongo selection/connect/socket/operation timeouts and Discord handler
+                          draining were incomplete.
+                        </li>
+                        <li>Expired in-memory rate-gate keys could poison the capacity ceiling.</li>
+                        <li>
+                          The cost envelope used an assumed token ratio instead of the actual
+                          bounded research-response size.
+                        </li>
+                        <li>
+                          Tests were missing for settlement races, time boundaries, nonnegative
+                          reservations, persisted collections, DB continuations, rate capacity,
+                          Mongo timeout config, and handler drain.
+                        </li>
+                        <li>
+                          The paid English/Slovak × both-model injection matrix remained an external
+                          gated release check.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">7</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 3</td>
+                    <td>
+                      <ol>
+                        <li>
+                          DeepSeek V4 Flash reasoning metadata was stale: it needed
+                          <code>low/high/max</code>, default <code>high</code>, and no
+                          <code>xhigh</code>.
+                        </li>
+                        <li>
+                          Discord rendering needed serialization, cancellation, and continued
+                          tracking after caller timeout.
+                        </li>
+                        <li>
+                          Reservation recovery needed bounded batches, single-flight ticks, and
+                          shutdown coordination.
+                        </li>
+                        <li>
+                          Slash commands needed immediate ephemeral acknowledgement before Atlas
+                          work.
+                        </li>
+                        <li>
+                          Citation annotation count and URL length needed bounds during SSE
+                          ingestion.
+                        </li>
+                        <li>
+                          Escaped code delimiters and predictable fragment placeholders could bypass
+                          link sanitization.
+                        </li>
+                        <li>
+                          Non-finite/negative/unsafe provider usage could poison Mongo accounting
+                          instead of conservative fallback.
+                        </li>
+                        <li>
+                          The paid release gate needed one command covering both models, languages,
+                          reasoning efforts, web, injection, and misuse refusals.
+                        </li>
+                        <li>
+                          Extreme spend-limit values could overflow dollar-to-microdollar conversion
+                          and disable limits.
+                        </li>
+                        <li>
+                          A failed recovery sweep still had to drain and log safely without blocking
+                          Mongo close.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">10</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 4</td>
+                    <td>
+                      <ol>
+                        <li>
+                          The paid release command did not fail closed early enough when the capped
+                          key or explicit flags were absent.
+                        </li>
+                        <li>
+                          Paid injection assertions could accept trivial language-neutral output or
+                          refusal preambles followed by harmful instructions.
+                        </li>
+                        <li>
+                          Recovery tests did not prove the 100-request boundary, single-flight
+                          overlap, shutdown waiting, and safe failure logging.
+                        </li>
+                        <li>
+                          Discord interaction mocks did not accurately model defer/edit state or
+                          real operation timeouts.
+                        </li>
+                        <li>
+                          Mentions, emoji, message links, and Discord snowflakes could survive
+                          inside prompts/transcripts.
+                        </li>
+                        <li>
+                          A malformed later SSE usage event did not necessarily invalidate an
+                          earlier apparently valid event.
+                        </li>
+                        <li>
+                          Public research could receive scheme-less localhost, private IP,
+                          host-port, internal path, or Discord-message targets.
+                        </li>
+                        <li>
+                          Unknown-scheme removal also destroyed ordinary English/Slovak labels such
+                          as <code>Note:</code> and <code>Poznámka:</code>.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">8</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 5</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Any malformed nonempty SSE data frame after valid usage needed to
+                          invalidate usage and force conservative settlement.
+                        </li>
+                        <li>
+                          Private-target detection missed Unicode/NFKC dot variants, unbracketed
+                          private IPv6, and single-label intranet host+port/path forms.
+                        </li>
+                        <li>
+                          CommonMark angle autolinks needed scheme-aware removal without deleting
+                          ordinary emphasized labels.
+                        </li>
+                        <li>
+                          Both models needed the shared supported output parameter
+                          <code>max_tokens</code>, not a Luna-specific spelling.
+                        </li>
+                        <li>
+                          Paid red-team evaluators relied on brittle word lists rather than
+                          unit-tested normalized correctness/refusal semantics.
+                        </li>
+                        <li>
+                          The failed-recovery test could pass without exercising production
+                          client-close orchestration.
+                        </li>
+                        <li>Recovery tests had UTC-boundary timing flakiness.</li>
+                        <li>
+                          The unprivileged privacy command needed stateful defer/edit assertions.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">8</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="rounds-6-10">
+          <div class="section-head">
+            <div>
+              <div class="sec-kicker">Rounds 6–10</div>
+              <h2>Target intent, Unicode presentation, and Discord draining</h2>
+            </div>
+            <div class="section-note">27 grouped release requirements · remediated</div>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Round</th>
+                    <th>All findings</th>
+                    <th>Count</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="round">Round 6</td>
+                    <td>
+                      <ol>
+                        <li>
+                          The single-label <code>word/path</code> detector blocked harmless
+                          compounds yet could miss internal targets; it needed range-aware
+                          tokenization and intent.
+                        </li>
+                        <li>
+                          Numeric/octal IPv4, underscore labels, trailing-dot single labels, and
+                          similar candidates needed WHATWG parsing before private-host policy.
+                        </li>
+                        <li>
+                          Angle-autolink handling needed actual CommonMark grammar while preserving
+                          Discord timestamps and generic notation.
+                        </li>
+                        <li>
+                          Markdown-label exceptions could reopen one-character/uncommon-scheme
+                          bypasses such as <code>x:*payload</code> and <code>file:~/...</code>.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">4</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 7</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Bare private/reserved/numeric/internal hosts, network paths, backslashes,
+                          and query/hash forms were not always WHATWG/IP classified.
+                        </li>
+                        <li>
+                          <code>.home.arpa</code> and <code>.onion</code> were missing from
+                          special-use hostname policy.
+                        </li>
+                        <li>
+                          Ambiguous single-label paths needed explicit target intent while
+                          comparisons remained searchable.
+                        </li>
+                        <li>
+                          Generic angle notation with nested link candidates could escape
+                          sanitization; one-character/empty/parenthesized schemes needed removal.
+                        </li>
+                        <li>Unequal or unmatched backtick runs could incorrectly shield links.</li>
+                        <li>
+                          Discord adapter work lacked a bounded semaphore/deadline model that
+                          retained permits until true settlement.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">6</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 8</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Immediate-prefix heuristics needed a bounded English/Slovak clause-level
+                          intent classifier.
+                        </li>
+                        <li>
+                          Private targets inside Markdown/Unicode presentation wrappers could bypass
+                          classification.
+                        </li>
+                        <li>
+                          Query/hash targets needed host/suffix separation; targeted single labels
+                          had to differ from ordinary question punctuation.
+                        </li>
+                        <li>
+                          Nested link candidates inside generic angle notation were not uniformly
+                          recognized.
+                        </li>
+                        <li>
+                          Colon-number logic confused addresses with times, scores, aspect ratios,
+                          protocol versions, and chapters.
+                        </li>
+                        <li>
+                          <code>.alt</code> and <code>.example</code> were missing from special-use
+                          policy.
+                        </li>
+                        <li>
+                          Timed-out Discord operations could appear drained while underlying work
+                          still held resources.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">7</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 9</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Wrapper/punctuation normalization missed spoilers, nested presentation,
+                          list/quote prefixes, and external punctuation while risking real
+                          trailing-dot hosts.
+                        </li>
+                        <li>
+                          Slashless URI schemes needed WHATWG handling after safe colon-prose
+                          classification.
+                        </li>
+                        <li>
+                          IPv6 query/hash and numeric/octal/hex host-port forms could evade policy.
+                        </li>
+                        <li>
+                          Candidate intent needed context on both sides, additional
+                          English/Slovak/passive/postfix verbs, <code>curl</code>, and HTTP methods.
+                        </li>
+                        <li>
+                          Safe compounds and colon prose needed candidate-local classification
+                          before intent, with end-to-end proof that valid questions still reached
+                          research.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">5</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 10</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Strong network intent, valid schemes, and suffixes needed to override safe
+                          prose categories without breaking times/scores/ratios.
+                        </li>
+                        <li>
+                          A finite slash allowlist could not safely distinguish unseen semantic
+                          compounds from terminal targets.
+                        </li>
+                        <li>
+                          Intent had to be sentence-local while preserving explicitly referring
+                          adjacent clauses and ellipses.
+                        </li>
+                        <li>
+                          Presentation around address subcomponents, Markdown labels/destinations,
+                          IPv6 punctuation, and terminal fragments remained incomplete.
+                        </li>
+                        <li>
+                          Unicode bidirectional/format controls could visually reorder
+                          assistant-output warnings or link-removal markers.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">5</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="rounds-11-15">
+          <div class="section-head">
+            <div>
+              <div class="sec-kicker">Rounds 11–15</div>
+              <h2>Balanced Markdown, deep private evidence, and role grammar</h2>
+            </div>
+            <div class="section-note">37 grouped release requirements · remediated</div>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Round</th>
+                    <th>All findings</th>
+                    <th>Count</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="round">Round 11</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Concrete private network evidence could still be overridden by lexical
+                          compounds, comparisons, fillers, or target nouns.
+                        </li>
+                        <li>
+                          Clause/object role parsing needed better sentence boundaries,
+                          abbreviations, ellipses, and immediate bilingual referents such as “look
+                          it up.”
+                        </li>
+                        <li>
+                          Presentation cleanup needed bounded balanced scanning of labels,
+                          destinations, titles, nested wrappers, and subcomponents.
+                        </li>
+                        <li>
+                          Protocol-version exemptions ran before URI syntax, allowing direct
+                          <code>HTTP:10</code>/<code>HTTPS:127</code>-style targets.
+                        </li>
+                        <li>
+                          Query/hash evidence needed to remain decisive across neutral/comparison
+                          contexts with request-capture tests.
+                        </li>
+                        <li>
+                          The Markdown URL regex needed a bounded balanced destination scanner to
+                          preserve exact URLs containing parentheses.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">6</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 12</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Absolute HTTP(S) Markdown destinations were misclassified by prepending a
+                          second scheme; safe relative links needed distinct handling.
+                        </li>
+                        <li>
+                          Trusted URL prefixes could authorize continuations through slash,
+                          backslash, query, caret, pipe, or balanced punctuation.
+                        </li>
+                        <li>
+                          Path/port evidence, Unicode/digit hosts, environments, sensitive segments,
+                          assertions, and direct actions could be overridden by topical prose.
+                        </li>
+                        <li>
+                          Known protocol numbers needed affirmative explanatory grammar rather than
+                          automatic exemption.
+                        </li>
+                        <li>
+                          Imperative propagation and bilingual adjacent references missed dashes,
+                          politeness, prepositions, and separated phrasal verbs.
+                        </li>
+                        <li>
+                          Markdown scanning needed linear bounds; streaming needed throttling before
+                          repeated full-buffer sanitation.
+                        </li>
+                        <li>
+                          Cross-product tests were missing for targets, Markdown, URL continuations,
+                          multilingual roles, unseen compounds, ports, and high-delta streaming.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">7</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 13</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Markdown network-path destinations and mixed/repeated slash authorities
+                          could masquerade as harmless relative references.
+                        </li>
+                        <li>
+                          Private evidence and nested links inside Markdown labels were not
+                          independently classified.
+                        </li>
+                        <li>
+                          IPv6 structural brackets could be corrupted while recursively removing
+                          host/port/path formatting.
+                        </li>
+                        <li>
+                          Terminal/asserted paths needed a private default unless affirmative
+                          semantic grammar proved otherwise.
+                        </li>
+                        <li>
+                          Preceding-imperative propagation did not reuse complete English/Slovak,
+                          strong-action, HTTP-method, modal, polite, and preposition families.
+                        </li>
+                        <li>
+                          Colon/slash protocol versions needed case-insensitive multilingual
+                          explanatory/question/comparison grammar.
+                        </li>
+                        <li>
+                          Link-bearing labels, nested links, autolinks, or images could survive
+                          inside an allowlisted outer link.
+                        </li>
+                        <li>
+                          Plain URL presentation closers and escape parity could reopen continuation
+                          or linearity problems.
+                        </li>
+                        <li>
+                          Tests did not cover throttle resumption/boundaries and the real per-user
+                          Discord link gate deeply enough.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">9</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 14</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Relative Markdown prefixes were stripped before private
+                          address/host-port/path evidence was checked.
+                        </li>
+                        <li>
+                          Deep nested Markdown labels could fail open; protocol labels also needed
+                          outer-clause explanatory context.
+                        </li>
+                        <li>
+                          IPv6 wrapped inside structural brackets, wrapped ports, mixed
+                          presentation, and Markdown destinations could bypass canonicalization.
+                        </li>
+                        <li>
+                          Neutral/asserted paths needed a private default and broader
+                          environment/sensitive endpoint evidence.
+                        </li>
+                        <li>
+                          Preceding-imperative and adjacent-referent action families remained
+                          divergent/incomplete.
+                        </li>
+                        <li>
+                          Even backslash runs could hide active unsafe Markdown destinations;
+                          Unicode-dot authorities needed normalization.
+                        </li>
+                        <li>
+                          Balanced presentation around trusted raw URLs needed real delimiter-run
+                          and boundary rules while preserving underscore paths.
+                        </li>
+                        <li>
+                          Overlong research input needed rejection before structural parsing, plus
+                          broad depth/IPv6/role/delimiter regressions.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">8</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Round 15</td>
+                    <td>
+                      <ol>
+                        <li>
+                          Private evidence below the first relative Markdown component—including
+                          host-port, IPv6, numeric, and sensitive segments—could still be missed.
+                        </li>
+                        <li>
+                          Nested/mixed presentation around IPv6 hosts and ports needed structural
+                          <code>[host]:port/path</code> normalization and public-IPv6 path policy.
+                        </li>
+                        <li>
+                          Protocol roles were not fully affirmative, candidate-local,
+                          coordinator-aware, or invalidated by referring follow-ups.
+                        </li>
+                        <li>
+                          Safe compounds could override terminal/direct/referring target roles;
+                          unseen semantic compounds also needed positive support.
+                        </li>
+                        <li>
+                          CommonMark destination escape parity and unescaping remained incomplete.
+                        </li>
+                        <li>
+                          Guessed emphasis state could authorize raw trusted-prefix continuations;
+                          approved plain URLs needed bounded Markdown destinations.
+                        </li>
+                        <li>
+                          Relative-depth, IPv6-wrapper, action-order, compound, parity, delimiter,
+                          and final/streaming invariant tests were missing.
+                        </li>
+                      </ol>
+                    </td>
+                    <td class="count">7</td>
+                    <td class="status-cell"><span class="status fixed">Fixed</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="round-16">
+          <div class="section-head">
+            <div>
+              <div class="sec-kicker">Round 16</div>
+              <h2>Known unresolved findings</h2>
+            </div>
+            <div class="section-note">
+              The remediation-plan section was removed at your request; the findings remain factual.
+            </div>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>Consolidated finding and representative evidence</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="round">Rendering</td>
+                    <td>
+                      Post-sanitization truncation or Discord chunking can split an approved
+                      citation or code span. A later message can expose an unsafe URL without its
+                      opening code delimiter, while a partial citation can become a different
+                      clickable prefix.
+                    </td>
+                    <td class="count">High</td>
+                    <td class="status-cell"><span class="status unresolved">Unresolved</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Relative targets</td>
+                    <td>
+                      Relative Markdown inspection decodes only once/all-at-once and tokenizes too
+                      narrowly. Nested encodings, malformed-escape poisoning, semicolon parameters,
+                      and sensitive filenames such as <code>admin.html</code> or
+                      <code>secrets.json</code> can reach public research.
+                    </td>
+                    <td class="count">High</td>
+                    <td class="status-cell"><span class="status unresolved">Unresolved</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">IPv6 paths</td>
+                    <td>
+                      Public IPv6 sensitive-path checks remain case- and encoding-sensitive;
+                      uppercase or percent-encoded <code>admin</code>-style segments can bypass the
+                      research privacy gate.
+                    </td>
+                    <td class="count">Medium</td>
+                    <td class="status-cell"><span class="status unresolved">Unresolved</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Intent roles</td>
+                    <td>
+                      Protocol/compound authorization still relies on finite action, coordinator,
+                      referent, and filler lists. Unknown direct verbs, omitted English/Slovak
+                      coordinators/follow-ups, and arbitrary follower words can cause both privacy
+                      bypasses and legitimate-search false rejections.
+                    </td>
+                    <td class="count">High</td>
+                    <td class="status-cell"><span class="status unresolved">Unresolved</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Markdown scan</td>
+                    <td>
+                      Angle-form destinations select the first <code>&gt;</code> without escape
+                      parity, and the Markdown-link scanner stops after 100 links. Escaped unsafe
+                      destinations or a 101st active link can therefore remain clickable.
+                    </td>
+                    <td class="count">Medium</td>
+                    <td class="status-cell"><span class="status unresolved">Unresolved</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">URL punctuation</td>
+                    <td>
+                      Exact source rendering can mishandle URL-internal underscores or unbalanced
+                      parentheses. Approved URLs should be emitted in escaped or angle-bracket
+                      destination form and revalidated per Discord chunk.
+                    </td>
+                    <td class="count">Low</td>
+                    <td class="status-cell"><span class="status unresolved">Unresolved</span></td>
+                  </tr>
+                  <tr>
+                    <td class="round">Rejected logs</td>
+                    <td>
+                      Some early rejected turns bypass the canonical privacy-safe wide event,
+                      reducing operational visibility for rate limits, invalid conversations, and
+                      other rejected outcomes.
+                    </td>
+                    <td class="count">Low</td>
+                    <td class="status-cell"><span class="status unresolved">Unresolved</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p class="footnote">
+            External gates were never repository defects: the paid capped-key OpenRouter matrix,
+            real Atlas transaction/TLS/least-privilege validation, Railway single-replica behavior,
+            ZDR/provider compatibility, and the provider-side $10 key cap still require deployment
+            credentials and live infrastructure.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      (() => {
+        const links = [...document.querySelectorAll('#toc a')];
+        const sections = links
+          .map((link) => ({ link, section: document.querySelector(link.getAttribute('href')) }))
+          .filter(({ section }) => section);
+        const observer = new IntersectionObserver(
+          (entries) => {
+            const visible = entries.find((entry) => entry.isIntersecting);
+            if (!visible) return;
+            links.forEach((link) => link.classList.remove('active'));
+            const match = sections.find(({ section }) => section === visible.target);
+            match?.link.classList.add('active');
+          },
+          { rootMargin: '-12% 0px -78% 0px' },
+        );
+        sections.forEach(({ section }) => observer.observe(section));
+      })();
+    </script>
+  </body>
+</html>
