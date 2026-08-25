@@ -7,6 +7,7 @@ export type ModelDefinition = {
   id: ModelId;
   label: string;
   openRouterId: string;
+  supportsZdr: boolean;
   defaultReasoning: ReasoningEffort;
   reasoningEfforts: readonly ReasoningEffort[];
   maxPromptPricePerMillion: number;
@@ -18,6 +19,7 @@ export const modelCatalog = {
     id: 'luna',
     label: 'GPT-5.6 Luna',
     openRouterId: 'openai/gpt-5.6-luna',
+    supportsZdr: false,
     defaultReasoning: 'medium',
     reasoningEfforts,
     maxPromptPricePerMillion: 0.5,
@@ -27,6 +29,7 @@ export const modelCatalog = {
     id: 'deepseek-v4-flash',
     label: 'DeepSeek V4 Flash',
     openRouterId: 'deepseek/deepseek-v4-flash-0731',
+    supportsZdr: true,
     defaultReasoning: 'high',
     reasoningEfforts: ['low', 'high', 'max'],
     maxPromptPricePerMillion: 0.25,
@@ -44,20 +47,35 @@ const maxTokensByEffort: Record<ReasoningEffort, number> = {
 };
 
 export const defaultGuildSettings = {
-  model: 'luna',
-  reasoning: 'medium',
-  contextMessages: 0,
+  model: 'deepseek-v4-flash',
+  reasoning: 'high',
+  contextLimitMessages: 0,
 } as const satisfies Omit<GuildSettings, 'guildId' | 'updatedAt'>;
 
 export type GuildSettings = {
   guildId: string;
   model: ModelId;
   reasoning: ReasoningEffort;
-  contextMessages: number;
+  contextLimitMessages: number;
   updatedAt: Date;
 };
 
 export const getModel = (id: ModelId) => modelCatalog[id];
+
+export const modelProfiles = () =>
+  Object.values(modelCatalog).flatMap((model) =>
+    model.reasoningEfforts.map((reasoning) => ({
+      id: `${model.id}:${reasoning}`,
+      label: `${model.label} · ${reasoning}${reasoning === model.defaultReasoning ? ' (default)' : ''}${model.supportsZdr ? '' : ' · [no ZDR]'}`,
+      model: model.id,
+      reasoning,
+    })),
+  );
+
+export const findModelProfile = (id: string) =>
+  modelProfiles().find((profile) => profile.id === id);
+
+export const modelSupportsZdr = (model: ModelId) => getModel(model).supportsZdr;
 
 export const isModelId = (value: string): value is ModelId => value in modelCatalog;
 

@@ -36,10 +36,8 @@ const main = async () => {
   });
 
   await store.initialize();
-
   const modelRunner = createOpenRouter({
     apiKey: config.OPENROUTER_API_KEY,
-    enforceZdr: config.ENFORCE_ZDR,
     logger,
     ...(config.OPENROUTER_APP_URL ? { appUrl: config.OPENROUTER_APP_URL } : {}),
   });
@@ -51,11 +49,11 @@ const main = async () => {
     maximumPromptCharacters: config.MAX_PROMPT_CHARACTERS,
     maximumConcurrentTurns: config.MAX_CONCURRENT_TURNS,
     transcriptTtlMs: config.transcriptTtlMs,
+    timeZone: config.JOLANDA_TIME_ZONE,
     protectIdentifier,
   });
   const discord = createDiscordBot({
     token: config.DISCORD_TOKEN,
-    guildId: config.DISCORD_GUILD_ID,
     maximumContextMessages: config.MAX_CONTEXT_MESSAGES,
     promptsPerMinute: config.PROMPTS_PER_MINUTE,
     transcriptTtlDays: config.TRANSCRIPT_TTL_DAYS,

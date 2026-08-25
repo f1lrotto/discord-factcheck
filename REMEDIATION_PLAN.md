@@ -13,8 +13,10 @@ findings.
   minimum reservation from the largest allowed prompt, completion, and web-research request.
 - Derive every reservation from the selected model/reasoning pair and fail configuration when the
   configured daily or monthly limit cannot fund even one maximum-cost turn.
-- Send provider `max_price` ceilings, `max_tokens`, `max_uses`, `max_total_results`, and
-  top-level `max_tool_calls` on every applicable OpenRouter request.
+- Send provider `max_price` ceilings on final inference and send `max_tokens`, `max_results`,
+  `max_total_results`, and top-level `max_tool_calls` on every applicable OpenRouter request.
+  OpenRouter currently returns 500 when `max_price` and a server tool are combined, so research is
+  instead bounded by the pinned model, reservation envelope, search caps, and production-key cap.
 - Reduce Discord-oriented completion ceilings and allow at most one bounded search per turn.
 - Add a process-wide concurrency gate so one guild cannot start an unbounded number of in-flight
   generations.
@@ -124,7 +126,149 @@ Acceptance criteria:
   part of the default check.
 - Run `pnpm format`, `pnpm check`, `pnpm build`, `pnpm audit --prod`, Docker build, and secret scans.
 
-## 7. Independent review loop
+## 7. Make model effort proportional and provider failures diagnosable
+
+Before this work, the public-research check answered only whether a normalized question was safe to
+send to a web-enabled model. It did not decide whether research was useful. As a result, every
+non-sensitive question—including a greeting—could make a research request followed by a separate
+answer request. Both stages used the selected reasoning level, the research stage could generate up
+to 2,048 tokens, and the combined turn could occupy the three-minute OpenRouter deadline. The wide
+event logged only total turn duration, so a two-minute turn could not be attributed to routing,
+provider queueing, research, first-token latency, generation, or Discord delivery after the fact.
+
+Long duration is not itself a defect. A concise answer may legitimately require substantial
+research, comparison, or verification. The defect is unearned work: selecting research, deep
+reasoning, large output ceilings, or long wait budgets when the request does not justify them. Judge
+proportionality from the selected work plan and the work actually performed, not from response
+length alone.
+
+The failure path also discards useful diagnostics. A non-2xx OpenRouter body is cancelled without
+being decoded, streamed failures retain only a narrow error code, the Discord response is generic,
+and the log serializer deliberately removes unrecognized detail. Preserve that privacy boundary,
+but replace the information loss with a bounded, typed, and explicitly sanitized diagnostic path.
+
+### Phase 1: establish stage-level observability
+
+- Record one monotonic timeline for admission, context collection, research, final answering, first
+  response headers, first SSE event, first visible token, final Discord synchronization, and total
+  completion. Include the active stage, stage duration, time since last provider activity, and
+  terminal reason on failures.
+- Keep the two-second heartbeat as a liveness signal. Derive its stage and provider-activity counter
+  from real events, and never display “checking public sources” until a research request has actually
+  been selected and started. Keep it active after the first answer delta and through final settlement
+  so a throttled first edit or post-provider persistence cannot freeze the visible elapsed time.
+- Add only bounded, non-content telemetry to the pseudonymous `jolanda_turn` wide event. Do not log
+  prompts, research notes, model output, Discord content, authorization data, or raw provider error
+  payloads.
+- Record the selected route/reason, research mode, model/search calls, output-character count, and
+  finish reason. Add a finite source-basis category and structured-citation count to both the final
+  UI and wide event. These fields must make unnecessary work distinguishable from a short answer
+  that genuinely required deep research.
+- Treat OpenRouter citation URL, title, and character ranges as the only inline-link authority.
+  Bound and normalize those fields, discard provider excerpts, ignore invalid ranges, and preserve
+  only the plain labels of unmatched model-authored Markdown links.
+- Emit separate research and answer generation identifiers when OpenRouter supplies them so an
+  operator can correlate a failed turn with OpenRouter's Activity view or generation API.
+
+### Phase 2: separate research eligibility from research necessity
+
+- Retain the existing private-target and secret checks as `research eligibility`; introduce only the
+  deterministic routes needed for privacy and zero-work social turns. Do not add a broad semantic
+  classifier-model request to the hot path.
+- Handle exact low-risk social turns such as greetings and thanks locally. Give a standalone
+  public-safe question one answer generation with an automatic, bounded web-search tool and a concise
+  search policy; the model decides whether to search and answers in the same generation.
+- Run contextual questions without tools by default. When a contextual question explicitly requests
+  fresh research or sources, preserve the isolated public-research stage followed by the final
+  no-tool contextual answer.
+- Make the decision observable through the implemented finite reason codes `greeting`, `thanks`,
+  `public_standalone`, `private_context`, `contextual_research_requested`, and
+  `research_ineligible`; never log the question itself.
+- Use the system prompt to describe the search criteria and representative non-search cases, rather
+  than attempting to enumerate every possible prompt. Bound tool use deterministically even though
+  the model chooses whether to invoke it.
+- Preserve the privacy architecture: public research receives only the minimized latest question,
+  while the final no-tool request may receive private conversation context and sanitized research
+  notes.
+
+### Phase 3: keep long work bounded and observable
+
+- Keep the centralized inference deadline as an upper safety bound for a stalled or runaway request,
+  not as a product target that every answer should approach.
+- Use one generation for the common automatic-tool route. Only an explicitly contextual research
+  route may use the two-stage flow under the shared overall deadline.
+- Run the research extraction step with low reasoning, a materially smaller completion ceiling, one
+  bounded search call, and no application retry. The configured reasoning level remains available
+  to the final answer where it adds value.
+- Do not impose a universal 15-second research or 45-second turn cutoff merely to make the latency
+  number look better. Explicit research and complex fact-checking may take longer as long as real
+  activity is visible and the selected work remains bounded.
+- Cancel a timed-out stage, retain its admission and spending reservation until the underlying call
+  settles, and classify whether the timeout occurred before headers, before the first SSE event, or
+  during generation.
+- Keep the provider-quiet warning distinct from a timeout. A live request may be quiet while the
+  model reasons; the safety deadline, not an incrementing counter, determines when it is aborted.
+- Review measured p50, p95, and p99 latency by route, model, reasoning level, research decision, and
+  outcome after rollout. Include model/search call counts and output-size buckets so disproportionate
+  work is visible without assuming that every short answer should have been cheap. Slow
+  provider/model combinations must not be averaged into a single total-duration metric.
+
+### Phase 4: retain safe OpenRouter failure metadata
+
+- Opt requests into OpenRouter router metadata and capture the `X-Generation-Id` response header as
+  soon as headers arrive. Decode metadata permissively because new optional fields may be added.
+- Replace generic `Error` construction with a typed `ModelFailure` containing only bounded
+  fields: stage, failure category, HTTP status, safe API code, generation ID, routing strategy,
+  attempt count, provider name, timeout point, and elapsed/quiet durations.
+- Read non-2xx JSON through a strict byte limit and schema. Parse streamed error envelopes through
+  the same normalizer. Never persist or render `error.message`, `metadata.raw`, provider response
+  bodies, prompt fragments, or arbitrary router/pipeline data; unknown fields are discarded.
+- Normalize failures into a small stable taxonomy: timeout, rate limited, authentication, payment
+  required, request rejected, provider unavailable, provider failure, malformed response, network
+  failure, caller cancellation, and unknown. Metadata is optional: edge errors and masked internal
+  errors may not supply routing details.
+- Generate a short pseudonymous failure reference. Discord receives the stage, safe category, and
+  reference—for example, “Public research timed out (reference ABC123)”—while Railway receives the
+  matching structured diagnostic. Raw upstream text must never be shown in a public channel.
+- Log enough information to query OpenRouter's generation record out of band when a generation ID
+  exists. Do not add a generation-lookup API call to the user-facing failure path.
+
+### Phase 5: verify and roll out
+
+- Add routing tests proving greetings never call OpenRouter, standalone public questions use one
+  automatic-tool generation, private contextual questions have no tool, and explicit contextual
+  research remains isolated. Include English and Slovak examples and explicit city-question cases.
+- Add fake-clock tests for every stage boundary, research fallback, required-research failure,
+  overall cancellation, quiet-provider status, reservation settlement, and shutdown drain behavior.
+- Add non-2xx and SSE contract tests for each safe failure category, missing/malformed metadata,
+  oversized bodies, unknown additive fields, and absent generation IDs. Seed payloads with fake
+  secrets and prompt text and prove neither Discord nor captured logs contains them.
+- Add an opt-in capped-key live probe that records routing metadata and generation correlation
+  without depending on a particular provider failure. Keep it outside the default test suite.
+- Roll out observability first, establish a baseline, then enable the new routing and diagnostics.
+  Compare equivalent production windows for unnecessary-research rate, work plan,
+  model/search call counts, first-token latency, completion latency, timeouts, safe fallback rate,
+  and failure categories.
+
+Acceptance criteria:
+
+- A greeting performs no OpenRouter or web-search request and does not display a research status.
+- A simple standalone answer performs exactly one generation. The model may decline the available
+  web tool; it never pays for a separate `NO_RESEARCH` classifier generation.
+- An automatic-tool turn performs one generation and at most one search. An isolated contextual
+  research turn performs at most one bounded research request and one final generation.
+- A long turn is acceptable when the selected plan and telemetry demonstrate justified deep or
+  research work and the heartbeat continues to show liveness. Every provider timeout identifies its
+  stage and timeout point.
+- Every failed turn shown in Discord has a safe reason and failure reference that resolves to one
+  sanitized Railway event. When available, that event includes the relevant OpenRouter generation
+  ID and bounded routing metadata.
+- Provider-controlled strings, prompts, research notes, assistant output, credentials, and raw
+  metadata remain absent from public errors and logs.
+- Automated tests, formatting, type checks, linting, coverage, and the capped live compatibility
+  probe pass before the routing and diagnostics are enabled in production.
+
+## 8. Independent review loop
 
 After implementation and verification:
 
@@ -560,3 +704,11 @@ rendering requirements:
 ## Completion evidence
 
 To be filled after the final clean review.
+
+# Historical note
+
+The research-routing and privacy-isolation sections below describe the architecture that was
+implemented during the original remediation. They were superseded on 2026-08-25 by Jolanda's simpler
+single-generation assistant path: every non-local model turn now receives the complete bounded,
+read-only toolbox and the model decides which tools to use. The document remains as historical
+implementation context; `README.md` and `SECURITY.md` describe the active design.

@@ -5,19 +5,13 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import type { Logger } from 'pino';
-import {
-  getModel,
-  isModelId,
-  isReasoningEffort,
-  modelCatalog,
-  modelSupportsReasoning,
-  reasoningEfforts,
-  UnsupportedReasoningError,
-} from './models.js';
+import { findModelProfile, getModel, modelProfiles } from './models.js';
+import { formatUsd } from './money.js';
 import { ephemeral, safeMentions } from './discord-response.js';
 import type { JolandaStore } from './types.js';
 
-const formatUsd = (microdollars: number) => `$${(microdollars / 1_000_000).toFixed(4)}`;
+const effectiveContextLimit = (configured: number, maximum: number) =>
+  Math.max(0, Math.min(configured, maximum));
 
 export const createCommand = (maximumContextMessages: number) =>
   new SlashCommandBuilder()
@@ -30,40 +24,28 @@ export const createCommand = (maximumContextMessages: number) =>
     .addSubcommand((command) =>
       command
         .setName('model')
-        .setDescription('Set the model used by subsequent interactions')
+        .setDescription('Set a valid model and reasoning profile')
         .addStringOption((option) =>
           option
-            .setName('name')
-            .setDescription('Model')
+            .setName('profile')
+            .setDescription('Model and reasoning effort')
             .setRequired(true)
             .addChoices(
-              ...Object.values(modelCatalog).map((model) => ({
-                name: model.label,
-                value: model.id,
+              ...modelProfiles().map((profile) => ({
+                name: profile.label,
+                value: profile.id,
               })),
             ),
         ),
     )
     .addSubcommand((command) =>
       command
-        .setName('reasoning')
-        .setDescription('Set reasoning effort for subsequent interactions')
-        .addStringOption((option) =>
-          option
-            .setName('effort')
-            .setDescription('Reasoning effort')
-            .setRequired(true)
-            .addChoices(...reasoningEfforts.map((effort) => ({ name: effort, value: effort }))),
-        ),
-    )
-    .addSubcommand((command) =>
-      command
-        .setName('context')
-        .setDescription('Set how many preceding channel messages Jolanda may read')
+        .setName('context-limit')
+        .setDescription('Set the maximum context members may request per interaction')
         .addIntegerOption((option) =>
           option
             .setName('messages')
-            .setDescription(`0 disables ambient context; maximum ${maximumContextMessages}`)
+            .setDescription(`0 disables opt-in context; maximum ${maximumContextMessages}`)
             .setRequired(true)
             .setMinValue(0)
             .setMaxValue(maximumContextMessages),
@@ -71,41 +53,54 @@ export const createCommand = (maximumContextMessages: number) =>
     );
 
 export const createCommandHandler = (input: {
-  guildId: string;
   transcriptTtlDays: number;
+  maximumContextMessages: number;
   store: JolandaStore;
   logger: Logger;
   protectIdentifier: (identifier: string) => string;
 }) => {
   const logChange = (
     interaction: ChatInputCommandInteraction,
+    guildId: string,
     setting: string,
     values: Record<string, unknown>,
   ) =>
     input.logger.info({
       event: 'settings_changed',
       setting,
-      guildKey: input.protectIdentifier(input.guildId),
+      guildKey: input.protectIdentifier(guildId),
       userKey: input.protectIdentifier(interaction.user.id),
       ...values,
     });
 
   return async (interaction: ChatInputCommandInteraction) => {
-    if (interaction.commandName !== 'jolanda' || interaction.guildId !== input.guildId) return;
+    if (interaction.commandName !== 'jolanda' || !interaction.guildId) return;
+    const guildId = interaction.guildId;
     const subcommand = interaction.options.getSubcommand();
     const defer = () => interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const edit = (content: string) =>
       interaction.editReply({ content, allowedMentions: safeMentions });
     if (subcommand === 'privacy') {
       await defer();
-      const settings = await input.store.getSettings(input.guildId);
+      const settings = await input.store.getSettings(guildId);
+      const model = getModel(settings.model);
+      const contextLimit = effectiveContextLimit(
+        settings.contextLimitMessages,
+        input.maximumContextMessages,
+      );
       await edit(
         [
           '**Jolanda privacy**',
           'Your question, explicit replies, and conversation turns are processed by OpenRouter and a selected model provider.',
-          `Ambient channel context is currently **${settings.contextMessages ? `enabled for ${settings.contextMessages} messages` : 'disabled'}**.`,
-          `Conversation text is stored in plaintext so replies can continue; Discord identifiers are pseudonymized. Both expire after **${input.transcriptTtlDays} days**, though Atlas TTL deletion may occur shortly after expiry.`,
-          'Web research is isolated and receives only a minimized latest question—never replied messages, ambient context, or conversation history.',
+          model.supportsZdr
+            ? `Zero Data Retention is **enforced** for ${model.label}.`
+            : `Zero Data Retention is **not available** for ${model.label}; its provider may retain prompts under its policy.`,
+          'Ambient channel context defaults to **disabled for every interaction**.',
+          contextLimit
+            ? `Start a prompt with **+context** or **+context=N** to request up to **${contextLimit} preceding human messages** from the same channel.`
+            : 'Per-interaction ambient context is currently **disabled by server policy**.',
+          `Conversation text, including any explicitly requested context, is stored in plaintext so replies can continue; Discord identifiers are pseudonymized. Both expire after **${input.transcriptTtlDays} days**, though Atlas TTL deletion may occur shortly after expiry.`,
+          'Every model turn has direct read-only web tools. Your question, replies, conversation history, and requested context can influence a public search query when the model decides research is useful.',
           'Reply conversations are owner-bound. Do not send passwords, tokens, payment details, or other secrets.',
         ].join('\n'),
       );
@@ -121,14 +116,17 @@ export const createCommandHandler = (input: {
 
     if (subcommand === 'settings') {
       const [settings, budget] = await Promise.all([
-        input.store.getSettings(input.guildId),
-        input.store.getBudgetSummary(input.guildId, new Date()),
+        input.store.getSettings(guildId),
+        input.store.getBudgetSummary(guildId, new Date()),
       ]);
+      const model = getModel(settings.model);
       await edit(
         [
-          `Model: **${getModel(settings.model).label}**`,
+          `Model: **${model.label}**`,
           `Reasoning: **${settings.reasoning}**`,
-          `Ambient context: **${settings.contextMessages} messages**`,
+          `Zero Data Retention: **${model.supportsZdr ? 'enforced' : 'unavailable'}**`,
+          'Ambient context default: **0 messages**',
+          `Per-interaction context limit: **${effectiveContextLimit(settings.contextLimitMessages, input.maximumContextMessages)} messages**`,
           `Daily committed spend: **${formatUsd(budget.dailyUsedMicrodollars + budget.dailyReservedMicrodollars)}**`,
           `Monthly committed spend: **${formatUsd(budget.monthlyUsedMicrodollars + budget.monthlyReservedMicrodollars)}**`,
         ].join('\n'),
@@ -137,52 +135,37 @@ export const createCommandHandler = (input: {
     }
 
     if (subcommand === 'model') {
-      const selected = interaction.options.getString('name', true);
-      if (!isModelId(selected)) throw new Error('Discord returned an unknown model option');
-      const model = getModel(selected);
-      const settings = await input.store.updateSettings(input.guildId, {
-        model: selected,
-        reasoning: model.defaultReasoning,
+      const selected = interaction.options.getString('profile', true);
+      const profile = findModelProfile(selected);
+      if (!profile) throw new Error('Discord returned an unknown model profile');
+      const model = getModel(profile.model);
+      const settings = await input.store.updateSettings(guildId, {
+        model: profile.model,
+        reasoning: profile.reasoning,
       });
-      logChange(interaction, 'model', { model: settings.model, reasoning: settings.reasoning });
+      logChange(interaction, guildId, 'model', {
+        model: settings.model,
+        reasoning: settings.reasoning,
+      });
       await edit(
-        `Model set to **${model.label}**. Reasoning was reset to **${model.defaultReasoning}**.`,
+        model.supportsZdr
+          ? `Model set to **${model.label}** with **${profile.reasoning}** reasoning. Zero Data Retention will be enforced.`
+          : `Model set to **${model.label}** with **${profile.reasoning}** reasoning. ⚠️ Zero Data Retention is not available for this model.`,
       );
       return;
     }
 
-    if (subcommand === 'reasoning') {
-      const selected = interaction.options.getString('effort', true);
-      if (!isReasoningEffort(selected))
-        throw new Error('Discord returned an unknown reasoning option');
-      const current = await input.store.getSettings(input.guildId);
-      if (!modelSupportsReasoning(current.model, selected)) {
-        const supported = getModel(current.model).reasoningEfforts.join(', ');
-        await edit(`${getModel(current.model).label} supports: **${supported}**.`);
-        return;
-      }
-      try {
-        const settings = await input.store.updateSettings(input.guildId, { reasoning: selected });
-        logChange(interaction, 'reasoning', {
-          model: settings.model,
-          reasoning: settings.reasoning,
-        });
-        await edit(`Reasoning set to **${selected}**.`);
-      } catch (error) {
-        if (!(error instanceof UnsupportedReasoningError)) throw error;
-        const supported = getModel(error.model).reasoningEfforts.join(', ');
-        await edit(`${getModel(error.model).label} now supports: **${supported}**.`);
-      }
-      return;
-    }
-
     const messages = interaction.options.getInteger('messages', true);
-    const settings = await input.store.updateSettings(input.guildId, { contextMessages: messages });
-    logChange(interaction, 'context', { contextMessages: settings.contextMessages });
+    const settings = await input.store.updateSettings(guildId, {
+      contextLimitMessages: messages,
+    });
+    logChange(interaction, guildId, 'context_limit', {
+      contextLimitMessages: settings.contextLimitMessages,
+    });
     await edit(
       messages === 0
-        ? 'Ambient channel context is disabled. Explicitly replied-to messages are still included.'
-        : `Ambient channel context set to **${messages} messages**.`,
+        ? 'Per-interaction ambient context is disabled. Explicitly replied-to messages are still included.'
+        : `Members may now request up to **${messages} preceding human messages** with +context.`,
     );
   };
 };

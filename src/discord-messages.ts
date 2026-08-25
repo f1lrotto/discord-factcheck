@@ -7,7 +7,7 @@ import {
   messageLinkLookupsPerMinute,
 } from './limits.js';
 import { createResponseSink, safeMentions, safeMessageFlags } from './discord-response.js';
-import { minimizeDiscordContent, stripJolandaMention } from './discord-text.js';
+import { minimizeDiscordContent, parseJolandaPrompt, stripJolandaMention } from './discord-text.js';
 import { safeError } from './security.js';
 import type { JolandaStore, TurnOutcome } from './types.js';
 
@@ -20,6 +20,8 @@ const rejectionMessages = (promptsPerMinute: number) =>
       'This conversation reached its limit of 10 Jolanda replies. Tag me to start a new one.',
     conversation_owner:
       'Only the person who started that conversation can continue it. Tag me in a new message to start your own.',
+    context_limit:
+      'That context request exceeds this server’s per-interaction limit. Use a smaller +context value or ask an administrator to change /jolanda context-limit.',
     server_busy: 'Jolanda is at her concurrency limit. Please try again after an answer finishes.',
     shutting_down: 'Jolanda is restarting. Please try again in a moment.',
     duplicate: '',
@@ -59,7 +61,6 @@ const withDeadline = <Value>(
 
 export const createMessageHandler = (input: {
   client: Client;
-  guildId: string;
   promptsPerMinute: number;
   jolanda: Jolanda;
   store: JolandaStore;
@@ -75,7 +76,7 @@ export const createMessageHandler = (input: {
     message: Message,
     trackOperation: (task: Promise<unknown>) => void = () => undefined,
   ) => {
-    if (!message.inGuild() || message.guildId !== input.guildId || message.author.bot) return;
+    if (!message.inGuild() || message.author.bot) return;
     const botUser = input.client.user;
     if (!botUser) return;
 
@@ -110,6 +111,20 @@ export const createMessageHandler = (input: {
     if (!explicitlyMentioned && !referencesJolanda) return;
     if (!promptGate.tryAcquire(userKey)) return;
 
+    const parsedPrompt = parseJolandaPrompt(stripJolandaMention(message.content, botUser.id));
+    if (!parsedPrompt.ok) {
+      await withDeadline(
+        message.reply({
+          content: 'Use `+context` or `+context=N` at the beginning of your question.',
+          allowedMentions: safeMentions,
+          flags: safeMessageFlags,
+        }),
+        operationTimeoutMs,
+        trackOperation,
+      );
+      return;
+    }
+
     let referencedMessage: Message<true> | undefined;
     if (replyMessageId) {
       try {
@@ -130,7 +145,7 @@ export const createMessageHandler = (input: {
 
     referencesJolanda ||= referencedMessage?.author.id === botUser.id;
     if (!explicitlyMentioned && !referencesJolanda) return;
-    const question = minimizeDiscordContent(stripJolandaMention(message.content, botUser.id));
+    const question = minimizeDiscordContent(parsedPrompt.question);
     const outcome = await input.jolanda.handleTurn(
       {
         id: message.id,
@@ -138,6 +153,7 @@ export const createMessageHandler = (input: {
         channelId: message.channelId,
         userId: message.author.id,
         question,
+        ...(parsedPrompt.ambientContext ? { ambientContext: parsedPrompt.ambientContext } : {}),
         ...(replyMessageId
           ? {
               referencedMessage: {

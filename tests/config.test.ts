@@ -3,22 +3,27 @@ import { loadConfig } from '../src/config.js';
 
 const requiredEnvironment = {
   DATA_PROTECTION_SECRET: 'a'.repeat(32),
-  DISCORD_GUILD_ID: 'guild',
   DISCORD_TOKEN: 'discord-token',
   MONGODB_URI: 'mongodb://localhost:27017',
   OPENROUTER_API_KEY: 'openrouter-key',
 };
 
 describe('environment configuration', () => {
-  it('defaults to privacy-preserving ZDR and accepts an empty optional app URL', () => {
+  it('accepts an empty optional app URL without a global ZDR flag', () => {
     const config = loadConfig({ ...requiredEnvironment, OPENROUTER_APP_URL: '' });
 
-    expect(config.ENFORCE_ZDR).toBe(true);
     expect(config.OPENROUTER_APP_URL).toBeUndefined();
+    expect(config).not.toHaveProperty('ENFORCE_ZDR');
+    expect(config.JOLANDA_TIME_ZONE).toBe('Europe/Bratislava');
   });
 
-  it('fails closed on an invalid ZDR value', () => {
-    expect(() => loadConfig({ ...requiredEnvironment, ENFORCE_ZDR: 'yes' })).toThrow('ENFORCE_ZDR');
+  it('accepts a supported default time zone and rejects invalid values', () => {
+    expect(loadConfig({ ...requiredEnvironment, JOLANDA_TIME_ZONE: 'UTC' }).JOLANDA_TIME_ZONE).toBe(
+      'UTC',
+    );
+    expect(() =>
+      loadConfig({ ...requiredEnvironment, JOLANDA_TIME_ZONE: 'Not/A_Time_Zone' }),
+    ).toThrow('Expected a supported IANA time zone');
   });
 
   it('derives a bounded cost envelope below the default daily limit', () => {

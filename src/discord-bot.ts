@@ -1,4 +1,10 @@
-import { Client, Events, GatewayIntentBits, type ChatInputCommandInteraction } from 'discord.js';
+import {
+  Client,
+  Events,
+  GatewayIntentBits,
+  InteractionContextType,
+  type ChatInputCommandInteraction,
+} from 'discord.js';
 import type { Logger } from 'pino';
 import { createCommand, createCommandHandler } from './discord-commands.js';
 import { createMessageHandler } from './discord-messages.js';
@@ -16,7 +22,6 @@ import type { JolandaStore } from './types.js';
 export const createDiscordBot = (input: {
   client?: Client;
   token: string;
-  guildId: string;
   maximumContextMessages: number;
   promptsPerMinute: number;
   transcriptTtlDays: number;
@@ -134,19 +139,21 @@ export const createDiscordBot = (input: {
     if (!accepting) return;
     admit(() =>
       readyClient.application.commands
-        .set([createCommand(input.maximumContextMessages).toJSON()], input.guildId)
+        .set([
+          createCommand(input.maximumContextMessages)
+            .setContexts(InteractionContextType.Guild)
+            .toJSON(),
+        ])
         .then(() => {
           input.logger.info({
             event: 'discord_connected',
             botUserKey: input.protectIdentifier(readyClient.user.id),
-            guildKey: input.protectIdentifier(input.guildId),
           });
         })
         .catch((error: unknown) => {
           input.logger.error({
             event: 'discord_command_registration_failed',
             error: safeError(error),
-            guildKey: input.protectIdentifier(input.guildId),
           });
         }),
     );

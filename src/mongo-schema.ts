@@ -3,7 +3,11 @@ import type { GuildSettings } from './models.js';
 import { mongoOperationOptions } from './mongo-context.js';
 import type { ConversationTurn, Usage } from './types.js';
 
-export type GuildSettingsDocument = Omit<GuildSettings, 'guildId'> & { _id: string };
+export type GuildSettingsDocument = Omit<GuildSettings, 'guildId' | 'contextLimitMessages'> & {
+  _id: string;
+  contextLimitMessages?: number;
+  contextMessages?: number;
+};
 
 export type StoredConversationTurn = ConversationTurn & { requestKey: string };
 

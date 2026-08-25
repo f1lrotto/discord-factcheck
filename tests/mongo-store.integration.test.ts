@@ -236,7 +236,7 @@ describe('Mongo store integration', () => {
         model: 'deepseek-v4-flash',
         reasoning: 'high',
       }),
-      store.updateSettings('raw-guild-id', { contextMessages: 20 }),
+      store.updateSettings('raw-guild-id', { contextLimitMessages: 20 }),
     ]);
     const settings = await store.getSettings('raw-guild-id');
 
@@ -247,12 +247,45 @@ describe('Mongo store integration', () => {
     expect(settings).toMatchObject({
       model: 'deepseek-v4-flash',
       reasoning: 'high',
-      contextMessages: 20,
+      contextLimitMessages: 20,
     });
     expect(modelSupportsReasoning(settings.model, settings.reasoning)).toBe(true);
   });
 
-  it('rejects invalid model/reasoning settings inside the transaction', async () => {
+  it('reads the legacy ambient-context setting as the new per-turn limit and migrates it on update', async () => {
+    const store = await createStore();
+    const client = new MongoClient(uri);
+    await client.connect();
+    const settingsCollection = client.db(databaseName).collection<{
+      _id: string;
+      model: string;
+      reasoning: string;
+      contextMessages?: number;
+      contextLimitMessages?: number;
+      updatedAt: Date;
+    }>('guild_settings');
+    await settingsCollection.insertOne({
+      _id: protectIdentifier('raw-guild-id'),
+      model: 'deepseek-v4-flash',
+      reasoning: 'high',
+      contextMessages: 12,
+      updatedAt: new Date(),
+    });
+
+    await expect(store.getSettings('raw-guild-id')).resolves.toMatchObject({
+      contextLimitMessages: 12,
+    });
+    await store.updateSettings('raw-guild-id', { reasoning: 'low' });
+    const migrated = await settingsCollection.findOne({
+      _id: protectIdentifier('raw-guild-id'),
+    });
+    await client.close();
+
+    expect(migrated).toMatchObject({ contextLimitMessages: 12 });
+    expect(migrated).not.toHaveProperty('contextMessages');
+  });
+
+  it('rejects invalid model, reasoning, and context-limit settings inside the transaction', async () => {
     const store = await createStore();
 
     await expect(
@@ -262,9 +295,12 @@ describe('Mongo store integration', () => {
       }),
     ).rejects.toThrow('does not support');
     await expect(store.getSettings('raw-guild-id')).resolves.toMatchObject({
-      model: 'luna',
-      reasoning: 'medium',
+      model: 'deepseek-v4-flash',
+      reasoning: 'high',
     });
+    await expect(
+      store.updateSettings('raw-guild-id', { contextLimitMessages: -1 }),
+    ).rejects.toThrow('non-negative safe integer');
   });
 
   it('owner-binds conversations, scopes links, and stores only pseudonymous identifiers', async () => {
@@ -300,7 +336,7 @@ describe('Mongo store integration', () => {
     ).resolves.toBeNull();
 
     await authorize(store, 'raw-accounting-request-id', { userId: 'raw-accounting-user-id' });
-    await store.updateSettings('raw-guild-id', { contextMessages: 10 });
+    await store.updateSettings('raw-guild-id', { contextLimitMessages: 10 });
     await store.tryLockConversation('conversation', 'raw-lock-token', new Date());
 
     const client = new MongoClient(uri);

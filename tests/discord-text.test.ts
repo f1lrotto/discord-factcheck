@@ -1,13 +1,72 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clampDiscordMarkdown,
   minimizeDiscordContent,
+  parseJolandaPrompt,
   splitDiscordMessage,
   stripJolandaMention,
 } from '../src/discord-text.js';
 
+describe('clampDiscordMarkdown', () => {
+  it('converts headings to normal-sized bold labels, including quoted headings', () => {
+    expect(
+      clampDiscordMarkdown(
+        '# Main title\n### Details ###\n  # Indented title\n> ## Quoted title\nKeep # inline',
+      ),
+    ).toBe('**Main title**\n**Details**\n  **Indented title**\n> **Quoted title**\nKeep # inline');
+  });
+
+  it('preserves Markdown-looking content inside fenced code blocks', () => {
+    const content = ['```md', '# Code heading', '```', '# Answer heading'].join('\n');
+
+    expect(clampDiscordMarkdown(content)).toBe(
+      ['```md', '# Code heading', '```', '**Answer heading**'].join('\n'),
+    );
+  });
+
+  it('is stable when a heading is already bold', () => {
+    const content = '# **Compact title**';
+
+    expect(clampDiscordMarkdown(clampDiscordMarkdown(content))).toBe('**Compact title**');
+  });
+});
+
 describe('stripJolandaMention', () => {
   it('removes both Discord mention formats', () => {
     expect(stripJolandaMention('<@123> hello <@!123>', '123')).toBe('hello');
+  });
+});
+
+describe('parseJolandaPrompt', () => {
+  it('keeps ordinary questions at zero ambient context', () => {
+    expect(parseJolandaPrompt('Fact-check this')).toEqual({
+      ok: true,
+      question: 'Fact-check this',
+    });
+  });
+
+  it('extracts maximum and numeric per-turn context modifiers', () => {
+    expect(parseJolandaPrompt('+context Fact-check this')).toEqual({
+      ok: true,
+      question: 'Fact-check this',
+      ambientContext: { limit: 'maximum' },
+    });
+    expect(parseJolandaPrompt('+context=12 Fact-check this')).toEqual({
+      ok: true,
+      question: 'Fact-check this',
+      ambientContext: { limit: 12 },
+    });
+  });
+
+  it('rejects malformed or unsafe context values without matching similar words', () => {
+    expect(parseJolandaPrompt('+context=many Fact-check this')).toEqual({ ok: false });
+    expect(parseJolandaPrompt(`+context=${'9'.repeat(100)} Fact-check this`)).toEqual({
+      ok: false,
+    });
+    expect(parseJolandaPrompt('+contextual question')).toEqual({
+      ok: true,
+      question: '+contextual question',
+    });
   });
 });
 

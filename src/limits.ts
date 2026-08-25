@@ -7,28 +7,35 @@ import {
 
 export const conversationReplyLimit = 10;
 export const discordMessageCharacters = 1_900;
+export const maximumReasoningSummaryCharacters = discordMessageCharacters - 300;
 export const maximumDiscordChunks = 6;
 export const maximumResponseCharacters =
   discordMessageCharacters * maximumDiscordChunks - '[…response truncated]'.length - 2;
-export const openRouterTimeoutMs = 3 * 60_000;
+export const openRouterStreamStartTimeoutMs = 10 * 60_000;
 export const discordOperationTimeoutMs = 15_000;
 export const mongoOperationTimeoutMs = 15_000;
 export const discordAdapterDrainTimeoutMs = 30_000;
 export const maximumDiscordAdapterHandlers = 20;
 export const streamUpdateIntervalMs = 1_000;
-export const turnExecutionTimeoutMs = openRouterTimeoutMs + 60_000;
-export const requestLeaseMs = turnExecutionTimeoutMs + 2 * 60_000;
+export const progressHeartbeatIntervalMs = 2_000;
+export const providerQuietThresholdMs = 15_000;
+export const requestLeaseMs = openRouterStreamStartTimeoutMs + 2 * 60_000;
 export const recoveryIntervalMs = 60_000;
-export const researchQuestionCharacters = 500;
-export const researchCompletionTokens = 2_048;
-export const webSearchMaxUses = 1;
 export const webSearchMaxResults = 3;
 export const webSearchResultCharacters = 1_500;
+export const webFetchMaxUses = 2;
+export const webFetchMaxContentTokens = 8_000;
+export const maximumToolCallsPerRequest = 5;
+export const maximumFunctionToolRounds = 2;
+export const maximumFunctionToolCallsPerRound = 4;
+export const maximumToolArgumentCharacters = 4_000;
+export const maximumToolResultCharacters = 2_000;
 export const maximumSourceUrlCharacters = 2_048;
-export const maximumResearchEvidenceCharacters =
-  maximumResponseCharacters * 2 + webSearchMaxResults * maximumSourceUrlCharacters + 1_000;
 export const maximumSseFrameCharacters = 256_000;
 export const maximumSseReadBytes = 512_000;
+export const maximumProviderErrorBytes = 64_000;
+export const maximumCitationAnnotations = 24;
+export const maximumCitationTitleCharacters = 200;
 export const messageLinkLookupsPerMinute = 10;
 
 const maximumTokensPerCharacter = 4;
@@ -45,14 +52,20 @@ export const costEnvelopeDetails = (input: {
   maximumPromptCharacters: number;
 }) => {
   const model = modelCatalog[input.model];
+  const functionLoopCharacters =
+    maximumFunctionToolRounds *
+    (input.maximumPromptCharacters +
+      requestProtocolOverheadCharacters +
+      maximumFunctionToolCallsPerRound *
+        (maximumToolArgumentCharacters + maximumToolResultCharacters));
   const inputCharacters =
     input.maximumPromptCharacters +
-    researchQuestionCharacters +
-    maximumResearchEvidenceCharacters +
     webSearchMaxResults * webSearchResultCharacters +
-    requestProtocolOverheadCharacters;
-  const inputTokens = inputCharacters * maximumTokensPerCharacter;
-  const outputTokens = maxTokensForReasoning(input.reasoning) + researchCompletionTokens;
+    requestProtocolOverheadCharacters +
+    functionLoopCharacters;
+  const inputTokens =
+    inputCharacters * maximumTokensPerCharacter + webFetchMaxUses * webFetchMaxContentTokens;
+  const outputTokens = maxTokensForReasoning(input.reasoning) * (maximumFunctionToolRounds + 1);
 
   const promptMicrodollars = tokenCost(inputTokens, model.maxPromptPricePerMillion);
   const completionMicrodollars = tokenCost(outputTokens, model.maxCompletionPricePerMillion);

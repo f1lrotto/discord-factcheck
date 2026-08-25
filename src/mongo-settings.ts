@@ -13,7 +13,10 @@ const fromDocument = (guildId: string, document: GuildSettingsDocument | null) =
   guildId,
   model: document?.model ?? defaultGuildSettings.model,
   reasoning: document?.reasoning ?? defaultGuildSettings.reasoning,
-  contextMessages: document?.contextMessages ?? defaultGuildSettings.contextMessages,
+  contextLimitMessages:
+    document?.contextLimitMessages ??
+    document?.contextMessages ??
+    defaultGuildSettings.contextLimitMessages,
   updatedAt: document?.updatedAt ?? new Date(0),
 });
 
@@ -34,7 +37,7 @@ export const createMongoSettings = (context: MongoContext) => {
           $setOnInsert: {
             model: defaultGuildSettings.model,
             reasoning: defaultGuildSettings.reasoning,
-            contextMessages: defaultGuildSettings.contextMessages,
+            contextLimitMessages: defaultGuildSettings.contextLimitMessages,
             updatedAt: new Date(0),
           },
         },
@@ -60,11 +63,18 @@ export const createMongoSettings = (context: MongoContext) => {
         const reasoning = patch.reasoning ?? current.reasoning;
         if (!modelSupportsReasoning(model, reasoning))
           throw new UnsupportedReasoningError(model, reasoning);
+        const contextLimitMessages =
+          patch.contextLimitMessages ??
+          current.contextLimitMessages ??
+          current.contextMessages ??
+          defaultGuildSettings.contextLimitMessages;
+        if (!Number.isSafeInteger(contextLimitMessages) || contextLimitMessages < 0)
+          throw new Error('Context limit must be a non-negative safe integer');
         const updated: GuildSettingsDocument = {
           _id: guildKey,
           model,
           reasoning,
-          contextMessages: patch.contextMessages ?? current.contextMessages,
+          contextLimitMessages,
           updatedAt: new Date(),
         };
         await context.collections.guildSettings.replaceOne({ _id: guildKey }, updated, { session });

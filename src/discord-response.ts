@@ -1,9 +1,9 @@
 import { MessageFlags, type InteractionReplyOptions, type Message } from 'discord.js';
 import type { Logger } from 'pino';
-import { splitDiscordMessage } from './discord-text.js';
+import { clampDiscordMarkdown, splitDiscordMessage } from './discord-text.js';
 import { streamUpdateIntervalMs } from './limits.js';
 import { safeError, sanitizeAssistantOutput } from './security.js';
-import type { ResponseSink } from './types.js';
+import type { FailureNotice, ResponseSink } from './types.js';
 
 export const safeMentions = { parse: [] as const, repliedUser: false };
 export const safeMessageFlags = MessageFlags.SuppressEmbeds;
@@ -13,6 +13,25 @@ export const ephemeral = (content: string): InteractionReplyOptions => ({
   flags: MessageFlags.Ephemeral,
   allowedMentions: safeMentions,
 });
+
+const failureMessage = (failure: FailureNotice) => {
+  const stage = 'answer generation';
+  const reason = {
+    timeout: `${stage[0]?.toLocaleUpperCase('en-US')}${stage.slice(1)} timed out.`,
+    rate_limited: `OpenRouter rate-limited the ${stage}.`,
+    authentication: 'OpenRouter rejected the bot credentials.',
+    payment_required: 'OpenRouter rejected the request for billing reasons.',
+    request_rejected: `OpenRouter rejected the ${stage} request.`,
+    provider_unavailable: `No model provider was available for ${stage}.`,
+    provider_failure: `The model provider failed during ${stage}.`,
+    malformed_response: `OpenRouter returned an invalid response during ${stage}.`,
+    network_failure: `The connection to OpenRouter failed during ${stage}.`,
+    cancelled: 'The request was cancelled.',
+    unknown: 'I could not finish that response.',
+  }[failure.category];
+  const reference = failure.reference.replace(/[^A-Za-z0-9_-]/gu, '').slice(0, 12) || 'UNKNOWN';
+  return `⚠️ ${reason} Please try again. Reference: \`${reference}\`.`;
+};
 
 export const createResponseSink = (input: {
   source: Message<true>;
@@ -56,7 +75,9 @@ export const createResponseSink = (input: {
     signal?: AbortSignal,
   ) => {
     await prepareNow(signal);
-    const chunks = splitDiscordMessage(sanitizeAssistantOutput(content, allowedSourceUrls));
+    const chunks = splitDiscordMessage(
+      sanitizeAssistantOutput(clampDiscordMarkdown(content), allowedSourceUrls),
+    );
     if (!chunks.length) return;
     if (!input.source.channel.isSendable()) throw new Error('Discord channel is not sendable');
 
@@ -125,9 +146,12 @@ export const createResponseSink = (input: {
   const fail = async (
     partialContent: string,
     allowedSourceUrls: readonly string[] = [],
+    failure?: FailureNotice,
     signal?: AbortSignal,
   ) => {
-    const notice = '⚠️ I could not finish that response. Please try again.';
+    const notice = failure
+      ? failureMessage(failure)
+      : '⚠️ I could not finish that response. Please try again.';
     try {
       await serialize(() =>
         synchronizeNow(

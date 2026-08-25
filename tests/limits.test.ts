@@ -5,14 +5,21 @@ import {
   createConcurrencyGate,
   createSlidingWindowGate,
   maximumCostEnvelopeMicrodollars,
-  maximumResearchEvidenceCharacters,
-  researchQuestionCharacters,
+  openRouterStreamStartTimeoutMs,
+  requestLeaseMs,
+  webFetchMaxContentTokens,
+  webFetchMaxUses,
   webSearchMaxResults,
   webSearchResultCharacters,
 } from '../src/limits.js';
 import { modelCatalog } from '../src/models.js';
 
 describe('cost and concurrency limits', () => {
+  it('allows ten minutes for OpenRouter to start streaming', () => {
+    expect(openRouterStreamStartTimeoutMs).toBe(10 * 60_000);
+    expect(requestLeaseMs).toBeGreaterThan(openRouterStreamStartTimeoutMs);
+  });
+
   it('reserves a conservative bounded envelope for every exposed configuration', () => {
     const medium = costEnvelopeMicrodollars({
       model: 'luna',
@@ -36,12 +43,11 @@ describe('cost and concurrency limits', () => {
       });
 
       expect(details.maximumInputCharacters).toBeGreaterThanOrEqual(
-        32_000 +
-          researchQuestionCharacters +
-          maximumResearchEvidenceCharacters +
-          webSearchMaxResults * webSearchResultCharacters,
+        32_000 + webSearchMaxResults * webSearchResultCharacters,
       );
-      expect(details.maximumInputTokens).toBe(details.maximumInputCharacters * 4);
+      expect(details.maximumInputTokens).toBe(
+        details.maximumInputCharacters * 4 + webFetchMaxUses * webFetchMaxContentTokens,
+      );
       expect(details.maximumOutputTokens).toBeGreaterThan(2_000);
       expect(details.totalMicrodollars).toBe(
         details.promptMicrodollars +

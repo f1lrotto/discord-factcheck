@@ -41,4 +41,31 @@ describe('Discord response renderer', () => {
     expect(edit).toHaveBeenCalledTimes(2);
     expect(String(edit.mock.calls[1]?.[0].content)).toContain('could not finish');
   });
+
+  it('renders a safe provider reason and correlation reference without raw metadata', async () => {
+    const edit = vi.fn(async () => undefined);
+    const responseMessage = { id: 'response', edit, delete: vi.fn() };
+    const source = {
+      id: 'source',
+      reply: vi.fn(async () => responseMessage),
+      channel: { isSendable: () => true, send: vi.fn() },
+    } as unknown as Message<true>;
+    const sink = createResponseSink({
+      source,
+      logger: pino({ enabled: false }),
+      protectIdentifier: (value) => value,
+    });
+
+    await sink.fail('', [], {
+      category: 'timeout',
+      stage: 'answer',
+      reference: 'ABC123<script>',
+    });
+
+    expect(edit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: '⚠️ Answer generation timed out. Please try again. Reference: `ABC123script`.',
+      }),
+    );
+  });
 });

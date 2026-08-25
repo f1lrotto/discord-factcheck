@@ -1,20 +1,20 @@
 import { z } from 'zod';
 import { maximumCostEnvelopeMicrodollars } from './limits.js';
-
-const booleanFromString = z
-  .enum(['true', 'false'])
-  .default('true')
-  .transform((value) => value === 'true');
+import { timeZoneIsSupported } from './clock.js';
 
 const optionalUrl = z.preprocess((value) => (value === '' ? undefined : value), z.url().optional());
 
 const envSchema = z.object({
   DAILY_SPEND_LIMIT_USD: z.coerce.number().positive().default(2),
   DATA_PROTECTION_SECRET: z.string().min(32),
-  DISCORD_GUILD_ID: z.string().min(1),
   DISCORD_TOKEN: z.string().min(1),
-  ENFORCE_ZDR: booleanFromString,
   LOG_LEVEL: z.enum(['error', 'info']).default('info'),
+  JOLANDA_TIME_ZONE: z
+    .string()
+    .min(1)
+    .max(100)
+    .refine(timeZoneIsSupported, 'Expected a supported IANA time zone')
+    .default('Europe/Bratislava'),
   MAX_CONCURRENT_TURNS: z.coerce.number().int().positive().max(5).default(2),
   MAX_CONTEXT_MESSAGES: z.coerce.number().int().min(0).max(100).default(50),
   MAX_PROMPT_CHARACTERS: z.coerce.number().int().min(8_000).max(128_000).default(32_000),

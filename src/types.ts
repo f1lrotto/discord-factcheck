@@ -1,9 +1,18 @@
 import type { GuildSettings, ModelId, ReasoningEffort } from './models.js';
+import type { ModelFailureCategory, ModelFailureStage } from './model-failure.js';
+import type { SourceCitation } from './citations.js';
+import type { ClockSnapshot } from './clock.js';
 
-export type ChatMessage = {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+export type FunctionToolCall = {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
 };
+
+export type ChatMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls?: FunctionToolCall[] }
+  | { role: 'tool'; content: string; tool_call_id: string; name: string };
 
 export type ContextMessage = {
   id: string;
@@ -14,12 +23,17 @@ export type ReferencedMessage = ContextMessage & {
   isJolanda: boolean;
 };
 
+export type AmbientContextRequest = {
+  limit: number | 'maximum';
+};
+
 export type TurnRequest = {
   id: string;
   guildId: string;
   channelId: string;
   userId: string;
   question: string;
+  ambientContext?: AmbientContextRequest;
   referencedMessage?: ReferencedMessage;
   loadAmbientContext: (limit: number) => Promise<ContextMessage[]>;
 };
@@ -69,6 +83,7 @@ export type TurnOutcome =
         | 'conversation_busy'
         | 'conversation_limit'
         | 'conversation_owner'
+        | 'context_limit'
         | 'server_busy'
         | 'shutting_down'
         | 'duplicate'
@@ -93,6 +108,7 @@ export type ResponseSink = {
   fail: (
     partialContent: string,
     allowedSourceUrls?: readonly string[],
+    failure?: FailureNotice,
     signal?: AbortSignal,
   ) => Promise<void>;
 };
@@ -101,8 +117,36 @@ export type ModelRunRequest = {
   messages: ChatMessage[];
   model: ModelId;
   reasoning: ReasoningEffort;
-  publicQuestion?: string;
+  clock: ClockSnapshot;
   signal?: AbortSignal;
+};
+
+export type ModelStageDiagnostics = {
+  durationMs: number;
+  headersMs: number;
+  firstEventMs?: number;
+  firstTokenMs?: number;
+  providerActivityEvents: number;
+  generationId?: string;
+  provider?: string;
+  routingStrategy?: string;
+  attempt?: number;
+  finishReason?: string;
+  ignoredSseFrames?: number;
+  ignoredSseEvents?: number;
+  ignoredToolCallDeltas?: number;
+};
+
+export type ModelRunDiagnostics = {
+  route: 'assistant';
+  answer: ModelStageDiagnostics;
+  toolRounds?: ModelStageDiagnostics[];
+};
+
+export type ToolActivity = {
+  offered: string[];
+  called: string[];
+  functionRounds: number;
 };
 
 export type ModelRunResult = {
@@ -110,13 +154,28 @@ export type ModelRunResult = {
   generationId?: string;
   usage?: Usage;
   allowedSourceUrls?: string[];
+  sourceCitations?: SourceCitation[];
+  toolActivity?: ToolActivity;
+  diagnostics?: ModelRunDiagnostics;
 };
+
+export type ModelProgress =
+  | { type: 'stage'; stage: 'answering' }
+  | { type: 'reasoning_summary'; delta: string }
+  | { type: 'activity' };
 
 export type ModelRunner = {
   run: (
     request: ModelRunRequest,
     onDelta: (delta: string, allowedSourceUrls?: readonly string[]) => Promise<void>,
+    onProgress?: (progress: ModelProgress) => Promise<void>,
   ) => Promise<ModelRunResult>;
+};
+
+export type FailureNotice = {
+  category: ModelFailureCategory;
+  stage?: ModelFailureStage;
+  reference: string;
 };
 
 export type StoredTurn = {
@@ -136,7 +195,7 @@ export type JolandaStore = {
   getSettings: (guildId: string) => Promise<GuildSettings>;
   updateSettings: (
     guildId: string,
-    patch: Partial<Pick<GuildSettings, 'model' | 'reasoning' | 'contextMessages'>>,
+    patch: Partial<Pick<GuildSettings, 'model' | 'reasoning' | 'contextLimitMessages'>>,
   ) => Promise<GuildSettings>;
   getBudgetSummary: (guildId: string, now: Date) => Promise<BudgetSummary>;
   findConversationByMessage: (input: {

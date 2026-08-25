@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import {
   Collection,
   Events,
+  InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
   type Client,
@@ -12,14 +13,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDiscordBot } from '../src/discord-bot.js';
 import type { Jolanda } from '../src/jolanda.js';
 import { messageLinkLookupsPerMinute } from '../src/limits.js';
-import { UnsupportedReasoningError, type GuildSettings } from '../src/models.js';
+import type { GuildSettings } from '../src/models.js';
 import type { JolandaStore } from '../src/types.js';
 
 const settings: GuildSettings = {
   guildId: 'guild',
   model: 'luna',
   reasoning: 'medium',
-  contextMessages: 0,
+  contextLimitMessages: 0,
   updatedAt: new Date(),
 };
 
@@ -134,7 +135,6 @@ const createBot = (input: {
   const bot = createDiscordBot({
     client: client.client,
     token: 'discord-token',
-    guildId: 'guild',
     maximumContextMessages: 50,
     promptsPerMinute: 3,
     transcriptTtlDays: 7,
@@ -157,6 +157,7 @@ const createInteraction = (input: {
   canManage?: boolean;
   stringValue?: string;
   integerValue?: number;
+  guildId?: string | null;
 }) => {
   const state = { deferred: false, replied: false };
   const reply = vi.fn(async (options: Record<string, unknown>) => {
@@ -178,7 +179,7 @@ const createInteraction = (input: {
     interaction: {
       id: `interaction-${input.subcommand}`,
       commandName: 'jolanda',
-      guildId: 'guild',
+      guildId: input.guildId === undefined ? 'guild' : input.guildId,
       user: { id: 'user' },
       get replied() {
         return state.replied;
@@ -229,6 +230,56 @@ describe('Discord adapter', () => {
       ]),
     );
     expect(JSON.stringify([...source.edited, ...source.sent])).not.toContain('user:pass');
+  });
+
+  it('routes messages from every server with the originating guild ID', async () => {
+    const handleTurn = vi.fn<Jolanda['handleTurn']>(async () => ({
+      status: 'completed',
+      conversationId: 'conversation',
+    }));
+    const jolanda = { handleTurn, shutdown: vi.fn(async () => undefined) } as Jolanda;
+    const { client } = createBot({ jolanda });
+    const source = createMessage({ guildId: 'another-guild' });
+
+    client.emitter.emit(Events.MessageCreate, source.message);
+    await vi.waitFor(() => expect(handleTurn).toHaveBeenCalledOnce());
+
+    expect(handleTurn.mock.calls[0]?.[0].guildId).toBe('another-guild');
+  });
+
+  it.each([
+    ['+context', { limit: 'maximum' }],
+    ['+context=10', { limit: 10 }],
+  ])(
+    'passes the %s modifier through the turn interface without changing the question',
+    async (modifier, ambientContext) => {
+      const handleTurn = vi.fn<Jolanda['handleTurn']>(async (request) => {
+        expect(request.question).toBe('Fact-check this');
+        expect(request.ambientContext).toEqual(ambientContext);
+        return { status: 'completed', conversationId: 'conversation' };
+      });
+      const jolanda = { handleTurn, shutdown: vi.fn(async () => undefined) } as Jolanda;
+      const { client } = createBot({ jolanda });
+      const source = createMessage({ content: `<@bot> ${modifier} Fact-check this` });
+
+      client.emitter.emit(Events.MessageCreate, source.message);
+      await vi.waitFor(() => expect(handleTurn).toHaveBeenCalledOnce());
+    },
+  );
+
+  it('rejects a malformed context modifier before starting a turn', async () => {
+    const jolanda = {
+      handleTurn: vi.fn(),
+      shutdown: vi.fn(async () => undefined),
+    } as Jolanda;
+    const { client } = createBot({ jolanda });
+    const source = createMessage({ content: '<@bot> +context=many Fact-check this' });
+
+    client.emitter.emit(Events.MessageCreate, source.message);
+    await vi.waitFor(() => expect(source.reply).toHaveBeenCalledOnce());
+
+    expect(jolanda.handleTurn).not.toHaveBeenCalled();
+    expect(String(source.reply.mock.calls[0]?.[0].content)).toContain('+context=N');
   });
 
   it('routes a reply to Jolanda without requiring another mention', async () => {
@@ -418,6 +469,9 @@ describe('Discord adapter', () => {
     expect(String(privacy.editReply.mock.calls[0]?.[0].content)).toContain('OpenRouter');
     expect(String(privacy.editReply.mock.calls[0]?.[0].content)).toContain('7 days');
     expect(String(privacy.editReply.mock.calls[0]?.[0].content)).toContain('plaintext');
+    expect(String(privacy.editReply.mock.calls[0]?.[0].content)).toContain(
+      'Zero Data Retention is **not available**',
+    );
   });
 
   it('enforces Manage Server permission for configuration', async () => {
@@ -442,7 +496,7 @@ describe('Discord adapter', () => {
       memberPermissions: {
         has: (permission: bigint) => permission === PermissionFlagsBits.ManageGuild && false,
       },
-      options: { getSubcommand: () => 'context' },
+      options: { getSubcommand: () => 'context-limit' },
       reply,
       followUp: vi.fn(),
     };
@@ -454,7 +508,29 @@ describe('Discord adapter', () => {
     expect(String(reply.mock.calls[0]?.[0].content)).toContain('Manage Server');
   });
 
-  it('handles settings, model, reasoning, and context admin commands', async () => {
+  it('updates settings for the server where the command was used', async () => {
+    const jolanda = {
+      handleTurn: vi.fn(),
+      shutdown: vi.fn(async () => undefined),
+    } as Jolanda;
+    const store = createStore();
+    const { client } = createBot({ jolanda, store });
+    const interaction = createInteraction({
+      subcommand: 'context-limit',
+      canManage: true,
+      integerValue: 12,
+      guildId: 'another-guild',
+    });
+
+    client.emitter.emit(Events.InteractionCreate, interaction.interaction);
+    await vi.waitFor(() => expect(interaction.editReply).toHaveBeenCalledOnce());
+
+    expect(store.updateSettings).toHaveBeenCalledWith('another-guild', {
+      contextLimitMessages: 12,
+    });
+  });
+
+  it('handles settings, atomic model profiles, and context-limit admin commands', async () => {
     const jolanda = {
       handleTurn: vi.fn(),
       shutdown: vi.fn(async () => undefined),
@@ -474,75 +550,53 @@ describe('Discord adapter', () => {
     expect(String(settingsInteraction.editReply.mock.calls[0]?.[0].content)).toContain(
       'Daily committed spend',
     );
+    expect(String(settingsInteraction.editReply.mock.calls[0]?.[0].content)).toContain(
+      'Zero Data Retention: **unavailable**',
+    );
 
     const modelInteraction = createInteraction({
       subcommand: 'model',
       canManage: true,
-      stringValue: 'deepseek-v4-flash',
+      stringValue: 'deepseek-v4-flash:low',
     });
     client.emitter.emit(Events.InteractionCreate, modelInteraction.interaction);
     await vi.waitFor(() => expect(modelInteraction.editReply).toHaveBeenCalledOnce());
     expect(store.updateSettings).toHaveBeenCalledWith('guild', {
       model: 'deepseek-v4-flash',
-      reasoning: 'high',
+      reasoning: 'low',
     });
-
-    const reasoningInteraction = createInteraction({
-      subcommand: 'reasoning',
-      canManage: true,
-      stringValue: 'low',
-    });
-    client.emitter.emit(Events.InteractionCreate, reasoningInteraction.interaction);
-    await vi.waitFor(() => expect(reasoningInteraction.editReply).toHaveBeenCalledOnce());
-    expect(String(reasoningInteraction.editReply.mock.calls[0]?.[0].content)).toContain(
-      'Reasoning set',
-    );
 
     const contextInteraction = createInteraction({
-      subcommand: 'context',
+      subcommand: 'context-limit',
       canManage: true,
       integerValue: 20,
     });
     client.emitter.emit(Events.InteractionCreate, contextInteraction.interaction);
     await vi.waitFor(() => expect(contextInteraction.editReply).toHaveBeenCalledOnce());
-    expect(store.updateSettings).toHaveBeenCalledWith('guild', { contextMessages: 20 });
+    expect(store.updateSettings).toHaveBeenCalledWith('guild', { contextLimitMessages: 20 });
   });
 
-  it('rejects unsupported reasoning, including a concurrent model-change race', async () => {
+  it('allows a model without ZDR and warns in the confirmation', async () => {
     const jolanda = {
       handleTurn: vi.fn(),
       shutdown: vi.fn(async () => undefined),
     } as Jolanda;
     const store = createStore();
-    vi.mocked(store.getSettings).mockResolvedValue({
-      ...settings,
-      model: 'deepseek-v4-flash',
-      reasoning: 'high',
-    });
     const { client } = createBot({ jolanda, store });
-    const unsupported = createInteraction({
-      subcommand: 'reasoning',
+    const interaction = createInteraction({
+      subcommand: 'model',
       canManage: true,
-      stringValue: 'medium',
+      stringValue: 'luna:medium',
     });
 
-    client.emitter.emit(Events.InteractionCreate, unsupported.interaction);
-    await vi.waitFor(() => expect(unsupported.editReply).toHaveBeenCalledOnce());
-    expect(store.updateSettings).not.toHaveBeenCalled();
-    expect(String(unsupported.editReply.mock.calls[0]?.[0].content)).toContain('supports');
+    client.emitter.emit(Events.InteractionCreate, interaction.interaction);
+    await vi.waitFor(() => expect(interaction.editReply).toHaveBeenCalledOnce());
 
-    vi.mocked(store.getSettings).mockResolvedValue(settings);
-    vi.mocked(store.updateSettings).mockRejectedValueOnce(
-      new UnsupportedReasoningError('deepseek-v4-flash', 'medium'),
-    );
-    const raced = createInteraction({
-      subcommand: 'reasoning',
-      canManage: true,
-      stringValue: 'medium',
+    expect(store.updateSettings).toHaveBeenCalledWith('guild', {
+      model: 'luna',
+      reasoning: 'medium',
     });
-    client.emitter.emit(Events.InteractionCreate, raced.interaction);
-    await vi.waitFor(() => expect(raced.editReply).toHaveBeenCalledOnce());
-    expect(String(raced.editReply.mock.calls[0]?.[0].content)).toContain('now supports');
+    expect(String(interaction.editReply.mock.calls[0]?.[0].content)).toContain('not available');
   });
 
   it('contains command and command-registration failures', async () => {
@@ -779,7 +833,7 @@ describe('Discord adapter', () => {
     expect(source.edited.at(-1)?.content).toBe('short');
   });
 
-  it('wires login, guild command registration, and destruction through the adapter interface', async () => {
+  it('wires login, global guild-only command registration, and destruction through the adapter interface', async () => {
     const jolanda = {
       handleTurn: vi.fn(),
       shutdown: vi.fn(async () => undefined),
@@ -793,7 +847,29 @@ describe('Discord adapter', () => {
     bot.destroy();
 
     expect(client.login).toHaveBeenCalledWith('discord-token');
-    expect(client.commands.set.mock.calls[0]?.[1]).toBe('guild');
+    expect(client.commands.set.mock.calls[0]).toHaveLength(1);
+    const commands = client.commands.set.mock.calls[0]?.[0] as Array<{
+      contexts: number[];
+      options: Array<{ name: string; options?: Array<{ choices?: Array<{ value: string }> }> }>;
+    }>;
+    expect(commands[0]?.contexts).toEqual([InteractionContextType.Guild]);
+    const subcommands = commands[0]?.options ?? [];
+    expect(subcommands.some(({ name }) => name === 'reasoning')).toBe(false);
+    expect(
+      subcommands
+        .find(({ name }) => name === 'model')
+        ?.options?.[0]?.choices?.map(({ value }) => value),
+    ).toEqual([
+      'luna:none',
+      'luna:low',
+      'luna:medium',
+      'luna:high',
+      'luna:xhigh',
+      'luna:max',
+      'deepseek-v4-flash:low',
+      'deepseek-v4-flash:high',
+      'deepseek-v4-flash:max',
+    ]);
     expect(client.destroy).toHaveBeenCalledOnce();
   });
 

@@ -1,12 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { defaultGuildSettings, getModel, modelSupportsReasoning } from '../src/models.js';
+import {
+  defaultGuildSettings,
+  findModelProfile,
+  getModel,
+  modelProfiles,
+  modelSupportsReasoning,
+  modelSupportsZdr,
+} from '../src/models.js';
 
 describe('model catalog', () => {
-  it('uses Luna medium and zero ambient context by default', () => {
+  it('uses a ZDR-compatible model and zero ambient context by default', () => {
     expect(defaultGuildSettings).toEqual({
+      model: 'deepseek-v4-flash',
+      reasoning: 'high',
+      contextLimitMessages: 0,
+    });
+    expect(modelSupportsZdr(defaultGuildSettings.model)).toBe(true);
+  });
+
+  it('derives all valid profiles and warns when a model has no ZDR route', () => {
+    expect(modelProfiles()).toHaveLength(9);
+    expect(
+      modelProfiles()
+        .filter(({ model }) => model === 'luna')
+        .every(({ label }) => label.includes('[no ZDR]')),
+    ).toBe(true);
+    expect(
+      modelProfiles()
+        .filter(({ model }) => model === 'deepseek-v4-flash')
+        .every(({ label }) => !label.includes('[no ZDR]')),
+    ).toBe(true);
+    expect(findModelProfile('deepseek-v4-flash:medium')).toBeUndefined();
+    expect(findModelProfile('luna:medium')).toMatchObject({
       model: 'luna',
       reasoning: 'medium',
-      contextMessages: 0,
     });
   });
 
