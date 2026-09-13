@@ -1,6 +1,6 @@
 import {
   modelCatalog,
-  maxTokensForReasoning,
+  completionTokenBudget,
   type ModelId,
   type ReasoningEffort,
 } from './models.js';
@@ -27,6 +27,8 @@ export const webFetchMaxUses = 2;
 export const webFetchMaxContentTokens = 8_000;
 export const maximumToolCallsPerRequest = 5;
 export const maximumFunctionToolRounds = 2;
+// Tool rounds plus the forced text-only round that lets the model finish an interrupted answer.
+export const maximumAnswerRequests = maximumFunctionToolRounds + 2;
 export const maximumFunctionToolCallsPerRound = 4;
 export const maximumToolArgumentCharacters = 4_000;
 export const maximumToolResultCharacters = 2_000;
@@ -53,7 +55,7 @@ export const costEnvelopeDetails = (input: {
 }) => {
   const model = modelCatalog[input.model];
   const functionLoopCharacters =
-    maximumFunctionToolRounds *
+    (maximumAnswerRequests - 1) *
     (input.maximumPromptCharacters +
       requestProtocolOverheadCharacters +
       maximumFunctionToolCallsPerRound *
@@ -65,7 +67,7 @@ export const costEnvelopeDetails = (input: {
     functionLoopCharacters;
   const inputTokens =
     inputCharacters * maximumTokensPerCharacter + webFetchMaxUses * webFetchMaxContentTokens;
-  const outputTokens = maxTokensForReasoning(input.reasoning) * (maximumFunctionToolRounds + 1);
+  const outputTokens = completionTokenBudget(input.model, input.reasoning) * maximumAnswerRequests;
 
   const promptMicrodollars = tokenCost(inputTokens, model.maxPromptPricePerMillion);
   const completionMicrodollars = tokenCost(outputTokens, model.maxCompletionPricePerMillion);

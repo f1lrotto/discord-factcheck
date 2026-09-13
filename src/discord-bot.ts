@@ -1,5 +1,6 @@
 import {
   Client,
+  ApplicationCommandType,
   Events,
   GatewayIntentBits,
   InteractionContextType,
@@ -17,9 +18,14 @@ import {
   maximumDiscordAdapterHandlers,
 } from './limits.js';
 import { safeError } from './security.js';
+import type { ReelStore } from './reel-types.js';
+import type { createDiscordReels } from './discord-reels.js';
 import type { JolandaStore } from './types.js';
 
 export const createDiscordBot = (input: {
+  reels?: ReturnType<typeof createDiscordReels>;
+  reelStore?: ReelStore;
+  reelsEnabled?: boolean;
   client?: Client;
   token: string;
   maximumContextMessages: number;
@@ -112,6 +118,7 @@ export const createDiscordBot = (input: {
   });
   client.on(Events.MessageCreate, (message) => {
     if (!accepting) return;
+    input.reels?.offer(message);
     admit((trackOperation) =>
       handleMessage(message, trackOperation).catch(async (error: unknown) => {
         input.logger.error({
@@ -144,7 +151,28 @@ export const createDiscordBot = (input: {
             .setContexts(InteractionContextType.Guild)
             .toJSON(),
         ])
-        .then(() => {
+        .then(async () => {
+          // Older installations may have a guild command shadowing the global definition.
+          // Edit it in place to preserve its ID and administrator-configured permissions.
+          const definition = createCommand(input.maximumContextMessages);
+          for (const guild of readyClient.guilds.cache.values()) {
+            if (!accepting) break;
+            try {
+              const commands = await guild.commands.fetch();
+              const legacy = commands.find(
+                (command) =>
+                  command.name === definition.name &&
+                  command.type === ApplicationCommandType.ChatInput,
+              );
+              if (legacy && accepting) await guild.commands.edit(legacy.id, definition);
+            } catch (error) {
+              input.logger.error({
+                event: 'discord_guild_command_registration_failed',
+                guildKey: input.protectIdentifier(guild.id),
+                error: safeError(error),
+              });
+            }
+          }
           input.logger.info({
             event: 'discord_connected',
             botUserKey: input.protectIdentifier(readyClient.user.id),

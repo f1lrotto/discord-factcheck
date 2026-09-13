@@ -1,3 +1,4 @@
+import type { ReelSettingDocument, ReelDeliveryDocument } from './mongo-reels.js';
 import type { Collection, Db } from 'mongodb';
 import type { GuildSettings } from './models.js';
 import { mongoOperationOptions } from './mongo-context.js';
@@ -72,6 +73,8 @@ export type RequestDocument = {
 };
 
 export type Collections = {
+  reelSettings: Collection<ReelSettingDocument>;
+  reelDeliveries: Collection<ReelDeliveryDocument>;
   guildSettings: Collection<GuildSettingsDocument>;
   conversations: Collection<ConversationDocument>;
   messageLinks: Collection<MessageLinkDocument>;
@@ -82,6 +85,8 @@ export type Collections = {
 };
 
 export const getCollections = (database: Db): Collections => ({
+  reelSettings: database.collection<ReelSettingDocument>('reel_settings'),
+  reelDeliveries: database.collection<ReelDeliveryDocument>('reel_deliveries'),
   guildSettings: database.collection<GuildSettingsDocument>('guild_settings'),
   conversations: database.collection<ConversationDocument>('conversations'),
   messageLinks: database.collection<MessageLinkDocument>('message_links'),
@@ -93,6 +98,10 @@ export const getCollections = (database: Db): Collections => ({
 
 export const createIndexes = async (collections: Collections) => {
   await Promise.all([
+    collections.reelDeliveries.createIndex(
+      { expiresAt: 1 },
+      { expireAfterSeconds: 0, ...mongoOperationOptions },
+    ),
     collections.conversations.createIndex(
       { expiresAt: 1 },
       { expireAfterSeconds: 0, ...mongoOperationOptions },

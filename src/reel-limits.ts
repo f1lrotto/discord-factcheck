@@ -1,0 +1,20 @@
+export const reelLimits = {
+  maximumBytes: 20 * 1024 * 1024,
+  sourceBytes: 100 * 1024 * 1024,
+  sourceAttempts: 3,
+  maximumDuration: 180,
+  maximumPhotos: 35,
+  photosPerMessage: 10,
+  pageBytes: 2 * 1024 * 1024,
+  extractionMs: 20_000,
+  downloadMs: 60_000,
+  probeMs: 5_000,
+  compressionMs: 120_000,
+  jobMs: 240_000,
+  leaseMs: 360_000,
+  receiptMs: 24 * 60 * 60_000,
+  staleMs: 10 * 60_000,
+  stdoutBytes: 1024 * 1024,
+  stderrBytes: 16 * 1024,
+} as const;
+export const ytDlpVersion = '2026.08.19';

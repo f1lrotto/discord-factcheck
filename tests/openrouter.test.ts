@@ -340,7 +340,7 @@ describe('OpenRouter adapter', () => {
     expect(JSON.stringify(progress)).not.toContain('legacy raw reasoning');
   });
 
-  it('enforces ZDR automatically when the selected model supports it', async () => {
+  it('routes GLM 5.3 Flash through its ZDR-compatible OpenRouter model', async () => {
     const fetchMock = vi.fn(async () => response(sse({ content: 'Safe', cost: 0.001 })));
     vi.stubGlobal('fetch', fetchMock);
     const openRouter = createTestOpenRouter({
@@ -350,16 +350,21 @@ describe('OpenRouter adapter', () => {
 
     await openRouter.run(
       {
-        model: 'deepseek-v4-flash',
-        reasoning: 'high',
+        model: 'glm-5.3-flash',
+        reasoning: 'max',
         messages: [{ role: 'user', content: 'Ahoj' }],
       },
       async () => undefined,
     );
 
-    expect(bodyAt(fetchMock, 0).provider).toMatchObject({
-      data_collection: 'deny',
-      zdr: true,
+    expect(bodyAt(fetchMock, 0)).toMatchObject({
+      model: 'z-ai/glm-5.3-flash',
+      reasoning: { effort: 'max', exclude: false },
+      max_tokens: 81_920,
+      provider: {
+        data_collection: 'deny',
+        zdr: true,
+      },
     });
   });
 
@@ -572,6 +577,153 @@ describe('OpenRouter adapter', () => {
     expect(tool.tool_call_id).toBe(assistant.tool_calls[0]?.id);
     expect(JSON.parse(tool.content)).toMatchObject({ ok: true, result: 4 });
     expect(result.content).toBe('Four.');
+  });
+
+  it('answers an unoffered tool call and lets the model finish instead of cutting off', async () => {
+    // Reproduces the mid-sentence cutoff: the final round no longer offers `calculate`, the
+    // model calls it anyway, and the call used to be discarded as if the answer were done.
+    const streams = [
+      functionToolSse({
+        id: 'call_calculate_1',
+        name: 'calculate',
+        argumentFragments: ['{"expression":"2 + 2"}'],
+      }),
+      functionToolSse({
+        id: 'call_calculate_2',
+        name: 'calculate',
+        argumentFragments: ['{"expression":"3 + 3"}'],
+      }),
+      [
+        `data: ${JSON.stringify({
+          id: 'generation',
+          choices: [
+            {
+              delta: {
+                content: 'Chýbajúci výpočet:',
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_calculate_3',
+                    type: 'function',
+                    function: { name: 'calculate', arguments: '{"expression":"4 + 4"}' },
+                  },
+                ],
+              },
+            },
+          ],
+        })}\n\n`,
+        'data: [DONE]\n\n',
+      ].join(''),
+      sse({ content: ' rádovo 8.', cost: 0.001 }),
+    ];
+    const fetchMock = vi.fn(async () => response(streams.shift() ?? ''));
+    vi.stubGlobal('fetch', fetchMock);
+    const openRouter = createTestOpenRouter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    });
+
+    const result = await openRouter.run(
+      { model: 'luna', reasoning: 'medium', messages: [{ role: 'user', content: 'Koľko?' }] },
+      async () => undefined,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(bodyAt(fetchMock, 3)).not.toHaveProperty('tools');
+    expect(bodyAt(fetchMock, 3).messages).toContainEqual({
+      role: 'tool',
+      tool_call_id: 'call_calculate_3',
+      name: 'calculate',
+      content: '{"ok":false,"error":"tool_unavailable"}',
+    });
+    expect(result.content).toBe('Chýbajúci výpočet: rádovo 8.');
+  });
+
+  it('reports a length-truncated answer instead of presenting it as complete', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(sse({ content: 'Partial', cost: 0.001, finishReason: 'length' }))),
+    );
+    const openRouter = createTestOpenRouter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    });
+
+    await expect(
+      openRouter.run(
+        { model: 'luna', reasoning: 'medium', messages: [{ role: 'user', content: 'Hi' }] },
+        async () => undefined,
+      ),
+    ).resolves.toMatchObject({ content: 'Partial', truncated: true });
+  });
+
+  it('names an exhausted reasoning budget rather than blaming a malformed response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(sse({ content: '', cost: 0.001, finishReason: 'length' }))),
+    );
+    const openRouter = createTestOpenRouter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    });
+
+    await expect(
+      openRouter.run(
+        { model: 'luna', reasoning: 'medium', messages: [{ role: 'user', content: 'Hi' }] },
+        async () => undefined,
+      ),
+    ).rejects.toMatchObject({
+      diagnostic: { category: 'malformed_response', malformedReason: 'reasoning_budget_exhausted' },
+    });
+  });
+
+  it('retries a malformed stream once while nothing has reached the user', async () => {
+    const streams = [
+      sse({ content: '', cost: 0.001 }),
+      sse({ content: 'Recovered answer.', cost: 0.002 }),
+    ];
+    const fetchMock = vi.fn(async () => response(streams.shift() ?? ''));
+    vi.stubGlobal('fetch', fetchMock);
+    const openRouter = createTestOpenRouter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    });
+    const deltas: string[] = [];
+
+    const result = await openRouter.run(
+      { model: 'luna', reasoning: 'medium', messages: [{ role: 'user', content: 'Hi' }] },
+      async (delta) => {
+        deltas.push(delta);
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(deltas).toEqual(['Recovered answer.']);
+    expect(result.content).toBe('Recovered answer.');
+  });
+
+  it('does not retry once partial text is already on screen', async () => {
+    const streams = [
+      [
+        `data: ${JSON.stringify({ id: 'generation', choices: [{ delta: { content: 'Half' } }] })}\n\n`,
+        `data: ${JSON.stringify({ error: { code: 'upstream_error' } })}\n\n`,
+      ].join(''),
+      sse({ content: 'Never used.', cost: 0.001 }),
+    ];
+    const fetchMock = vi.fn(async () => response(streams.shift() ?? ''));
+    vi.stubGlobal('fetch', fetchMock);
+    const openRouter = createTestOpenRouter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    });
+
+    await expect(
+      openRouter.run(
+        { model: 'luna', reasoning: 'medium', messages: [{ role: 'user', content: 'Hi' }] },
+        async () => undefined,
+      ),
+    ).rejects.toBeInstanceOf(ModelFailure);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('ignores surfaced server-tool deltas while retaining final text and bounded diagnostics', async () => {
@@ -911,7 +1063,7 @@ describe('OpenRouter adapter', () => {
 
     expect(bodyAt(fetchMock, 0)).toMatchObject({
       model: 'deepseek/deepseek-v4-flash-0731',
-      max_tokens: 6_144,
+      max_tokens: 49_152,
     });
     expect(bodyAt(fetchMock, 0)).not.toHaveProperty('max_completion_tokens');
   });

@@ -35,6 +35,8 @@ import type {
   Usage,
 } from './types.js';
 
+const truncationNotice = '⚠️ *The model hit its output limit, so this answer is cut short.*';
+
 const progressStageMessages = {
   answering: '🧠 Working through the question…',
   finalizing: '📦 Finalizing the response…',
@@ -513,10 +515,16 @@ export const createJolanda = (dependencies: {
         result.sourceCitations ?? [],
         allowedSourceUrls,
       );
-      const assistantContent = sanitizeAssistantOutput(
+      const sanitizedAnswer = sanitizeAssistantOutput(
         clampDiscordMarkdown(result.content),
         allowedSourceUrls,
       );
+      // A `finish_reason: "length"` answer used to be presented as if it were complete, footer
+      // and cost line included. Say so instead of implying the thought was finished.
+      const assistantContent =
+        result.truncated && sanitizedAnswer
+          ? `${sanitizedAnswer}\n\n${truncationNotice}`
+          : sanitizedAnswer;
       partialContent = assistantContent;
       const basis = sourceBasis(selectedPlan.route, result, allowedSourceUrls);
       const usage = result.usage ?? emptyUsage(reservationMicrodollars);
@@ -592,6 +600,7 @@ export const createJolanda = (dependencies: {
         sourceCount: allowedSourceUrls.length,
         sourceCitationAnnotations: result.sourceCitations?.length ?? 0,
         responseCharacters: assistantContent.length,
+        ...(result.truncated ? { truncated: true } : {}),
         ...(result.generationId ? { answerGenerationId: result.generationId } : {}),
         ...(result.diagnostics ? { modelDiagnostics: result.diagnostics } : {}),
         durationMs: Date.now() - startedAt,
@@ -651,6 +660,9 @@ export const createJolanda = (dependencies: {
               {
                 category: providerFailure?.category ?? 'unknown',
                 ...(providerFailure ? { stage: providerFailure.stage } : {}),
+                ...(providerFailure?.malformedReason
+                  ? { malformedReason: providerFailure.malformedReason }
+                  : {}),
                 reference,
               },
               operationSignal,

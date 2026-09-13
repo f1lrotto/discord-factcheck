@@ -10,6 +10,7 @@ import {
 } from 'discord.js';
 import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
+import type { createDiscordReels } from '../src/discord-reels.js';
 import { createDiscordBot } from '../src/discord-bot.js';
 import type { Jolanda } from '../src/jolanda.js';
 import { messageLinkLookupsPerMinute } from '../src/limits.js';
@@ -51,6 +52,7 @@ const createClient = () => {
   const emitter = new EventEmitter();
   const login = vi.fn(async () => 'token');
   const destroy = vi.fn();
+  const guilds = { cache: new Collection<string, unknown>() };
   const commands = {
     set: vi.fn(async (...arguments_: unknown[]) => {
       void arguments_;
@@ -60,10 +62,11 @@ const createClient = () => {
   Object.assign(emitter, {
     user: { id: 'bot' },
     application: { commands },
+    guilds,
     login,
     destroy,
   });
-  return { emitter, client: emitter as unknown as Client, login, destroy, commands };
+  return { emitter, client: emitter as unknown as Client, login, destroy, commands, guilds };
 };
 
 const createMessage = (overrides: Record<string, unknown> = {}) => {
@@ -124,6 +127,7 @@ const createMessage = (overrides: Record<string, unknown> = {}) => {
 };
 
 const createBot = (input: {
+  reels?: ReturnType<typeof createDiscordReels>;
   jolanda: Jolanda;
   store?: JolandaStore;
   client?: ReturnType<typeof createClient>;
@@ -133,6 +137,7 @@ const createBot = (input: {
   const client = input.client ?? createClient();
   const store = input.store ?? createStore();
   const bot = createDiscordBot({
+    ...(input.reels ? { reels: input.reels } : {}),
     client: client.client,
     token: 'discord-token',
     maximumContextMessages: 50,
@@ -282,13 +287,115 @@ describe('Discord adapter', () => {
     expect(String(source.reply.mock.calls[0]?.[0].content)).toContain('+context=N');
   });
 
+  it('offers Reel links independently while AI is admitted or saturated', async () => {
+    let finish: () => void = () => undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const handleTurn = vi.fn<Jolanda['handleTurn']>(async () => {
+      await pending;
+      return { status: 'completed', conversationId: 'conversation' };
+    });
+    const reels = { offer: vi.fn(), shutdown: vi.fn(async () => undefined) };
+    const { client, bot } = createBot({
+      jolanda: { handleTurn, shutdown: vi.fn(async () => undefined) } as Jolanda,
+      reels,
+      maximumAdapterHandlers: 1,
+    });
+    const source = createMessage({
+      content: '<@bot> Explain this source https://www.instagram.com/reel/sample/',
+    });
+    client.emitter.emit(Events.MessageCreate, source.message);
+    await vi.waitFor(() => expect(handleTurn).toHaveBeenCalledOnce());
+    client.emitter.emit(Events.MessageCreate, source.message);
+    expect(reels.offer).toHaveBeenCalledTimes(2);
+    finish();
+    await bot.drain();
+    expect(handleTurn).toHaveBeenCalledOnce();
+  });
+
+  it('refreshes legacy guild slash commands in place without creating overrides in other guilds', async () => {
+    const client = createClient();
+    const edit = vi.fn(async () => undefined);
+    const contextEdit = vi.fn();
+    const fetchLegacy = vi.fn(
+      async () =>
+        new Collection([
+          ['legacy-id', { id: 'legacy-id', name: 'jolanda', type: 1, edit }],
+          ['context-id', { name: 'jolanda', type: 3, edit: contextEdit }],
+        ]),
+    );
+    const fetchEmpty = vi.fn(async () => new Collection());
+    client.guilds.cache.set('legacy-guild', {
+      id: 'legacy-guild',
+      commands: { fetch: fetchLegacy, edit },
+    });
+    client.guilds.cache.set('new-guild', { id: 'new-guild', commands: { fetch: fetchEmpty } });
+    const { bot } = createBot({
+      client,
+      jolanda: { handleTurn: vi.fn(), shutdown: vi.fn() } as unknown as Jolanda,
+    });
+    client.emitter.emit(Events.ClientReady, client.client);
+    await bot.drain();
+    expect(edit).toHaveBeenCalledOnce();
+    expect(edit).toHaveBeenCalledWith(
+      'legacy-id',
+      expect.objectContaining({
+        name: 'jolanda',
+        options: expect.arrayContaining([expect.objectContaining({ name: 'reels' })]),
+      }),
+    );
+    expect(contextEdit).not.toHaveBeenCalled();
+    expect(fetchEmpty).toHaveBeenCalledOnce();
+  });
+
+  it('continues guild command synchronization after an inaccessible guild', async () => {
+    const client = createClient();
+    const edit = vi.fn(async () => undefined);
+    client.guilds.cache.set('inaccessible', {
+      id: 'inaccessible',
+      commands: {
+        edit,
+        fetch: vi.fn(async () => {
+          throw new Error('unavailable');
+        }),
+      },
+    });
+    client.guilds.cache.set('legacy', {
+      id: 'legacy',
+      commands: {
+        edit,
+        fetch: vi.fn(
+          async () => new Collection([['id', { id: 'legacy-id', name: 'jolanda', type: 1, edit }]]),
+        ),
+      },
+    });
+    const { bot } = createBot({
+      client,
+      jolanda: { handleTurn: vi.fn(), shutdown: vi.fn() } as unknown as Jolanda,
+    });
+    client.emitter.emit(Events.ClientReady, client.client);
+    await bot.drain();
+    expect(edit).toHaveBeenCalledOnce();
+  });
+
   it('routes a reply to Jolanda without requiring another mention', async () => {
     const handleTurn = vi.fn<Jolanda['handleTurn']>(async () => ({
       status: 'completed' as const,
       conversationId: 'conversation',
     }));
     const jolanda = { handleTurn, shutdown: vi.fn(async () => undefined) } as Jolanda;
-    const { client } = createBot({ jolanda });
+    const store = createStore();
+    vi.mocked(store.findConversationByMessage).mockResolvedValue({
+      id: 'conversation',
+      ownerKey: 'owner',
+      replyCount: 1,
+      turns: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const { client } = createBot({ jolanda, store });
     const source = createMessage({
       content: 'pokračuj',
       mentions: {
@@ -312,6 +419,42 @@ describe('Discord adapter', () => {
       referencedMessage: { id: 'bot-message', isJolanda: true },
     });
   });
+
+  it.each([false, true])(
+    'requires a content mention to start AI from a media reply (explicit=%s)',
+    async (explicit) => {
+      const handleTurn = vi.fn<Jolanda['handleTurn']>(async () => ({
+        status: 'completed',
+        conversationId: 'new',
+      }));
+      const jolanda = { handleTurn, shutdown: vi.fn(async () => undefined) } as Jolanda;
+      const { client, bot, store } = createBot({ jolanda });
+      const source = createMessage({
+        content: explicit ? '<@bot> What does this source claim?' : 'nice clip',
+        reference: { messageId: 'media-message' },
+        mentions: { users: { has: () => true }, repliedUser: { id: 'bot' } },
+        fetchReference: vi.fn(async () => ({
+          author: { id: 'bot' },
+          content: 'Instagram Reel · <https://www.instagram.com/reel/sample/>',
+          inGuild: () => true,
+        })),
+      });
+      client.emitter.emit(Events.MessageCreate, source.message);
+      await bot.drain();
+      expect(store.findConversationByMessage).toHaveBeenCalledWith({
+        messageId: 'media-message',
+        guildId: 'guild',
+        channelId: 'channel',
+      });
+      expect(handleTurn).toHaveBeenCalledTimes(explicit ? 1 : 0);
+      if (explicit)
+        expect(handleTurn.mock.calls[0]?.[0].referencedMessage).toMatchObject({
+          isJolanda: false,
+          content: expect.stringContaining('Instagram Reel'),
+        });
+      expect(source.reply).not.toHaveBeenCalled();
+    },
+  );
 
   it('continues a database-linked conversation when Discord omits replied-user metadata', async () => {
     const handleTurn = vi.fn<Jolanda['handleTurn']>(async () => ({
@@ -869,6 +1012,9 @@ describe('Discord adapter', () => {
       'deepseek-v4-flash:low',
       'deepseek-v4-flash:high',
       'deepseek-v4-flash:max',
+      'glm-5.3-flash:low',
+      'glm-5.3-flash:high',
+      'glm-5.3-flash:max',
     ]);
     expect(client.destroy).toHaveBeenCalledOnce();
   });

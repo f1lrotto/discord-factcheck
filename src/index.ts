@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { config as loadDotenv } from 'dotenv';
 import { loadConfig } from './config.js';
+import { createReelDiscordTransport } from './discord-reel-transport.js';
+import { createReelDownloader } from './reel-downloader.js';
+import { createDiscordReels } from './discord-reels.js';
 import { createDiscordBot } from './discord-bot.js';
 import { createJolanda } from './jolanda.js';
 import { createLifecycle } from './lifecycle.js';
@@ -52,7 +55,39 @@ const main = async () => {
     timeZone: config.JOLANDA_TIME_ZONE,
     protectIdentifier,
   });
+  const downloader = createReelDownloader({
+    ytDlpPath: config.INSTAGRAM_YT_DLP_PATH,
+    ffprobePath: config.INSTAGRAM_FFPROBE_PATH,
+    ffmpegPath: config.INSTAGRAM_FFMPEG_PATH,
+    jobMs: config.INSTAGRAM_REELS_JOB_TIMEOUT_MS,
+  });
+  try {
+    if (config.INSTAGRAM_REELS_ENABLED) await downloader.initialize();
+  } catch (error) {
+    logger.error({
+      event: 'reels_startup_failed',
+      outcome: 'invalid_downloader',
+      message:
+        'Verify INSTAGRAM_YT_DLP_PATH points to yt-dlp 2026.08.19, INSTAGRAM_FFPROBE_PATH points to ffprobe, INSTAGRAM_FFMPEG_PATH points to ffmpeg with libx264/AAC, and the media scratch directory is writable.',
+    });
+    await jolanda.shutdown();
+    await store.close();
+    throw error;
+  }
+  const reels = createDiscordReels({
+    enabled: config.INSTAGRAM_REELS_ENABLED,
+    store: store.reels,
+    downloader,
+    logger,
+    protectIdentifier,
+    maximumBytes: config.INSTAGRAM_REELS_MAX_BYTES,
+    jobMs: config.INSTAGRAM_REELS_JOB_TIMEOUT_MS,
+    transport: createReelDiscordTransport(config.DISCORD_TOKEN),
+  });
   const discord = createDiscordBot({
+    reels,
+    reelStore: store.reels,
+    reelsEnabled: config.INSTAGRAM_REELS_ENABLED,
     token: config.DISCORD_TOKEN,
     maximumContextMessages: config.MAX_CONTEXT_MESSAGES,
     promptsPerMinute: config.PROMPTS_PER_MINUTE,
@@ -65,7 +100,7 @@ const main = async () => {
   const lifecycle = createLifecycle({
     stopTurns: async () => {
       discord.stopAccepting();
-      await jolanda.shutdown();
+      await Promise.all([jolanda.shutdown(), reels.shutdown()]);
       await discord.drain();
     },
     destroyDiscord: discord.destroy,
@@ -88,7 +123,7 @@ const main = async () => {
   try {
     await discord.start();
   } catch (error) {
-    await store.close();
+    await lifecycle.shutdown('login_failure');
     throw error;
   }
 };

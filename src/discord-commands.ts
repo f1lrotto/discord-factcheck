@@ -8,6 +8,8 @@ import type { Logger } from 'pino';
 import { findModelProfile, getModel, modelProfiles } from './models.js';
 import { formatUsd } from './money.js';
 import { ephemeral, safeMentions } from './discord-response.js';
+import { reelChannelSupported, reelPermissions } from './discord-reels.js';
+import type { ReelStore } from './reel-types.js';
 import type { JolandaStore } from './types.js';
 
 const effectiveContextLimit = (configured: number, maximum: number) =>
@@ -17,6 +19,17 @@ export const createCommand = (maximumContextMessages: number) =>
   new SlashCommandBuilder()
     .setName('jolanda')
     .setDescription('Configure Jolanda for this server')
+    .addSubcommand((command) =>
+      command
+        .setName('reels')
+        .setDescription('Automatically repost public Instagram Reels and TikToks in this channel')
+        .addBooleanOption((option) =>
+          option
+            .setName('enabled')
+            .setDescription('Enable automatic Reel and TikTok downloads')
+            .setRequired(true),
+        ),
+    )
     .addSubcommand((command) =>
       command.setName('privacy').setDescription('Explain how Jolanda handles Discord data'),
     )
@@ -53,6 +66,8 @@ export const createCommand = (maximumContextMessages: number) =>
     );
 
 export const createCommandHandler = (input: {
+  reelStore?: ReelStore;
+  reelsEnabled?: boolean;
   transcriptTtlDays: number;
   maximumContextMessages: number;
   store: JolandaStore;
@@ -91,6 +106,7 @@ export const createCommandHandler = (input: {
       await edit(
         [
           '**Jolanda privacy**',
+          'In channels with automatic Reels enabled, public video identifiers are sent anonymously to Instagram/Meta or TikTok, depending on the link. Videos are temporarily downloaded on the host and copied to Discord. Copies follow Discord message retention, not transcript expiry; deleting the source does not delete an uploaded copy. Administrators can remove copies with normal moderation. Reposting does not mean the AI watched or fact-checked the video.',
           'Your question, explicit replies, and conversation turns are processed by OpenRouter and a selected model provider.',
           model.supportsZdr
             ? `Zero Data Retention is **enforced** for ${model.label}.`
@@ -114,14 +130,43 @@ export const createCommandHandler = (input: {
     }
     await defer();
 
+    if (subcommand === 'reels') {
+      const channel = interaction.channel;
+      if (!channel || !reelChannelSupported(channel.type) || !input.reelStore) {
+        await edit('Reels settings are available in server text and announcement channels only.');
+        return;
+      }
+      const enabled = interaction.options.getBoolean('enabled', true);
+      if (enabled && !interaction.appPermissions?.has(reelPermissions)) {
+        await edit(
+          'I need View Channel, Send Messages, Read Message History, and Attach Files to repost Reels.',
+        );
+        return;
+      }
+      await input.reelStore.setEnabled({ guildId, channelId: channel.id }, enabled);
+      logChange(interaction, guildId, 'reels', {
+        enabled,
+        channelKey: input.protectIdentifier(channel.id),
+      });
+      await edit(
+        `Automatic Reels (Instagram and TikTok) are **${enabled ? 'enabled' : 'disabled'}** in this channel.${enabled && !input.reelsEnabled ? ' Downloads remain unavailable while the deployment switch is off.' : ''}`,
+      );
+      return;
+    }
     if (subcommand === 'settings') {
       const [settings, budget] = await Promise.all([
         input.store.getSettings(guildId),
         input.store.getBudgetSummary(guildId, new Date()),
       ]);
+      const channelEnabled =
+        input.reelStore && interaction.channelId
+          ? await input.reelStore.getEnabled({ guildId, channelId: interaction.channelId })
+          : false;
       const model = getModel(settings.model);
       await edit(
         [
+          `Reels deployment (Instagram and TikTok): **${input.reelsEnabled ? 'available' : 'disabled'}**`,
+          `Reels in this channel (Instagram and TikTok): **${channelEnabled ? 'enabled' : 'disabled'}**`,
           `Model: **${model.label}**`,
           `Reasoning: **${settings.reasoning}**`,
           `Zero Data Retention: **${model.supportsZdr ? 'enforced' : 'unavailable'}**`,

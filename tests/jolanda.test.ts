@@ -95,6 +95,24 @@ const createCore = (
   });
 
 describe('Jolanda core', () => {
+  it('marks a length-truncated answer instead of presenting it as complete', async () => {
+    const store = createStore();
+    const modelRunner: ModelRunner = {
+      run: vi.fn(async () => ({ content: 'Chýbajúci výpočet:', truncated: true, usage })),
+    };
+    const sink = createSink();
+
+    await expect(
+      createCore(store, modelRunner).handleTurn(createRequest(vi.fn(async () => [])), sink),
+    ).resolves.toMatchObject({ status: 'completed' });
+
+    const rendered = String(vi.mocked(sink.finish).mock.calls[0]?.[0]);
+    expect(rendered).toContain('Chýbajúci výpočet:');
+    expect(rendered).toContain('hit its output limit');
+    const stored = vi.mocked(store.appendTurn).mock.calls[0]?.[0];
+    expect(stored?.turn.assistantContent).toContain('hit its output limit');
+  });
+
   it('rejects empty questions without touching persistence', async () => {
     const store = createStore();
     const request = { ...createRequest(vi.fn(async () => [])), question: '   ' };

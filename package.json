@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:live": "node scripts/require-openrouter-live-key.mjs && OPENROUTER_LIVE_TESTS=true vitest run tests/openrouter.live.test.ts",
-    "test:release-live": "node scripts/require-openrouter-live-key.mjs && OPENROUTER_LIVE_TESTS=true OPENROUTER_LIVE_WEB_TESTS=true OPENROUTER_LIVE_REDTEAM_TESTS=true OPENROUTER_LIVE_REASONING_TESTS=true vitest run tests/openrouter.live.test.ts"
+    "test:release-live": "node scripts/require-openrouter-live-key.mjs && OPENROUTER_LIVE_TESTS=true OPENROUTER_LIVE_WEB_TESTS=true OPENROUTER_LIVE_REDTEAM_TESTS=true OPENROUTER_LIVE_REASONING_TESTS=true vitest run tests/openrouter.live.test.ts",
+    "test:reels-smoke": "pnpm build && node scripts/reels-smoke.mjs"
   },
   "keywords": [
     "discord",

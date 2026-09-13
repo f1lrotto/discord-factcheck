@@ -4,6 +4,7 @@ import { createAssistantToolbox, type AssistantToolDefinition } from './assistan
 import { addSourceCitation, createSourceCitation, type SourceCitation } from './citations.js';
 import { usdToMicrodollars } from './config.js';
 import {
+  maximumCitationAnnotations,
   maximumFunctionToolCallsPerRound,
   maximumFunctionToolRounds,
   maximumResponseCharacters,
@@ -15,7 +16,6 @@ import {
   maximumToolArgumentCharacters,
   maximumToolCallsPerRequest,
   openRouterStreamStartTimeoutMs,
-  webSearchMaxResults,
 } from './limits.js';
 import {
   ModelFailure,
@@ -25,7 +25,7 @@ import {
   type ModelFailureStage,
   type ModelTimeoutPoint,
 } from './model-failure.js';
-import { getModel, maxTokensForReasoning } from './models.js';
+import { completionTokenBudget, getModel } from './models.js';
 import type {
   ChatMessage,
   FunctionToolCall,
@@ -326,6 +326,8 @@ const withToolContext = (messages: ChatMessage[]) => {
   );
 };
 
+const unavailableToolResult = JSON.stringify({ ok: false, error: 'tool_unavailable' });
+
 type CompletionInput = Pick<ModelRunRequest, 'model' | 'reasoning' | 'signal'> & {
   messages: ChatMessage[];
   maximumCompletionTokens: number;
@@ -615,7 +617,10 @@ export const createOpenRouter = (input: {
           endIndex: candidate.end_index,
         });
         if (!citation) continue;
-        if (!citationUrls.has(citation.url) && citationUrls.size >= webSearchMaxResults) continue;
+        // `webSearchMaxResults` bounds what we ask the provider for; what we are allowed to
+        // render is bounded by the annotation cap, otherwise valid links become "[link removed]".
+        if (!citationUrls.has(citation.url) && citationUrls.size >= maximumCitationAnnotations)
+          continue;
         citationUrls.add(citation.url);
         sourceCitations = addSourceCitation(sourceCitations, citation);
       }
@@ -674,14 +679,14 @@ export const createOpenRouter = (input: {
     clearStreamStartTimeout();
 
     let localToolCallInvalid = false;
-    const toolCalls = [...partialToolCalls.entries()]
+    const parsedToolCalls = [...partialToolCalls.entries()]
       .sort(([left], [right]) => left - right)
       .flatMap(([index, call]) => {
-        if (!functionToolNames.has(call.name)) return [];
         if (call.invalid) {
           localToolCallInvalid = true;
           return [];
         }
+        if (!call.name) return [];
         return [
           {
             id: call.id ?? `call_jolanda_${startedAt}_${index}`,
@@ -691,9 +696,19 @@ export const createOpenRouter = (input: {
         ];
       });
     if (localToolCallInvalid) throw malformedFailure('invalid_function_tool_call');
-    if (request.stage === 'answer' && !content.trim() && !toolCalls.length)
+    const toolCalls = parsedToolCalls.filter((call) => functionToolNames.has(call.name));
+    // A call to a tool we did not offer used to be discarded, which silently ended the answer
+    // mid-sentence. Surface it so the caller can answer it with an error and let the model finish.
+    const unavailableToolCalls = parsedToolCalls.filter(
+      (call) => !functionToolNames.has(call.name),
+    );
+    if (request.stage === 'answer' && !content.trim() && !parsedToolCalls.length)
       throw malformedFailure(
-        ignoredSseEvents || ignoredSseFrames ? 'unsupported_event_shape' : 'empty_answer',
+        finishReason === 'length'
+          ? 'reasoning_budget_exhausted'
+          : ignoredSseEvents || ignoredSseFrames
+            ? 'unsupported_event_shape'
+            : 'empty_answer',
       );
 
     const completedAt = Date.now();
@@ -717,8 +732,40 @@ export const createOpenRouter = (input: {
       citationUrls: [...citationUrls],
       sourceCitations: [...sourceCitations],
       toolCalls,
+      unavailableToolCalls,
       diagnostics,
     };
+  };
+
+  // Transient provider glitches (a malformed stream, a provider-side error) used to end the
+  // whole turn. Retry once, but only while nothing has been shown to the user, so a retry can
+  // never duplicate text that is already on screen.
+  const retryableFailure = (error: unknown) =>
+    error instanceof ModelFailure &&
+    ['malformed_response', 'provider_failure', 'provider_unavailable'].includes(
+      error.diagnostic.category,
+    );
+
+  const completeWithRetry = async (
+    request: CompletionInput,
+    onDelta: (delta: string, citationUrls: readonly string[]) => Promise<void>,
+    onReasoningSummary: (delta: string) => Promise<void>,
+    onActivity: () => Promise<void>,
+    canRetry: () => boolean,
+  ) => {
+    try {
+      return await complete(request, onDelta, onReasoningSummary, onActivity);
+    } catch (error) {
+      if (!retryableFailure(error) || !canRetry() || request.signal?.aborted) throw error;
+      input.logger.info({
+        event: 'openrouter_completion_retry',
+        model: request.model,
+        reasoning: request.reasoning,
+        ...(error instanceof ModelFailure ? { providerFailure: error.diagnostic } : {}),
+      });
+      await onActivity();
+      return complete(request, onDelta, onReasoningSummary, onActivity);
+    }
   };
 
   const run: ModelRunner['run'] = async (request, onDelta, onProgress) => {
@@ -739,8 +786,13 @@ export const createOpenRouter = (input: {
         clock: request.clock,
         allowFunctions: true,
       });
+      let streamedAnyDelta = false;
 
-      for (let round = 0; round <= maximumFunctionToolRounds; round += 1) {
+      // One extra round beyond the tool budget: a text-only pass that lets the model finish an
+      // answer it was about to interrupt with a tool call it is no longer allowed to make.
+      const finalTextOnlyRound = maximumFunctionToolRounds + 1;
+      for (let round = 0; round <= finalTextOnlyRound; round += 1) {
+        const textOnly = round === finalTextOnlyRound;
         const toolbox =
           round === 0
             ? initialToolbox
@@ -750,23 +802,25 @@ export const createOpenRouter = (input: {
               });
         const remainingCharacters = maximumResponseCharacters - content.length;
         if (remainingCharacters <= 0) throw new Error('Function tool loop exhausted answer output');
-        const completion = await complete(
+        const completion = await completeWithRetry(
           {
             model: request.model,
             reasoning: request.reasoning,
             messages: activeMessages,
-            maximumCompletionTokens: maxTokensForReasoning(request.reasoning),
+            maximumCompletionTokens: completionTokenBudget(request.model, request.reasoning),
             maximumOutputCharacters: remainingCharacters,
-            tools: toolbox.definitions,
+            tools: textOnly ? [] : toolbox.definitions,
             stage: 'answer',
             ...(request.signal ? { signal: request.signal } : {}),
           },
           async (delta, liveSourceUrls) => {
+            streamedAnyDelta = true;
             for (const url of liveSourceUrls) citationUrls.add(url);
             await onDelta(delta, [...citationUrls]);
           },
           async (delta) => reportProgress({ type: 'reasoning_summary', delta }),
           async () => reportProgress({ type: 'activity' }),
+          () => !streamedAnyDelta && !content,
         );
         const citationOffset = content.length;
         content += completion.content;
@@ -787,15 +841,14 @@ export const createOpenRouter = (input: {
         if (!completion.usage) usageComplete = false;
         else usage = usage ? combineUsage(usage, completion.usage) : completion.usage;
 
-        if (!completion.toolCalls.length) {
+        const pendingCalls = [...completion.toolCalls, ...completion.unavailableToolCalls];
+        if (textOnly || !pendingCalls.length) {
           finalDiagnostics = completion.diagnostics;
           break;
         }
-        if (round >= maximumFunctionToolRounds)
-          throw new Error('Function tool round limit was exceeded');
         toolRoundDiagnostics.push(completion.diagnostics);
         called.push(...completion.toolCalls.map((call) => call.name));
-        const modelToolCalls: FunctionToolCall[] = completion.toolCalls.map((call) => ({
+        const modelToolCalls: FunctionToolCall[] = pendingCalls.map((call) => ({
           id: call.id,
           type: 'function',
           function: { name: call.name, arguments: call.arguments },
@@ -812,6 +865,13 @@ export const createOpenRouter = (input: {
             name: call.name,
             content: toolbox.execute(call),
           });
+        for (const call of completion.unavailableToolCalls)
+          activeMessages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            name: call.name,
+            content: unavailableToolResult,
+          });
         await reportProgress({ type: 'activity' });
       }
 
@@ -822,6 +882,7 @@ export const createOpenRouter = (input: {
         ...(usageComplete && usage ? { usage } : {}),
         citationUrls: [...citationUrls],
         sourceCitations,
+        truncated: finalDiagnostics.finishReason === 'length',
         toolActivity: {
           offered: initialToolbox.offered,
           called,
@@ -834,6 +895,7 @@ export const createOpenRouter = (input: {
     const final = await answerRequest(request.messages);
     return {
       content: final.content,
+      truncated: final.truncated,
       ...(final.generationId ? { generationId: final.generationId } : {}),
       ...(final.usage ? { usage: final.usage } : {}),
       ...(final.citationUrls.length ? { allowedSourceUrls: final.citationUrls } : {}),

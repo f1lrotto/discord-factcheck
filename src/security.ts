@@ -2,9 +2,9 @@ import { createHmac, randomUUID } from 'node:crypto';
 import ipaddr from 'ipaddr.js';
 import { LinkifyIt } from 'linkify-it';
 import {
+  maximumCitationAnnotations,
   maximumResponseCharacters,
   maximumSourceUrlCharacters,
-  webSearchMaxResults,
 } from './limits.js';
 
 const privateHost = (hostname: string) => {
@@ -169,7 +169,43 @@ const genericAngleNotationPattern = /<[\p{L}][\p{L}\p{N}_.-]{0,50}:\s+([^<>\n]+)
 const nestedSchemePattern = /(?<![\p{L}\p{N}_])[a-z][a-z0-9+.-]{0,31}:/iu;
 const formattedProseLabelPattern =
   /(?:\*{1,3}[\p{L}][\p{L}\p{N} .-]{0,50}:\*{1,3}|_{1,3}[\p{L}][\p{L}\p{N} .-]{0,50}:_{1,3}|~{2}[\p{L}][\p{L}\p{N} .-]{0,50}:~{2})(?=\s|$)/gu;
-const unknownSchemePattern = /(?<![\p{L}\p{N}_])[a-z][a-z0-9+.-]{0,31}:[^\s<>()\]]+/giu;
+// Restricted to real URI schemes. The previous `word:nonspace` shape matched ordinary prose
+// ("Karpaty:10 980", "ratio:3") and replaced it with "[link removed]".
+const knownUriSchemes = [
+  'about',
+  'blob',
+  'chrome-extension',
+  'chrome',
+  'data',
+  'file',
+  'ftps',
+  'ftp',
+  'gopher',
+  'intent',
+  'jar',
+  'javascript',
+  'ldap',
+  'magnet',
+  'mailto',
+  'market',
+  'moz-extension',
+  'nfs',
+  'sftp',
+  'smb',
+  'sms',
+  'ssh',
+  'steam',
+  'telnet',
+  'tel',
+  'vbscript',
+  'view-source',
+  'wss',
+  'ws',
+] as const;
+const unknownSchemePattern = new RegExp(
+  `(?<![\\p{L}\\p{N}_])(?:[a-z][a-z0-9+.-]{0,31}://|(?:${knownUriSchemes.join('|')}):)[^\\s<>()\\]]*`,
+  'giu',
+);
 const bareDomainPattern =
   /(?<![\p{L}\p{N}_@.-])(?:www\.)?(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,62}\.)+\p{L}[\p{L}\p{N}-]{1,62})(?:\/[^\s<>()\]]*)?/giu;
 const codeFilenamePattern =
@@ -184,7 +220,7 @@ export const publicSourceUrls = (candidates: readonly string[]) =>
     .map(canonicalPublicUrl)
     .filter((url): url is string => Boolean(url))
     .filter((url, index, urls) => urls.indexOf(url) === index)
-    .slice(0, webSearchMaxResults);
+    .slice(0, maximumCitationAnnotations);
 
 const fragmentMarker = (nonce: string, kind: 'CODE' | 'LINK', index: number) =>
   `\uE000${nonce}_${kind}_${index}\uE001`;
@@ -401,9 +437,14 @@ export const sanitizeAssistantOutput = (
   });
   const matches = linkifier.match(sanitized) ?? [];
   for (const match of [...matches].reverse()) {
-    const canonical = ['http:', 'https:'].includes(match.schema)
-      ? canonicalPublicUrl(match.url)
-      : null;
+    // Fuzzy matches ("www.example.com/page") report an empty schema; canonicalize them as
+    // https so a cited source written without its scheme still resolves to the allowlist.
+    const canonical = ['', '//'].includes(match.schema)
+      ? (canonicalPublicUrl(`https://${match.raw.replace(/^\/\//u, '')}`) ??
+        canonicalPublicUrl(match.url))
+      : ['http:', 'https:'].includes(match.schema)
+        ? canonicalPublicUrl(match.url)
+        : null;
     const replacement =
       match.schema === '' && codeFilenamePattern.test(match.raw)
         ? linkMarker(`\`${match.raw}\``)
@@ -412,9 +453,13 @@ export const sanitizeAssistantOutput = (
           : '[link removed]';
     sanitized = `${sanitized.slice(0, match.index)}${replacement}${sanitized.slice(match.lastIndex)}`;
   }
-  sanitized = sanitized.replace(bareDomainPattern, (candidate) =>
-    codeFilenamePattern.test(candidate) ? `\`${candidate}\`` : '[link removed]',
-  );
+  sanitized = sanitized.replace(bareDomainPattern, (candidate) => {
+    if (codeFilenamePattern.test(candidate)) return `\`${candidate}\``;
+    // A cited source written without its scheme is still a cited source; only genuinely
+    // unverified domains are removed.
+    const canonical = canonicalPublicUrl(`https://${candidate}`);
+    return canonical && allowed.has(canonical) ? sourceMarker(canonical) : '[link removed]';
+  });
   sanitized = restoreFragments(sanitized, nonce, code.fragments, linkFragments).trim();
   if (sanitized.length <= maximumResponseCharacters) return sanitized;
   return `${sanitized.slice(0, maximumResponseCharacters).trimEnd()}\n\n[…response truncated]`;

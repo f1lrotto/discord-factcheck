@@ -85,6 +85,85 @@ describe('Mongo store integration', () => {
       now: input.now ?? new Date(),
     });
 
+  it('stores channel settings separately and atomically claims Reel deliveries across replicas', async () => {
+    const first = await createStore();
+    const second = await createStore({ instanceId: 'second' });
+    const scope = { guildId: 'raw-guild', channelId: 'raw-channel' };
+    expect(await first.reels.getEnabled(scope)).toBe(false);
+    await first.reels.setEnabled(scope, true);
+    expect(await second.reels.getEnabled(scope)).toBe(true);
+    expect(await first.reels.getEnabled({ ...scope, channelId: 'other' })).toBe(false);
+    expect(await first.reels.getEnabled({ ...scope, guildId: 'other' })).toBe(false);
+    const event = { ...scope, messageId: 'raw-source', shortcode: 'sample' };
+    const claims = await Promise.all([first.reels.claim(event), second.reels.claim(event)]);
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    const claim = claims.find((value) => value !== null)!;
+    expect(
+      await first.reels.transition({ ...claim, owner: 'wrong' }, 'processing', 'publishing'),
+    ).toBe(false);
+    expect(await first.reels.transition(claim, 'processing', 'publishing')).toBe(true);
+    expect(await second.reels.claim(event)).toBeNull();
+    expect(await first.reels.transition(claim, 'publishing', 'uncertain', 'uncertain')).toBe(true);
+    expect(await second.reels.claim(event)).toBeNull();
+    expect(
+      await second.reels.claim({ ...event, messageId: 'later-deliberate-post' }),
+    ).not.toBeNull();
+    await first.reels.setEnabled(scope, false);
+    expect(await second.reels.getEnabled(scope)).toBe(false);
+    const client = new MongoClient(uri);
+    await client.connect();
+    try {
+      const documents = await client
+        .db(databaseName)
+        .collection('reel_deliveries')
+        .find()
+        .toArray();
+      expect(JSON.stringify(documents)).not.toMatch(/raw-guild|raw-channel|raw-source|sample/);
+      const indexes = await client.db(databaseName).collection('reel_deliveries').indexes();
+      expect(indexes.some((index) => index.expireAfterSeconds === 0)).toBe(true);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('checks Reel claim expiry before asynchronous TTL deletion and never reclaims publishing leases', async () => {
+    const store = await createStore();
+    const event = {
+      guildId: 'guild',
+      channelId: 'channel',
+      messageId: 'source',
+      shortcode: 'sample',
+    };
+    const client = new MongoClient(uri);
+    await client.connect();
+    try {
+      const deliveries = client.db(databaseName).collection('reel_deliveries');
+      const claim = (await store.reels.claim(event))!;
+      await deliveries.updateOne(
+        { _id: claim.key as never },
+        { $set: { leaseExpiresAt: new Date(0) } },
+      );
+      expect(await store.reels.transition(claim, 'processing', 'publishing')).toBe(false);
+      const reclaimed = (await store.reels.claim(event))!;
+      expect(reclaimed.owner).not.toBe(claim.owner);
+      expect(await store.reels.transition(claim, 'processing', 'failed')).toBe(false);
+      await store.reels.transition(reclaimed, 'processing', 'publishing');
+      await deliveries.updateOne(
+        { _id: claim.key as never },
+        { $set: { leaseExpiresAt: new Date(0) } },
+      );
+      expect(await store.reels.claim(event)).toBeNull();
+      await store.reels.transition(reclaimed, 'publishing', 'sent', 'sent', 'raw-delivered');
+      expect(await store.reels.claim(event)).toBeNull();
+      const stored = await deliveries.findOne({ _id: claim.key as never });
+      expect(JSON.stringify(stored)).not.toContain('raw-delivered');
+      await deliveries.updateOne({ _id: claim.key as never }, { $set: { expiresAt: new Date(0) } });
+      expect(await store.reels.claim(event)).not.toBeNull();
+    } finally {
+      await client.close();
+    }
+  });
+
   it('enforces rolling rate limits and request deduplication transactionally', async () => {
     const store = await createStore();
     const start = new Date('2026-08-25T10:00:00.000Z');
@@ -295,7 +374,7 @@ describe('Mongo store integration', () => {
       }),
     ).rejects.toThrow('does not support');
     await expect(store.getSettings('raw-guild-id')).resolves.toMatchObject({
-      model: 'deepseek-v4-flash',
+      model: 'glm-5.3-flash',
       reasoning: 'high',
     });
     await expect(

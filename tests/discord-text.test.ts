@@ -3,6 +3,7 @@ import {
   clampDiscordMarkdown,
   minimizeDiscordContent,
   parseJolandaPrompt,
+  splitDiscordChunks,
   splitDiscordMessage,
   stripJolandaMention,
 } from '../src/discord-text.js';
@@ -108,5 +109,62 @@ describe('splitDiscordMessage', () => {
     expect(chunks).toHaveLength(3);
     expect(chunks.every((chunk) => chunk.length <= 100)).toBe(true);
     expect(chunks.at(-1)).toContain('[…response truncated]');
+  });
+
+  it('never cuts through a Markdown link', () => {
+    const footer = [
+      '---',
+      '🌐 **Source basis:** Public web research was used.',
+      '- [Source 1: Tunel Karpaty](https://sk.wikipedia.org/wiki/Tunel_Karpaty)',
+      '- [Source 2: Vláda zaradila tunel Karpaty](https://www.teraz.sk/karpaty)',
+      '💵 **Response cost:** $0.012448',
+    ].join('\n');
+    const chunks = splitDiscordMessage(`${'Veta o tuneli. '.repeat(120)}\n\n${footer}`);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.match(/\[/gu)?.length ?? 0).toBe(chunk.match(/\]\(/gu)?.length ?? 0);
+      expect(chunk).not.toMatch(/\]\([^)]*$/u);
+      expect(chunk).not.toMatch(/^[^[]*\]\(/u);
+    }
+    expect(chunks.at(-1)).toContain(
+      '[Source 1: Tunel Karpaty](https://sk.wikipedia.org/wiki/Tunel_Karpaty)',
+    );
+  });
+
+  it('never cuts through an emphasis run or inline code span', () => {
+    const content = Array.from(
+      { length: 40 },
+      (_, index) => `Line ${index} with **bold ${index} text** and \`code-${index}\` inline.`,
+    ).join('\n');
+
+    for (const chunk of splitDiscordMessage(content, 120, 100)) {
+      expect((chunk.match(/\*\*/gu)?.length ?? 0) % 2).toBe(0);
+      expect((chunk.match(/`/gu)?.length ?? 0) % 2).toBe(0);
+    }
+  });
+
+  it('closes and reopens a code fence across a boundary', () => {
+    const chunks = splitDiscordMessage(
+      `intro\n\`\`\`ts\n${'const value = 1;\n'.repeat(40)}\`\`\`\ndone`,
+      300,
+      20,
+    );
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) expect((chunk.match(/```/gu)?.length ?? 0) % 2).toBe(0);
+    expect(chunks[1]).toMatch(/^```\n/u);
+  });
+
+  it('reports the source offset each chunk consumed', () => {
+    const content = 'word '.repeat(400).trim();
+    const chunks = splitDiscordChunks(content, 200, 20);
+
+    expect(chunks.at(-1)?.sourceEnd).toBe(content.length);
+    for (const [index, chunk] of chunks.entries()) {
+      const previous = chunks[index - 1]?.sourceEnd ?? 0;
+      expect(chunk.sourceEnd).toBeGreaterThan(previous);
+      expect(content.slice(previous, chunk.sourceEnd).trim()).toBe(chunk.text.trim());
+    }
   });
 });

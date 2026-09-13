@@ -1,5 +1,9 @@
 import type { GuildSettings, ModelId, ReasoningEffort } from './models.js';
-import type { ModelFailureCategory, ModelFailureStage } from './model-failure.js';
+import type {
+  ModelFailureCategory,
+  ModelFailureStage,
+  ModelMalformedReason,
+} from './model-failure.js';
 import type { SourceCitation } from './citations.js';
 import type { ClockSnapshot } from './clock.js';
 
@@ -151,6 +155,8 @@ export type ToolActivity = {
 
 export type ModelRunResult = {
   content: string;
+  /** The provider stopped on `finish_reason: "length"`, so the answer is incomplete. */
+  truncated?: boolean;
   generationId?: string;
   usage?: Usage;
   allowedSourceUrls?: string[];
@@ -175,6 +181,7 @@ export type ModelRunner = {
 export type FailureNotice = {
   category: ModelFailureCategory;
   stage?: ModelFailureStage;
+  malformedReason?: ModelMalformedReason;
   reference: string;
 };
 

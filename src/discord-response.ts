@@ -1,7 +1,11 @@
 import { MessageFlags, type InteractionReplyOptions, type Message } from 'discord.js';
 import type { Logger } from 'pino';
-import { clampDiscordMarkdown, splitDiscordMessage } from './discord-text.js';
-import { streamUpdateIntervalMs } from './limits.js';
+import { clampDiscordMarkdown, splitDiscordChunks } from './discord-text.js';
+import {
+  discordMessageCharacters,
+  maximumDiscordChunks,
+  streamUpdateIntervalMs,
+} from './limits.js';
 import { safeError, sanitizeAssistantOutput } from './security.js';
 import type { FailureNotice, ResponseSink } from './types.js';
 
@@ -16,6 +20,10 @@ export const ephemeral = (content: string): InteractionReplyOptions => ({
 
 const failureMessage = (failure: FailureNotice) => {
   const stage = 'answer generation';
+  // A model that burns its whole token budget thinking is a budget problem, not a broken
+  // provider — say what actually happened so the fix is obvious.
+  if (failure.malformedReason === 'reasoning_budget_exhausted')
+    return `⚠️ The model used its entire token budget on reasoning and never produced an answer. Try a lower reasoning effort with \`/model\`, or ask again. Reference: \`${failure.reference.replace(/[^A-Za-z0-9_-]/gu, '').slice(0, 12) || 'UNKNOWN'}\`.`;
   const reason = {
     timeout: `${stage[0]?.toLocaleUpperCase('en-US')}${stage.slice(1)} timed out.`,
     rate_limited: `OpenRouter rate-limited the ${stage}.`,
@@ -40,6 +48,10 @@ export const createResponseSink = (input: {
 }): ResponseSink => {
   const outputMessages: Message<true>[] = [];
   const renderedChunks: string[] = [];
+  // Chunks that already have a successor message are frozen, so a growing stream cannot
+  // migrate an earlier boundary and cut a link or an emphasis run that already rendered.
+  const sealedChunks: string[] = [];
+  let sealedSource = '';
   let lastUpdateAt = 0;
   let renderQueue = Promise.resolve();
 
@@ -75,9 +87,17 @@ export const createResponseSink = (input: {
     signal?: AbortSignal,
   ) => {
     await prepareNow(signal);
-    const chunks = splitDiscordMessage(
-      sanitizeAssistantOutput(clampDiscordMarkdown(content), allowedSourceUrls),
+    const rendered = sanitizeAssistantOutput(clampDiscordMarkdown(content), allowedSourceUrls);
+    if (!rendered.startsWith(sealedSource)) {
+      sealedChunks.length = 0;
+      sealedSource = '';
+    }
+    const tail = splitDiscordChunks(
+      rendered.slice(sealedSource.length),
+      discordMessageCharacters,
+      maximumDiscordChunks - sealedChunks.length,
     );
+    const chunks = [...sealedChunks, ...tail.map((chunk) => chunk.text)];
     if (!chunks.length) return;
     if (!input.source.channel.isSendable()) throw new Error('Discord channel is not sendable');
 
@@ -113,6 +133,11 @@ export const createResponseSink = (input: {
       outputMessages.pop();
       renderedChunks.pop();
       checkCancellation(signal);
+    }
+    const sealUpTo = tail.at(-2)?.sourceEnd;
+    if (sealUpTo !== undefined) {
+      sealedChunks.push(...tail.slice(0, -1).map((chunk) => chunk.text));
+      sealedSource = rendered.slice(0, sealedSource.length + sealUpTo);
     }
     lastUpdateAt = Date.now();
   };

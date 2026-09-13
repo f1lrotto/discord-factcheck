@@ -22,6 +22,7 @@ export const modelMalformedReasons = [
   'invalid_function_tool_call',
   'unsupported_event_shape',
   'empty_answer',
+  'reasoning_budget_exhausted',
 ] as const;
 export type ModelMalformedReason = (typeof modelMalformedReasons)[number];
 

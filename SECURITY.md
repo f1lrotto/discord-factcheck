@@ -98,3 +98,62 @@ The release command enables model/language, every reasoning effort, web-search, 
 and direct-misuse checks, and exits nonzero before Vitest if the key is missing. Ordinary checks do
 not enable live calls even when the key is exported. Never use an uncapped production credential
 for this paid gate.
+
+## Automatic media boundary
+
+Reel reposting covers Instagram and TikTok with shared channel settings, admission, rate limits and HMAC delivery
+claims. It is disabled deployment-wide by default, and only Manage Server can change channel settings.
+It never enters the model runner, AI budget accounting, or conversation-link store. One active job
+and two admission operations bound host work; local rate limits assume the single-replica topology.
+Owner-checked claims last 24 hours and processing leases last six minutes. Expired processing can
+be reclaimed only on a repeated source event; publishing and uncertain receipts suppress replay until
+receipt expiry. Nonces complement claims but do not establish exactly-once delivery across crashes.
+
+Only canonical HTTPS Instagram Reel or TikTok video URLs reach a shell-free yt-dlp invocation,
+restricted to the matching platform extractor. TikTok short shares resolve through at most three
+HTTPS redirects, each limited to supported TikTok links with public DNS pinning; profiles and
+other destinations are rejected before extraction.
+Configuration, plugins, caches and inherited secrets/proxies are excluded. Extraction output and
+runtime are bounded. yt-dlp's internal platform requests are not sandboxed by the Node URL validator;
+keep the pinned extractor patched. Node transfers use separate platform allowlists: `cdninstagram.com`
+and `fbcdn.net` for Instagram; `tiktok.com`, `tiktokcdn.com`, `tiktokcdn-us.com`, `tiktokcdn-eu.com`, `tiktokv.com`,
+`tiktokv.us`, `byteoversea.com`, and `ibytedtos.com` for TikTok. Hosts match on label boundaries,
+require HTTPS, validate every redirect against the same platform, and connect only to validated
+public DNS addresses.
+For TikTok videos, the bounded extractor User-Agent and canonical source Referer accompany media
+requests. Only anonymous `ttwid`, `tt_chain_token`, and `tt_csrf_token` cookies scoped to
+`.tiktok.com` and `/` are retained in memory for the job. Quoted values are decoded within a strict
+character allowlist. These cookies are stripped on redirects outside `tiktok.com`; authentication
+cookies and arbitrary upstream headers are never forwarded. Instagram transfers remain cookie-free.
+Streamed bytes enforce the cap even without a
+truthful Content-Length; local ffprobe verifies compatible MP4/H.264/AAC streams and bounded duration.
+Each job tries at most three distinct sources, capped at 100 MiB each, with a shared 60-second
+download deadline. At most two source files coexist. Oversized media is compressed locally with
+single-threaded decoding, filtering, and encoding, two passes and at most one bitrate retry, under
+a shared 120-second compression deadline. FFmpeg accepts only local MOV/MP4 inputs, receives no
+inherited credentials, and cannot fetch remote media. Output writing stops above twice the upload
+cap; oversized, empty, incompatible, audio-losing, or duration-changing results are rejected.
+The 240-second overall pre-upload budget fits within the processing lease. Final attachments
+remain capped at the configured upload limit (20 MiB by default).
+TikTok photo pages use a separate public-DNS-pinned HTTPS fetch with a 2 MiB cap and the extraction
+deadline. Redirects must remain on a supported TikTok post with the same ID. Photo metadata selects
+only allowlisted JPEG/PNG/WebP CDN URLs; downloaded file signatures are checked without decoding.
+Up to 35 original photos share the configured upload cap and a 60-second download deadline. All
+photos are downloaded before publication and cleaned with their owned job directory. Albums send
+in batches of ten, sharing one claim with distinct batch nonces and source checks before each send;
+failed or partial publication is not automatically retried.
+The container runs as a non-root user. Deployment memory limits should account for child processes
+and bounded Discord attachment buffering.
+
+Media sends use a dedicated discord.js REST transport with a 15-second timeout, no automatic retries,
+and immediate rate-limit rejection. Noncancelable work is retained until settled, including uploads,
+before temporary-file cleanup and slot release. Shutdown signals AI and media together, then drains
+Discord before closing MongoDB. Successful sends followed by receipt errors and ambiguous sends do
+not trigger another upload or failure notice. Expected failures use fixed templates with numeric sizes and finite event fields;
+logs and Mongo contain no raw Discord IDs, signed CDN URLs, subprocess diagnostics or media bytes.
+
+The public video identifier leaves the host for Instagram/Meta or TikTok; the temporary video is copied to
+Discord. Discord retention governs that copy, including after source deletion. Moderators must remove
+copies through Discord. No login fallback, browser cookies, video splitting, merging or historical scan
+is supported. Keep deployment availability off until Railway-network retrieval and desktop/mobile
+playback acceptance checks in README pass. The explicit smoke test sends no Discord messages.

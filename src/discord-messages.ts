@@ -76,16 +76,16 @@ export const createMessageHandler = (input: {
     message: Message,
     trackOperation: (task: Promise<unknown>) => void = () => undefined,
   ) => {
-    if (!message.inGuild() || message.author.bot) return;
+    if (!message.inGuild() || message.author.bot || message.webhookId) return;
     const botUser = input.client.user;
     if (!botUser) return;
 
-    const explicitlyMentioned = message.mentions.users.has(botUser.id);
+    const explicitlyMentioned =
+      message.content.includes(`<@${botUser.id}>`) || message.content.includes(`<@!${botUser.id}>`);
     const replyMessageId = message.reference?.messageId;
-    const mentionsRepliedBot = message.mentions.repliedUser?.id === botUser.id;
     const userKey = input.protectIdentifier(message.author.id);
-    let referencesJolanda = mentionsRepliedBot;
-    if (replyMessageId && !referencesJolanda && !explicitlyMentioned) {
+    let referencesJolanda = false;
+    if (replyMessageId) {
       if (!lookupGate.tryAcquire(userKey)) return;
       try {
         referencesJolanda = Boolean(
@@ -143,7 +143,6 @@ export const createMessageHandler = (input: {
       }
     }
 
-    referencesJolanda ||= referencedMessage?.author.id === botUser.id;
     if (!explicitlyMentioned && !referencesJolanda) return;
     const question = minimizeDiscordContent(parsedPrompt.question);
     const outcome = await input.jolanda.handleTurn(

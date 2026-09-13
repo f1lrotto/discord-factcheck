@@ -1,10 +1,40 @@
 import { z } from 'zod';
+import { isAbsolute } from 'node:path';
+import { reelLimits } from './reel-limits.js';
 import { maximumCostEnvelopeMicrodollars } from './limits.js';
 import { timeZoneIsSupported } from './clock.js';
 
 const optionalUrl = z.preprocess((value) => (value === '' ? undefined : value), z.url().optional());
 
 const envSchema = z.object({
+  INSTAGRAM_REELS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  INSTAGRAM_YT_DLP_PATH: z
+    .string()
+    .refine(isAbsolute, 'Expected an absolute executable path')
+    .default('/opt/yt-dlp/bin/yt-dlp'),
+  INSTAGRAM_FFPROBE_PATH: z
+    .string()
+    .refine(isAbsolute, 'Expected an absolute executable path')
+    .default('/usr/bin/ffprobe'),
+  INSTAGRAM_FFMPEG_PATH: z
+    .string()
+    .refine(isAbsolute, 'Expected an absolute executable path')
+    .default('/usr/bin/ffmpeg'),
+  INSTAGRAM_REELS_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024)
+    .max(reelLimits.maximumBytes)
+    .default(reelLimits.maximumBytes),
+  INSTAGRAM_REELS_JOB_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .max(reelLimits.jobMs)
+    .default(reelLimits.jobMs),
   DAILY_SPEND_LIMIT_USD: z.coerce.number().positive().default(2),
   DATA_PROTECTION_SECRET: z.string().min(32),
   DISCORD_TOKEN: z.string().min(1),

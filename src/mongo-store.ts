@@ -6,6 +6,8 @@ import type { MongoContext } from './mongo-context.js';
 import { createIndexes, getCollections } from './mongo-schema.js';
 import { createMongoSettings } from './mongo-settings.js';
 import { mongoOperationTimeoutMs } from './limits.js';
+import { createMongoReels } from './mongo-reels.js';
+import type { ReelStore } from './reel-types.js';
 import type { JolandaStore } from './types.js';
 
 export const mongoClientOptions = {
@@ -35,7 +37,7 @@ export const createMongoStore = (
     client?: MongoClient;
     createAccounting?: typeof createMongoAccounting;
   } = {},
-): JolandaStore => {
+): JolandaStore & { reels: ReelStore } => {
   const client = dependencies.client ?? new MongoClient(input.uri, mongoClientOptions);
   const database = client.db(input.databaseName);
   const context: MongoContext = {
@@ -73,6 +75,7 @@ export const createMongoStore = (
   };
 
   return {
+    reels: createMongoReels(context),
     initialize,
     close,
     ...settings,

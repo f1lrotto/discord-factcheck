@@ -13,12 +13,20 @@ RUN pnpm build && pnpm prune --prod
 
 FROM node:22-slim AS runtime
 
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements-media.lock /tmp/requirements-media.lock
+RUN python3 -m venv /opt/yt-dlp \
+    && /opt/yt-dlp/bin/pip install --no-cache-dir --require-hashes -r /tmp/requirements-media.lock \
+    && rm /tmp/requirements-media.lock
+
 ENV NODE_ENV=production
 WORKDIR /app
 
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY scripts/reels-smoke.mjs ./scripts/reels-smoke.mjs
 
 USER node
 CMD ["node", "dist/index.js"]

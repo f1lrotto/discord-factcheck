@@ -78,7 +78,6 @@ describe('security policy', () => {
     '<x:payload>',
     '<x:(payload)>',
     '<t:>',
-    'x:*payload',
     'file:~/etc/passwd',
     'javascript:*alert(1)',
     'https://attacker.example/PRIVATE_CONTEXT',
@@ -354,11 +353,31 @@ describe('security policy', () => {
       '**Answer:** four',
       '**Poznámka:** Buď opatrný',
     ].join('\n');
-    const unsafe = sanitizeAssistantOutput('Open x:payload and javascript:alert(1)');
+    const unsafe = sanitizeAssistantOutput('Open data:text/html,x and javascript:alert(1)');
 
     expect(sanitizeAssistantOutput(prose)).toBe(prose);
-    expect(unsafe).not.toMatch(/x:payload|javascript:/);
+    expect(unsafe).not.toMatch(/data:text|javascript:/);
     expect(unsafe.match(/\[link removed\]/g)).toHaveLength(2);
+  });
+
+  it.each([
+    'Tunel Karpaty:10 980 m, dvojrúrový.',
+    'Pomer je ratio:3 a čas 14:30.',
+    'Poznamka:bez medzery za dvojbodkou.',
+    'Open x:payload in prose.',
+  ])('leaves a prose colon that is not a real URI scheme alone: %s', (prose) => {
+    // A bare `word:value` shape is indistinguishable from prose and Discord never linkifies
+    // it, so only real schemes are stripped. The bracketed `<x:payload>` form is still removed.
+    expect(sanitizeAssistantOutput(prose)).toBe(prose);
+  });
+
+  it('renders an allowlisted source written without its scheme as a link', () => {
+    const source = 'https://www.nak.sk/tunel';
+
+    expect(sanitizeAssistantOutput('Pozri www.nak.sk/tunel tu.', [source])).toBe(
+      `Pozri [source](${source}) tu.`,
+    );
+    expect(sanitizeAssistantOutput('Pozri www.nak.sk/tunel tu.')).toBe('Pozri [link removed] tu.');
   });
 
   it('preserves Discord timestamps and non-link angle notation', () => {
