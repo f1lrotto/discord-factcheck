@@ -1,115 +1,91 @@
-# News execution and acceptance
+# Jolanda news acceptance
 
-## Baseline and decisions
+The complete feature is implemented in the existing Jolanda bot. Local feature
+acceptance passed at code/test revision `0fede26`; the release packet is undergoing
+its final review. Exact task decisions and integrated revisions are in
+[NEWS_TASKS.json](NEWS_TASKS.json).
 
-The actual starting revision is `7f38348e632e5c219bfed95d7bbcc3b9fa0dc370`.
-Only the four supplied NEWS documents were untracked; there were no runtime edits.
-Baseline `pnpm check` passed on 14 September 2026. Existing opt-in live tests remain
-separate from local verification. Baseline coverage: statements 94.78%, branches
-87.92%, functions 95.65%, lines 97.29%.
+## Implemented behavior
 
-The implementation retains all R01–R10 requirements and the task ownership mapping
-in NEWS_TASKS.json. Daily attempts use Europe/Bratislava 20:00–21:00 primary and
-21:00–22:00 conditional fallback windows. Daily sends stop at 22:00. Continuous
-delivery begins at one message per 20 minutes with two-hour replay expiry, subject
-to publisher-grounded replay evaluation. Optional daily role notifications require
-destination-specific validation. Each daily attempt fetches only the listing and
-at most one candidate. No replacement digest or live Discord writes are authorized.
+- Denník N important news is collected once per source every 20 minutes. Each
+  configured destination receives at most one quiet message per 20 minutes;
+  queued items expire after two hours. Activation establishes a baseline, and
+  source IDs, importance promotion, pacing and receipts survive restart.
+- Aktuality's own daily edition is collected at 20:00 Europe/Bratislava, with one
+  21:00 fallback only when no fresh edition was collected. Recovery windows end
+  at 21:00 and 22:00 respectively. Missing editions are skipped; no replacement
+  digest is generated. No new daily send is admitted at or after 22:00.
+- `/jolanda continuous feed channel:#news` and
+  `/jolanda daily feed channel:#daily-news [notify-role:@role]` configure persistent
+  guild-scoped destinations. Each group also has `disable` and `status`.
+  Manage Server is required; the selected destination's effective permissions
+  are checked. Routing and optional role references are authenticated/encrypted.
+- Durable Mongo claims, configuration revisions and publication identities fence
+  competing instances and stale work. Unknown Discord acceptance stays uncertain;
+  confirmed rejections retain their retry/pause behavior. Shutdown drains news
+  before Discord and Mongo close. Existing AI/media regression gates remain intact.
 
-Integration seams inspected: mongo-store/schema/context own the shared Mongo
-connection; discord-bot owns command registration and Gateway lifecycle;
-discord-commands needs group-aware dispatch; index owns startup/shutdown. Existing
-clock conversion and MongoMemoryReplSet tests are reusable. The module will not
-reuse irreversible Reel HMACs as retrievable routing references.
+## Verification
 
-Primary risks are cross-instance fencing, activation baselines, ambiguous Discord
-acceptance, parser drift, destination permission checks, and final integrated
-coverage. Each has explicit implementation and independent review ownership in
-the task ledger. Publisher capture belongs to one read-only explorer; workers
-reuse its minimized evidence rather than repeatedly retrieving pages.
+The fresh evaluator passed `pnpm format`, `pnpm check` and `pnpm build` on the
+same production/test tree: **1,109 tests passed, 30 existing opt-in live tests
+skipped**. Coverage: 95.78% statements, 91.10% branches, 95.88% functions and
+97.90% lines. After integration, 31 complete feature/application tests passed
+again. Final orchestrator gate details are in
+[NEWS_VERIFICATION.json](NEWS_VERIFICATION.json).
 
-## Resumed execution — 14 September 2026
+Tests use real local Mongo replica sets. Source HTTP, Discord REST and Gateway
+boundaries are controlled fixtures/fakes. The 26 new whole-journey cases exercise
+both feeds and guilds through commands, actual parsers, persistence, planning,
+production rendering/publishing and restart. They cover late activation with and
+without cache, primary/fallback/missing editions, outage past the deadline,
+channel/role revisions, disable races, permission loss, sent/uncertain re-enable,
+competing instances, promotion/corrections, backlog expiry and CET/CEST/DST dates.
+Existing suites additionally cover HTTP/cache failures, transaction rollback,
+lease expiry, tamper/wrong-key handling, process startup and shutdown, AI and media.
 
-The implementation session re-inspected commit `66b12f3`, the documentation commit
-above the original baseline. There were no integrated news runtime changes. The
-existing modified task ledger and untracked `NEWS_ARCHITECTURE.html` were preserved.
-An unfinished N01 worktree was recovered and reassigned; its contents require tests
-and independent review before acceptance. A fresh baseline `pnpm check` passed:
-639 tests, with 30 existing opt-in live skips; coverage is unchanged from above.
+Independent reviews found six blocking component defects, all repaired and
+re-reviewed: backoff, inactive payload retention, a REST-library timer,
+asynchronous body cleanup, start/shutdown ordering, and preservation of definite
+publisher results after cancellation. The fresh whole-feature evaluation found
+no remaining blocker. The portable verification file contains the R01–R10 matrix,
+all eight N10 scenario dispositions and revision-bound review evidence.
 
-Fixture capture uses one owner. A bounded correction permits two Denník N listing
-requests because the first minimizer omitted the actual timestamp fields, and one
-Aktuality listing plus two edition requests to satisfy N04's two-structure fixture
-requirement. This adjusts only development evidence gathering; the runtime daily
-budget remains one listing and at most one candidate per attempt. Capture results
-and limitations are recorded separately from parser correctness.
+## Publisher and preview evidence
 
-## Accepted foundation
+On 14 September 2026 at 08:28:57 UTC, the production HTTP/parser adapters made
+three bounded read-only requests from the developer host: Denník N returned 50
+important stories; Aktuality's listing and one candidate returned the September
+11 edition, correctly classified as stale. No Mongo or Discord state was touched.
+This does not establish publisher access from Railway.
 
-- N01: scheduling/domain policy reviewed at `7980016`, integrated as `6340b5c`;
-  28 policy tests passed in the integration checkout.
-- N05: encrypted subscriptions reviewed at `7876746`, integrated as `148b301`;
-  real Mongo persistence, tamper/swap/wrong-key behavior, revisions, and erasure
-  verified. Atomic outbox and source-activation interleavings remain N06 work.
-- N02: bounded HTTP and minimized fixtures reviewed at `d24af68`, integrated as
-  `ec03abe`; 103 HTTP cases passed after integration and frozen-lockfile install.
+The replay uses 50 captured source IDs/publication timestamps across five dates
+with partial boundary days. Under explicitly simulated observation/promotion and
+poll timing, 301 shared polls produce 50 sends per guild, zero simulated expiries,
+a maximum 29.57-minute publication delay and a 20-minute queue delay. A separate
+synthetic ten-story burst through real Mongo sends six and expires four. The
+20-minute/two-hour pacing defaults are retained on this limited evidence; these
+are not measurements of historical delivery, promotion frequency or complete days.
 
-The combined foundation passed `pnpm check` at `ec03abe`: coverage 95.11%
-statements, 89.22% branches, 95.81% functions, 97.60% lines. Existing opt-in live
-skips remain. Reviewer approvals contain no blocking findings for these scopes.
-Detailed local receipts live under `.news-work/N01`, `N02`, and `N05`; the final
-release packet will preserve the relevant sanitized evidence in tracked files.
+[NEWS_PREVIEWS.json](NEWS_PREVIEWS.json) contains exact locally rendered payloads.
+The daily sample has one introduction and seven editorial headings in one embed;
+its stale status is explicit. No section links or summary were invented. Client
+rendering, image availability and push notifications still need live verification.
 
-## Source and Discord component acceptance
+## Operations and remaining external checks
 
-N07 was reviewed after repairing the REST-library shutdown timer (N07-F1), then
-integrated as `e87cbe6`. The replacement uses bounded native requests and timestamp
-cooldowns. The original reproduction now exits in about five milliseconds; 66
-focused tests passed after integration. No live Discord messages have been sent.
+[NEWS_OPERATIONS.md](NEWS_OPERATIONS.md) documents configuration, status, retention,
+secret maintenance, read-only previews, permission/parser recovery and rollback.
+Set `NEWS_ENABLED=false` and restart normally to stop news deployment-wide while
+retaining settings and deduplication. A request already issued cannot be recalled.
 
-N03/N04 were independently reviewed at `e81ed8b`, integrated as `7777a4a`, and
-verified with 200 source/HTTP/replay tests plus build. The replay uses actual
-captured IDs/publication timestamps and explicitly simulated polling/promotion
-assumptions: 301 shared polls, two subscriptions, 50 sends each, zero expiries,
-29.57-minute maximum publication delay and 20-minute maximum queue delay. The
-20-minute pacing/two-hour catch-up defaults are retained on this limited evidence.
-A separate synthetic ten-story burst sends six and expires four; this demonstrates
-bounded catch-up rather than historical publisher loss.
+Live Discord verification is pending an explicitly authorized test guild/channel.
+A local bot token is present, but its validity has not been checked as part of this
+feature. No Discord message or command-registration change has been sent live.
+Deployment-network verification needs access to the deployment host to run the
+read-only smoke command. **No deployment has been performed.** Multi-instance news
+coordination does not authorize scaling the existing AI/media Gateway deployment.
 
-At 08:28:57 UTC on 14 September 2026, one read-only production-adapter collection
-per publisher succeeded from the developer machine: Denník N listing returned 50
-important stories; Aktuality listing plus one candidate returned the September 11
-edition, correctly classified as stale. All three HTTP requests returned usable
-200 responses. One-message payload previews were rendered locally. No Mongo state,
-Discord messages, deployment, or deployment-network verification was involved.
-Sanitized evidence is in `.news-work/live-publishers/check.json` pending release
-packet consolidation.
-
-## Verification status
-
-N06 is accepted at `58a57ac` after independent verification of transaction fencing,
-ambiguous-send recovery, exponential backoff, and bounded source-body retention.
-N08 is accepted at `bd03bde`: native channel commands, independent status,
-permission gates, guild cleanup, and persistent configuration passed review.
-The integrated checkout passed format, check (1,030 passed; 30 existing live
-skips), and build.
-
-N09a is accepted at `de86b49`. Independent runtime review found and verified
-repairs for asynchronous publisher cleanup, same-turn start/shutdown ordering,
-and preservation of confirmed publisher results after cancellation. The reviewed
-assembly passed 1,077 tests with 30 existing skips and build; its code matches the
-integrated checkout, where 77 runtime/command tests passed.
-
-N09b application wiring is accepted at `825334a` after independent review.
-The exact-code candidate passed format, check (1,083 passed; 30 existing skips),
-and build. Thirteen entrypoint/configuration tests passed again after integration,
-including the real Mongo command-to-publication flow and process shutdown cases.
-Fresh whole-feature acceptance remains N10.
-
-The portable [NEWS_VERIFICATION.json](NEWS_VERIFICATION.json) preserves component
-reviews, publisher-check outcomes, and replay assumptions. Exact offline payloads
-are in [NEWS_PREVIEWS.json](NEWS_PREVIEWS.json); these are previews, not Discord
-delivery receipts.
-
-Feature acceptance, live Discord verification, and deployment are not complete.
-Detailed task evidence is recorded as work progresses.
+The original implementation baseline was `7f38348`. Unrelated user changes were
+preserved. Local temporary logs/worktrees are supplementary; the tracked plan,
+ledger, verification packet, previews and operations guide form the portable handoff.

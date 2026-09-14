@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "specVersion": 1,
   "feature": "jolanda-news",
-  "status": "implementing",
+  "status": "local_acceptance_complete_release_packet_in_progress",
   "plan": "NEWS_IMPLEMENTATION_PLAN.md",
   "runbook": "NEWS_AGENT_RUNBOOK.md",
   "inspectedBaseRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370",
-  "acceptedIntegrationRevision": "825334a",
+  "acceptedIntegrationRevision": "0fede26",
   "orchestration": {
     "maximumConcurrentWriters": 2,
     "maximumRepairRoundsBeforeReplan": 2,
@@ -15,7 +15,7 @@
     "ledgerWriter": "orchestrator",
     "sharedCheckoutWriters": 1
   },
-  "localImplementationStatus": "implemented_pending_feature_acceptance",
+  "localImplementationStatus": "complete",
   "liveVerificationStatus": "publishers_verified_from_developer_host",
   "tasks": [
     {
@@ -367,39 +367,49 @@
     {
       "id": "N10",
       "title": "Independent feature acceptance and failure replay",
-      "state": "ready",
+      "state": "accepted",
       "dependsOn": ["N09"],
       "requirements": ["R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n10--independent-feature-acceptance-and-failure-replay",
       "proposedOwnedPaths": ["tests/news/feature.integration.test.ts"],
       "reviewMode": "fresh_feature_evaluator",
       "requiredChecks": ["pnpm format", "pnpm check", "pnpm build"],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
+      "assignedAgent": "/root/feature_evaluator",
+      "worktree": "/tmp/jolanda-news-feature-acceptance",
+      "baseRevision": "8398744",
+      "candidateRevision": "b133cb3d2d92812faceab2655c92a7d16aa51a80",
+      "acceptedRevision": "0fede26",
       "repairRounds": 0,
-      "evidence": [],
+      "evidence": [
+        ".news-work/N10/implementation.json",
+        ".news-work/N10/review.json",
+        ".news-work/N10/matrix.md",
+        ".news-work/N10/acceptance.json"
+      ],
       "blockingFindings": []
     },
     {
       "id": "N11",
       "title": "Operational documentation and release packet",
-      "state": "planned",
+      "state": "reviewing",
       "dependsOn": ["N10"],
       "requirements": ["R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n11--operational-documentation-and-release-packet",
       "proposedOwnedPaths": ["README.md", "SECURITY.md", ".env.example", "scripts/news-smoke.mjs"],
       "reviewMode": "final_packet_review",
       "requiredChecks": ["pnpm format", "pnpm check", "pnpm build"],
-      "assignedAgent": null,
+      "assignedAgent": "/root",
       "worktree": null,
-      "baseRevision": null,
+      "baseRevision": "0fede26",
       "candidateRevision": null,
       "acceptedRevision": null,
       "repairRounds": 0,
-      "evidence": [],
+      "evidence": [
+        "NEWS_ACCEPTANCE.md",
+        "NEWS_VERIFICATION.json",
+        "NEWS_PREVIEWS.json",
+        "NEWS_OPERATIONS.md"
+      ],
       "blockingFindings": [],
       "preparation": {
         "id": "N11a",
@@ -417,7 +427,8 @@
           "pnpm build",
           "node scripts/news-smoke.mjs --fixtures"
         ]
-      }
+      },
+      "reviewer": "/root/feature_evaluator"
     }
   ],
   "reconciliation": {
@@ -454,5 +465,23 @@
       "task": "N09",
       "reason": "Coordinator only requires already accepted source/store/publisher contracts; application wiring still depends on N08 and reviewed N09a. Separate ownership preserves two writers and sequential integration."
     }
-  ]
+  ],
+  "externalVerification": {
+    "publishers": {
+      "status": "verified_read_only_developer_host",
+      "checkedAt": "2026-09-14T08:28:57.222Z",
+      "requests": 3
+    },
+    "discord": {
+      "status": "pending_authorized_test_guild_and_channel",
+      "tokenPresentLocally": true,
+      "tokenValidityNotChecked": true
+    },
+    "deploymentNetwork": {
+      "status": "pending_deployment_host_access"
+    },
+    "deployment": {
+      "status": "not_performed"
+    }
+  }
 }

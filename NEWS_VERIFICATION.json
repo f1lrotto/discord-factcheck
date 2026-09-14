@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "feature": "jolanda-news",
-  "status": "in_progress",
-  "integratedRevision": "825334a",
-  "localImplementationComplete": false,
+  "status": "locally_verified_pending_release_packet_review",
+  "integratedRevision": "0fede26",
+  "localImplementationComplete": true,
   "liveDiscordVerified": false,
   "deployed": false,
   "componentReviews": [
@@ -634,5 +634,235 @@
       "passed": 13,
       "exitCode": 0
     }
-  }
+  },
+  "environment": {
+    "node": "v24.19.0",
+    "pnpm": "11.23.0",
+    "mongo": "real local Mongo replica sets via mongodb-memory-server; not production Mongo"
+  },
+  "featureEvaluation": {
+    "taskId": "N10",
+    "reviewedRevision": "b133cb3d2d92812faceab2655c92a7d16aa51a80",
+    "baseRevision": "83987441916d8a4b3652848bd65456b96d5b6387",
+    "verdict": "no_blocking_findings_on_locally_verified_feature",
+    "acceptanceAuthority": "Root orchestrator only; this independent evaluation does not accept task N10 or declare deployment complete.",
+    "findings": [],
+    "dispositions": [],
+    "scope": "Complete NEWS_IMPLEMENTATION_PLAN.md R01–R10 and all eight N10 scenarios, integrated production changes and operational release packet; bounded integration test additions only.",
+    "evidenceMatrix": "matrix.md",
+    "checks": [
+      {
+        "command": "pnpm format",
+        "exitCode": 0,
+        "revision": "b133cb3d2d92812faceab2655c92a7d16aa51a80",
+        "artifact": "format.log",
+        "sha256": "2688bb908d62643aa9e34860314375c23ea0969c0d0047a07af79ddc4ca065f0"
+      },
+      {
+        "command": "pnpm check",
+        "exitCode": 0,
+        "revision": "b133cb3d2d92812faceab2655c92a7d16aa51a80",
+        "artifact": "check.log",
+        "sha256": "d1dfd9b74d6e0b45f9e4a0dbceb0a7a0089f9d595f4867290aec1374d1dcf7cf"
+      },
+      {
+        "command": "pnpm build",
+        "exitCode": 0,
+        "revision": "b133cb3d2d92812faceab2655c92a7d16aa51a80",
+        "artifact": "build.log",
+        "sha256": "24c42b76aecef2c39c8a5639a3536efb936b03bdac9a8f8be50c0e71ffbc7af8"
+      },
+      {
+        "command": "node scripts/news-smoke.mjs --fixtures",
+        "exitCode": 0,
+        "revision": "b133cb3d2d92812faceab2655c92a7d16aa51a80",
+        "artifact": "previews.json",
+        "sha256": "8da2b2c11e084ef07b0bd39c8c161dbd64fb311074fcf8e8b7605ea27031b7bd"
+      },
+      {
+        "command": "NEWS_REPLAY_REPORT=<artifact>/publisher-replay.json pnpm exec vitest run tests/news/publisher-replay.test.ts",
+        "exitCode": 0,
+        "revision": "b133cb3d2d92812faceab2655c92a7d16aa51a80",
+        "artifact": "publisher-replay.log",
+        "sha256": "adeb791ff9f4001262593c99bf7b04c138034bfb47763aefc293e1673322cb0c"
+      }
+    ],
+    "verified": [
+      "Complete native command-handler configuration to actual adapters, real Mongo outbox, production Discord renderer/publisher with fake REST and reopened stores; both feeds and two-guild isolation.",
+      "Twenty-six new complete journeys passed, including late activation, missing editions, outage through deadline/morning, stable nonce retry, uncertain/sent re-enable, stale revision fencing, disable race, permission loss, source backoff, promotion/correction/backlog and four season/DST primary/date paths.",
+      "Application startup and Gateway integration, shared resource shutdown, existing AI/media permissions/spend/command-registration regressions passed the full unchanged 1109-pass/30-skip coverage gate.",
+      "All existing coverage thresholds and live opt-in skips unchanged; only one new test file differs from accepted integration base.",
+      "Exact offline preview payloads match tracked release examples and satisfy one-message, source-link/time, bounded text and no-mention semantics.",
+      "Captured publisher replay re-executed and inspected; retain default pacing on explicit limited simulation evidence.",
+      "Operational documents accurately state timing, kill switch, erasure/retention, uncertainty, revalidation, key maintenance and pending live/deployment verification. Root-owned final N10 status/count updates remain pending integration."
+    ],
+    "notVerified": [
+      "All new source HTTP/Discord REST outcomes are synthetic and all destinations/tokens/secrets are invented; real local Mongo replica set was used.",
+      "Captured publisher IDs/publication timestamps are real; historical polling, importance times and delivery delays in replay are simulated. Boundary dates are partial and historical promotion/loss is not established.",
+      "The cached-before-20:00 defensive scenario uses an explicitly documented injected-clock rewind after normal cached collection, because that state cannot arise through ordinary same-day scheduling.",
+      "Actual Discord registration, desktop/mobile rendering, role/push notification delivery, permissions in a designated live guild, deployment-network publisher access and deployment remain unavailable/unperformed. Explicit target environment and authorization are needed for those external checks.",
+      "The prior developer-host publisher check is inspected existing evidence, not a new N10 request and not deployment-network proof.",
+      "Application-main/Gateway lifecycle and existing AI/media behavior are checked by unchanged real-main/fake-boundary regression suites; no live simultaneous model/media/news run is claimed.",
+      "Only root owns task acceptance and final integrated revision/status/count updates."
+    ],
+    "pacingRecommendation": {
+      "decision": "retain 20-minute per-destination pacing and two-hour catch-up default",
+      "evidence": "publisher-replay.json plus real-Mongo synthetic burst case",
+      "limits": "Publication-time replay supports initial suitability only; no assertion of complete days, actual historical delays, or historical promotion frequency."
+    }
+  },
+  "requirements": [
+    {
+      "requirement": "Requirement",
+      "crossModuleEvidence": "Cross-module evidence and inspected behavior",
+      "complementaryEvidenceAndLimits": "Complementary evidence / limits"
+    },
+    {
+      "requirement": "R01 source/cadence/shared work",
+      "crossModuleEvidence": "feature.integration: both feeds across restart, second guild's fresh continuous baseline, one Denník request per 20-minute tick despite two stores/guilds; actual Denník adapter consumes important-listing fixture.",
+      "complementaryEvidenceAndLimits": "dennikn/http/runtime suites cover strict query structure, only important eligibility, unchanged responses and slow/shared polls. Captured publication replay reports one shared request per simulated poll."
+    },
+    {
+      "requirement": "R02 daily primary/fallback/local date",
+      "crossModuleEvidence": "feature.integration: eight cached/uncached 19:00/20:30/21:30/22:00 activation cases; completed primary not reset by second guild; stale primary then fresh/stale fallback; successful collection suppresses fallback during confirmed Discord rejection; four winter/summer/DST dates through restart.",
+      "complementaryEvidenceAndLimits": "runtime conditional-304 fallback preserves candidate validators; policy local-midnight/freshness tests reject yesterday/future/modified-only timestamps; captured listing excludes weekly roundup."
+    },
+    {
+      "requirement": "R03 persistent native configuration",
+      "crossModuleEvidence": "feature.integration configures both feeds through actual group-aware command handler, opens new application stores, checks separate status/destinations and independent disable/re-enable.",
+      "complementaryEvidenceAndLimits": "commands suite serializes actual native channel/role option definitions and covers all status/disable gates; application main/Gateway wiring suite proves same public command owner."
+    },
+    {
+      "requirement": "R04 destination permissions/isolation/encryption",
+      "crossModuleEvidence": "feature.integration denies Manage Server/foreign selection/REST-reported foreign guild/403 before durable config, sends only to selected channels across two guilds, and isolates permission loss. Actual store encryption and ciphertext erasure are used.",
+      "complementaryEvidenceAndLimits": "subscriptions suite inspects Mongo/log plaintext absence, AEAD tamper/swap/wrong key and HMAC contexts; Discord suite covers effective channel overwrites, selected role authorization, unsupported destinations."
+    },
+    {
+      "requirement": "R05 source output/notifications",
+      "crossModuleEvidence": "feature.integration asserts one daily message/embed with introduction + seven headings, source URL/time and exact role allowlist; continuous flags SuppressNotifications/no content mentions. Offline exact payload previews are inspected.",
+      "complementaryEvidenceAndLimits": "render/discord suites cover text injection, truncation, invalid origins, missing optional metadata, aggregate bounds, role validation. Captured daily article has no per-section links; edition URL is retained and no links are invented. Client rendering/push behavior remains live-Discord work."
+    },
+    {
+      "requirement": "R06 dedup/pacing/bounded replay",
+      "crossModuleEvidence": "feature.integration new guild baseline, restart receipt continuity, repeated ID/promotion/correction, six of ten synthetic burst stories across real Mongo outbox, sent and uncertain re-enable tombstones.",
+      "complementaryEvidenceAndLimits": "publisher-replay suite uses all 50 actual captured IDs/publication timestamps across five dates; simulated first observation/importance/send times are not historical observations. Policy suite additionally proves no hard 15-story quota and promotion-age limits."
+    },
+    {
+      "requirement": "R07 source distinction/cache/backoff",
+      "crossModuleEvidence": "feature.integration publisher denial does not block continuous source/status, and six-hour source backoff suppresses fallback. Fresh/stale/missing daily behavior crosses adapter/store/runtime.",
+      "complementaryEvidenceAndLimits": "HTTP/parser/runtime/outbox suites prove 304 validators and candidate revalidation, parser-failure cache preservation, timeout/cancellation, denied/rate-limited/unavailable distinction, exponential backoff and Retry-After. No added live fetch."
+    },
+    {
+      "requirement": "R08 durable recovery/ambiguity",
+      "crossModuleEvidence": "feature.integration production publisher's lost response becomes uncertain and stays deduplicated after routing change/restart; 429 retries preserve nonce, expire at 22:00 and do not send next morning; competing instances and stale claims respect revision checks.",
+      "complementaryEvidenceAndLimits": "outbox tests exercise claim/plan/commit crash rollback, expired leases, failed receipt persistence, transaction deadlines and terminal outcomes; runtime production-publisher cancellation tests retain confirmed rejections/sent results."
+    },
+    {
+      "requirement": "R09 lifecycle/isolation/legacy",
+      "crossModuleEvidence": "feature.integration repeated close/reopen, competing clients, source failure independence and dedicated status without AI accounting. Actual startup/bot wiring inspected.",
+      "complementaryEvidenceAndLimits": "Existing application, runtime, lifecycle, discord-bot, AI permissions/spending/security, and media suites remain under unchanged complete coverage gate. Application tests assert no model call and order shutdown drains before shared resource closure."
+    },
+    {
+      "requirement": "R10 honest verification/operations",
+      "crossModuleEvidence": "Final format/check/build, new cross-module suite, exact offline preview, publisher replay report, immutable test revision and this matrix. README/SECURITY/.env/NEWS_OPERATIONS/NEWS_VERIFICATION/NEWS_ACCEPTANCE and Docker smoke route inspected.",
+      "complementaryEvidenceAndLimits": "Existing developer-machine publisher check is read-only prior evidence. Deployment-network access, actual Discord messages/client notifications and rollout remain unverified and require a designated authorized environment."
+    }
+  ],
+  "acceptanceScenarios": [
+    {
+      "number": 1,
+      "evidence": "Both destinations configured in one guild, store/runtime fully reopened, new eligible continuous item delivered to continuous destination and fresh daily edition to daily destination. Production REST validation/rendering/publisher used. Later independent guild gets only its own messages/status; actual main/Gateway connection is covered by application.test.ts."
+    },
+    {
+      "number": 2,
+      "evidence": "Second continuous guild activated after collection takes the fresh snapshot baseline, skips old items and shares subsequent collection. Eight daily activation boundary/cache combinations pass; cached pre-window state is explicitly synthetic. First/late primary/fallback keys are asserted. A joining guild cannot reset an already completed missing primary. Sent and uncertain daily tombstones survive disable/new channel+role/restart."
+    },
+    {
+      "number": 3,
+      "evidence": "Successful primary gives one edition per guild and no fallback request. Stale primary then fresh fallback yields one. Stale both yields none and exactly four bounded fixture HTTP requests (two listings, two candidates). Existing runtime tests also cover empty result/304 listing revalidation."
+    },
+    {
+      "number": 4,
+      "evidence": "Production publisher confirmed 429 keeps one stored publication/nonce across restart; fallback is never scraped. At 22:00 pending work expires and a recovered next-morning publisher gets no POST. Production lost-response outcome is held uncertain, never automatically retried. Runtime suite proves completion/admission deadline races and failed receipt persistence."
+    },
+    {
+      "number": 5,
+      "evidence": "A claimed pre-send publication is fenced after channel+role replacement; only the new configuration is rendered. Disable erases routing and cancels claimed work; same-day never-sent re-enable may replan. A POST already issued before disable finishes and retains its sent tombstone, documenting the unavoidable admitted-request race. Permission-loss pauses only the affected guild; explicit reconfiguration revalidates/resumes."
+    },
+    {
+      "number": 6,
+      "evidence": "Repeated ID/minor correction produces no new post; an older unimportant story promoted within 24 hours sends once. A ten-story synthetic burst through actual Mongo/runtime yields six sends, omits four after the exact two-hour horizon, and never bursts after restart. Separate captured-time replay covers 50 actual source IDs/timestamps across five dates with 301 simulated shared polls, 50 sends/guild, zero simulated expiries, 29.57-minute maximum publication delay and 20-minute maximum queue delay. Retain the 20-minute/two-hour policy on this limited evidence; no claim of historical delivery delay/loss or complete daily volume."
+    },
+    {
+      "number": 7,
+      "evidence": "Real command/adapter/Mongo/publisher/restart journeys assert 20:00 local primary and durable date identity for January (CET), July (CEST), March 29 spring transition and October 25 autumn transition. policy.test.ts separately covers local/UTC midnight and all primary/fallback/deadline boundaries, plus same-local-date publication freshness. News uses Europe/Bratislava independently of the AI timezone."
+    },
+    {
+      "number": 8,
+      "evidence": "Complete unchanged regression gate includes AI conversations, permissions, spend accounting, command registration, media and lifecycle. Application integration tests run actual main and inspect same bot identity/dependency objects, source-built entrypoints, kill switch, login/signal races and delayed publisher cleanup. Runtime tests cover fetch/Mongo/send shutdown drainage, idempotent start/stop and no surviving scheduler timers. No simultaneous real external AI/media/news operation or deployment is claimed."
+    }
+  ],
+  "externalVerification": {
+    "publishers": {
+      "status": "verified_read_only_developer_host",
+      "checkedAt": "2026-09-14T08:28:57.222Z",
+      "requests": 3
+    },
+    "discord": {
+      "status": "pending_authorized_test_guild_and_channel",
+      "tokenPresentLocally": true,
+      "tokenValidityNotChecked": true
+    },
+    "deploymentNetwork": {
+      "status": "pending_deployment_host_access"
+    },
+    "deployment": {
+      "status": "not_performed"
+    }
+  },
+  "finalIntegratedChecks": {
+    "codeAndTestRevision": "0fede26",
+    "checkedAt": "2026-09-14T09:51:41Z",
+    "status": "passed",
+    "commands": [
+      {
+        "command": "pnpm format --ignore-path .news-work/reconcile/format-ignore",
+        "exitCode": 0,
+        "note": "Project format command with unrelated user NEWS_ARCHITECTURE.html preserved"
+      },
+      {
+        "command": "pnpm check",
+        "exitCode": 0,
+        "testsPassed": 1109,
+        "testsSkipped": 30,
+        "filesPassed": 47,
+        "filesSkipped": 1,
+        "coverage": {
+          "statements": 95.78,
+          "branches": 91.1,
+          "functions": 95.88,
+          "lines": 97.9
+        }
+      },
+      {
+        "command": "pnpm build",
+        "exitCode": 0
+      },
+      {
+        "command": "node scripts/news-smoke.mjs --fixtures",
+        "exitCode": 0,
+        "exactPayloadsMatchTrackedPreviews": true
+      }
+    ]
+  },
+  "reviewMetrics": {
+    "blockingFindingsRepaired": ["N06-F1", "N06-F2", "N07-F1", "N09a-F1", "N09a-F2", "N09a-F3"],
+    "featureEvaluationBlockingFindings": 0,
+    "taskDurations": "not consistently recorded; individual check timings are retained in local logs",
+    "agentTokenCost": "not exposed by harness; not estimated",
+    "recurringCause": "Cancellation tests needed to cross the production publisher boundary to prove complete cleanup and preserve definite results",
+    "recordedIntegrationConflicts": 0
+  },
+  "codeTreeSha256": "05240daf29ad77dda994ea418f5c11d4359a1af442b559080e10d263accd9854",
+  "codeTreeHashAlgorithm": "SHA-256 of each relative POSIX path, NUL, then file bytes; sorted recursively within src, then tests"
 }
