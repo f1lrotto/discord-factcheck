@@ -151,30 +151,32 @@ export const planDailyPublication = (
   };
 };
 
-export const planContinuousPublication = (
+export const planContinuousPublications = (
   subscription: NewsSubscription,
   observations: readonly NewsObservation[],
   now: Date,
   reservedKeys: ReadonlySet<string>,
-): NewsPublicationDraft | null => {
-  if (subscription.feed !== 'continuous' || !subscriptionActive(subscription, now)) return null;
-  const dueAt = new Date(Math.max(+now, +subscription.nextDeliveryAt));
-  const observation = observations
+): NewsPublicationDraft[] => {
+  if (subscription.feed !== 'continuous' || !subscriptionActive(subscription, now)) return [];
+  const dueAt = now;
+  return observations
     .filter((item) => continuousEligible(item, subscription.baseline, dueAt))
     .filter((item) => !reservedKeys.has(publicationKey(subscription.key, item.story)))
     .sort(
       (a, b) => +a.firstImportantAt! - +b.firstImportantAt! || a.story.id.localeCompare(b.story.id),
-    )[0];
-  if (!observation) return null;
-  return {
-    key: publicationKey(subscription.key, observation.story),
-    subscriptionKey: subscription.key,
-    configurationRevision: subscription.revision,
-    content: observation.story,
-    dueAt,
-    expiresAt: new Date(+observation.firstImportantAt! + newsPolicy.catchUpMs),
-  };
+    )
+    .map((observation) => ({
+      key: publicationKey(subscription.key, observation.story),
+      subscriptionKey: subscription.key,
+      configurationRevision: subscription.revision,
+      content: observation.story,
+      dueAt,
+      expiresAt: new Date(+observation.firstImportantAt! + newsPolicy.catchUpMs),
+    }));
 };
+
+export const planContinuousPublication = (...args: Parameters<typeof planContinuousPublications>) =>
+  planContinuousPublications(...args)[0] ?? null;
 
 export const canAdmitSend = (
   publication: NewsPublication,
@@ -192,7 +194,7 @@ export const canAdmitSend = (
       isCurrentDailyEdition(publication.content, now) &&
       now >= dailySchedule(now).primaryAt &&
       now < dailySchedule(now).deadline
-    : subscription.feed === 'continuous' && now >= subscription.nextDeliveryAt);
+    : subscription.feed === 'continuous');
 
 // Call only for confirmed rejection before acceptance; ambiguous results never enter this path.
 export const safeRetryAt = (publication: NewsPublication, now: Date, delayMs: number) => {
@@ -204,6 +206,3 @@ export const safeRetryAt = (publication: NewsPublication, now: Date, delayMs: nu
       : +publication.expiresAt;
   return +retryAt < deadline ? retryAt : null;
 };
-
-export const nextContinuousDeliveryAt = (admittedAt: Date) =>
-  new Date(+admittedAt + newsPolicy.continuousIntervalMs);

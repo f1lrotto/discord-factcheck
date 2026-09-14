@@ -422,11 +422,11 @@ describe('durable news source coordination and outbox', () => {
     expect(await news.claimPublication()).toBeNull();
   });
 
-  it('atomically persists sending and continuous pacing, with crash rollback and no burst on retry', async () => {
+  it('atomically persists sending with crash rollback and immediate admission of the next story', async () => {
     const { news, collections } = await readyContinuous();
     const claim = (await news.claimPublication())!;
-    const update = collections.newsSubscriptions.updateOne.bind(collections.newsSubscriptions);
-    vi.spyOn(collections.newsSubscriptions, 'updateOne').mockImplementationOnce(async (...args) => {
+    const update = collections.newsPublications.updateOne.bind(collections.newsPublications);
+    vi.spyOn(collections.newsPublications, 'updateOne').mockImplementationOnce(async (...args) => {
       await update(...args);
       throw new Error('injected pacing write failure');
     });
@@ -437,11 +437,43 @@ describe('durable news source coordination and outbox', () => {
     expect(await news.beginSend(claim)).toEqual(destination);
     await news.finishSend(claim, { outcome: 'sent', messageId: 'receipt' });
     await news.planPublications();
-    expect(await news.claimPublication()).toBeNull();
-    instant = at('18:40:00');
     const second = (await news.claimPublication())!;
     expect(second.publication.key).not.toBe(claim.publication.key);
     expect(await news.beginSend(second)).toEqual(destination);
+  });
+
+  it('upgrades legacy pacing reservations but preserves genuine rejection deadlines and receipts', async () => {
+    const { news, collections, subscription } = await readyContinuous();
+    await collections.newsSubscriptions.updateOne(
+      { _id: subscription.key },
+      { $set: { nextDeliveryAt: at('18:40:00') } },
+    );
+    await collections.newsPublications.updateMany(
+      { status: 'pending' },
+      { $set: { dueAt: at('18:40:00') } },
+    );
+    const restarted = (await open()).news;
+    const first = (await restarted.claimPublication())!;
+    expect(first.publication.dueAt).toEqual(instant);
+    expect(await restarted.beginSend(first)).toEqual(destination);
+    await restarted.finishSend(first, { outcome: 'rejected', retryAt: at('18:25:00') });
+    await restarted.planPublications();
+    expect(await news.claimPublication()).toBeNull();
+    expect(
+      await collections.newsPublications.findOne({ _id: first.publication.key }),
+    ).toMatchObject({ dueAt: at('18:25:00'), attempts: 1 });
+    instant = at('18:25:00');
+    const retry = (await news.claimPublication())!;
+    expect(retry.publication.nonce).toBe(first.publication.nonce);
+    expect(await news.beginSend(retry)).toEqual(destination);
+    await news.finishSend(retry, { outcome: 'sent', messageId: 'receipt' });
+    const remaining = (await news.claimPublication())!;
+    expect(await news.beginSend(remaining)).toEqual(destination);
+    await news.finishSend(remaining, { outcome: 'uncertain' });
+    await restarted.planPublications();
+    expect(await restarted.claimPublication()).toBeNull();
+    expect(await collections.newsPublications.countDocuments({ status: 'sent' })).toBe(1);
+    expect(await collections.newsPublications.countDocuments({ status: 'uncertain' })).toBe(1);
   });
 
   it('expires daily retries/pending work at 22:00 and never admits it the next morning', async () => {

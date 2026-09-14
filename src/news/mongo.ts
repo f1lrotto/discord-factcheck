@@ -10,10 +10,9 @@ import {
   dailySchedule,
   isCurrentDailyEdition,
   nextContinuousCollectionAt,
-  nextContinuousDeliveryAt,
   newsPolicy,
   observeStory,
-  planContinuousPublication,
+  planContinuousPublications,
   planDailyPublication,
   safeRetryAt,
 } from './policy.js';
@@ -524,6 +523,12 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
   };
   const recover = async (tx: Transaction) => {
     const instant = now();
+    // Upgrade old pacing-only reservations without advancing safe rejection retries.
+    await publications.updateMany(
+      { status: 'pending', attempts: 0, 'content.kind': 'story', dueAt: { $gt: instant } },
+      { $set: { dueAt: instant } },
+      dbOptions(tx),
+    );
     await publications.updateMany(
       { status: 'sending', 'lease.expiresAt': { $lte: instant } },
       { $set: { status: 'uncertain' }, $unset: { lease: '', content: '' } },
@@ -556,39 +561,36 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
         const existing = await publications
           .find({ subscriptionKey: subscription._id }, dbOptions(tx))
           .toArray();
-        if (
-          subscription.feed === 'continuous' &&
-          existing.some((value) => ['pending', 'claimed', 'sending'].includes(value.status))
-        )
-          continue;
         const reserved = new Set(
           existing.filter((value) => value.status !== 'cancelled').map((value) => value._id),
         );
         const view = subscriptionView(subscription);
-        const draft =
+        const drafts =
           subscription.feed === 'continuous'
-            ? planContinuousPublication(view, items, instant, reserved)
+            ? planContinuousPublications(view, items, instant, reserved)
             : edition
-              ? planDailyPublication(view, edition, instant, reserved)
-              : null;
-        if (!draft) continue;
-        const previous = existing.find((value) => value._id === draft.key);
-        const document: NewsPublicationDocument = {
-          _id: draft.key,
-          subscriptionKey: draft.subscriptionKey,
-          configurationRevision: draft.configurationRevision,
-          content: draft.content,
-          dueAt: draft.dueAt,
-          expiresAt: draft.expiresAt,
-          status: 'pending',
-          attempts: previous?.attempts ?? 0,
-          nonce: previous?.nonce ?? randomBytes(12).toString('hex'),
-          retainedUntil: new Date(+draft.expiresAt + 30 * dayMs),
-        };
-        await publications.replaceOne({ _id: draft.key }, document, {
-          upsert: true,
-          ...dbOptions(tx),
-        });
+              ? [planDailyPublication(view, edition, instant, reserved)]
+              : [];
+        for (const draft of drafts) {
+          if (!draft) continue;
+          const previous = existing.find((value) => value._id === draft.key);
+          const document: NewsPublicationDocument = {
+            _id: draft.key,
+            subscriptionKey: draft.subscriptionKey,
+            configurationRevision: draft.configurationRevision,
+            content: draft.content,
+            dueAt: draft.dueAt,
+            expiresAt: draft.expiresAt,
+            status: 'pending',
+            attempts: previous?.attempts ?? 0,
+            nonce: previous?.nonce ?? randomBytes(12).toString('hex'),
+            retainedUntil: new Date(+draft.expiresAt + 30 * dayMs),
+          };
+          await publications.replaceOne({ _id: draft.key }, document, {
+            upsert: true,
+            ...dbOptions(tx),
+          });
+        }
       }
     });
   const claimPublication: NewsStore['claimPublication'] = () =>
@@ -596,9 +598,28 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
       await recover(tx);
       for (;;) {
         const instant = now();
+        // One in-flight request per subscription across instances. A known rejection's
+        // retry deadline also gates its remaining batch; other subscriptions can continue.
+        const blocked = await publications
+          .find(
+            {
+              $or: [
+                { status: { $in: ['claimed', 'sending'] } },
+                { status: 'pending', attempts: { $gt: 0 }, dueAt: { $gt: instant } },
+              ],
+            },
+            dbOptions(tx),
+          )
+          .project<{ subscriptionKey: string }>({ subscriptionKey: 1 })
+          .toArray();
         const document = await publications.findOne(
-          { status: 'pending', dueAt: { $lte: instant }, expiresAt: { $gt: instant } },
-          { sort: { dueAt: 1, _id: 1 }, ...dbOptions(tx) },
+          {
+            status: 'pending',
+            dueAt: { $lte: instant },
+            expiresAt: { $gt: instant },
+            subscriptionKey: { $nin: blocked.map((item) => item.subscriptionKey) },
+          },
+          { sort: { attempts: -1, dueAt: 1, _id: 1 }, ...dbOptions(tx) },
         );
         if (!document) return null;
         const subscription = await subscriptions.findOne(
@@ -613,14 +634,6 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
           await publications.updateOne(
             { _id: document._id },
             { $set: { status: 'cancelled' }, $unset: { content: '' } },
-            dbOptions(tx),
-          );
-          continue;
-        }
-        if (subscription.feed === 'continuous' && subscription.nextDeliveryAt > instant) {
-          await publications.updateOne(
-            { _id: document._id },
-            { $set: { dueAt: subscription.nextDeliveryAt } },
             dbOptions(tx),
           );
           continue;
@@ -653,20 +666,9 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
         !subscription ||
         !canAdmitSend(publicationView(document), subscriptionView(subscription), now())
       ) {
-        const paced =
-          subscription?.enabled &&
-          !subscription.pausedReason &&
-          subscription.revision === document.configurationRevision &&
-          document.expiresAt > now();
         await publications.updateOne(
           { _id: document._id },
-          {
-            $set: {
-              status: paced ? 'pending' : 'cancelled',
-              ...(paced ? { dueAt: subscription.nextDeliveryAt } : {}),
-            },
-            $unset: { lease: '', ...(!paced ? { content: '' } : {}) },
-          },
+          { $set: { status: 'cancelled' }, $unset: { lease: '', content: '' } },
           dbOptions(tx),
         );
         return null;
@@ -691,14 +693,7 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
         },
         dbOptions(tx),
       );
-      // This write shares the transaction/fence with configure/disable and the outbox.
       // The persisted sending transition is the point after which a crash is uncertain.
-      if (subscription.feed === 'continuous')
-        await subscriptions.updateOne(
-          { _id: subscription._id },
-          { $set: { nextDeliveryAt: nextContinuousDeliveryAt(instant) } },
-          dbOptions(tx),
-        );
       return destination;
     }).catch((error: unknown) => {
       if (error instanceof LostLease) return null;

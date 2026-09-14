@@ -1,3 +1,4 @@
+import { setImmediate } from 'node:timers/promises';
 import type { Logger } from 'pino';
 import { mongoOperationTimeoutMs } from '../limits.js';
 import { createAktualitySource } from './sources/aktuality.js';
@@ -61,7 +62,7 @@ export const createNewsRuntime = ({
   clock = () => new Date(),
   enabled = true,
   tickIntervalMs = 30_000,
-  maxDeliveriesPerTick = 10,
+  deliveryChunkSize = 10,
   collectionTimeoutMs = 40_000,
   sendTimeoutMs = 15_000,
 }: {
@@ -72,13 +73,13 @@ export const createNewsRuntime = ({
   clock?: NewsClock;
   enabled?: boolean;
   tickIntervalMs?: number;
-  maxDeliveriesPerTick?: number;
+  deliveryChunkSize?: number;
   collectionTimeoutMs?: number;
   sendTimeoutMs?: number;
 }) => {
   for (const [value, maximum] of [
     [tickIntervalMs, 60_000],
-    [maxDeliveriesPerTick, 100],
+    [deliveryChunkSize, 100],
     [collectionTimeoutMs, 40_000],
     [sendTimeoutMs, 30_000],
   ] as const)
@@ -165,18 +166,22 @@ export const createNewsRuntime = ({
   const runTick = async (signal: AbortSignal) => {
     const subscriptions = await store.listEnabled();
     if (signal.aborted || !subscriptions.length) return;
-    let remainingDeliveries = maxDeliveriesPerTick;
+    let deliveriesSinceYield = 0;
     let deliveries = Promise.resolve();
     const deliver = () => {
       deliveries = deliveries.then(async () => {
         try {
           if (signal.aborted) return;
           await store.planPublications();
-          while (remainingDeliveries > 0 && !signal.aborted && publisher.ready()) {
+          while (!signal.aborted && publisher.ready()) {
             const claim = await store.claimPublication();
             if (!claim) break;
-            remainingDeliveries--;
             await send(claim, signal);
+            // Drain the complete ready batch, yielding between chunks for cancellation and I/O.
+            if (++deliveriesSinceYield >= deliveryChunkSize) {
+              deliveriesSinceYield = 0;
+              await setImmediate();
+            }
           }
         } catch {
           // A failed receipt remains sending for conservative store recovery.

@@ -300,7 +300,7 @@ describe('news coordinator with real Mongo, source parsers and Discord publisher
     expect((await store.getSource('aktuality')).daily?.attemptedSlots).toHaveLength(2);
   });
 
-  it('preserves continuous activation, cadence, deduplication and pacing after process restart', async () => {
+  it('preserves continuous activation, cadence, immediate batches and deduplication after process restart', async () => {
     const { store } = await open();
     await store.configure({ feed: 'continuous', destination });
     let ids = [90001];
@@ -318,13 +318,13 @@ describe('news coordinator with real Mongo, source parsers and Discord publisher
     ids = [90001, 90002, 90003];
     instant = at('18:20:00');
     await first.tick();
-    expect(d.posts()).toHaveLength(1);
+    expect(d.posts()).toHaveLength(2);
     await first.shutdown();
     instant = at('18:21:00');
     const second = runtime((await open()).store, { sources: [source], publisher: d.publisher });
     await second.tick();
     expect(http).toHaveBeenCalledTimes(2);
-    expect(d.posts()).toHaveLength(1);
+    expect(d.posts()).toHaveLength(2);
     instant = at('18:40:00');
     await second.tick();
     expect(http).toHaveBeenCalledTimes(3);
@@ -334,6 +334,133 @@ describe('news coordinator with real Mongo, source parsers and Discord publisher
       'https://dennikn.sk/minuta/90002/',
       'https://dennikn.sk/minuta/90003/',
     ]);
+  });
+
+  it('serializes a 25-story batch across competing instances and drains it without advancing time', async () => {
+    const { store, collections } = await open();
+    await store.configure({ feed: 'continuous', destination });
+    let ids = [90001];
+    const http = vi.fn<NewsHttp>(async ({ url }) => ({
+      outcome: 'ok',
+      url,
+      html: snapshot(ids),
+      validators: {},
+    }));
+    const source = createDenniknSource(http);
+    const entered = deferred<void>();
+    const release = deferred<void>();
+    let active = 0;
+    let peak = 0;
+    const publish = vi.fn<NewsPublisher['publish']>(async () => {
+      peak = Math.max(peak, ++active);
+      if (publish.mock.calls.length === 1) {
+        entered.resolve();
+        await release.promise;
+      }
+      active--;
+      return { outcome: 'sent', messageId: '600' };
+    });
+    const publisher = { ...quietPublisher(), ready: () => true, publish };
+    const first = runtime(store, { sources: [source], publisher });
+    await first.tick();
+    ids = [90001, ...Array.from({ length: 25 }, (_, index) => 90100 + index)];
+    instant = at('18:20:00');
+    const draining = first.tick();
+    await entered.promise;
+    const second = runtime((await open()).store, { sources: [source], publisher });
+    await second.tick();
+    expect(publish).toHaveBeenCalledTimes(1);
+    release.resolve();
+    await draining;
+    expect(peak).toBe(1);
+    expect(publish).toHaveBeenCalledTimes(25);
+    expect(new Set(publish.mock.calls.map(([input]) => input.content.id)).size).toBe(25);
+    expect(await collections.newsPublications.countDocuments({ status: 'sent' })).toBe(25);
+    expect(instant).toEqual(at('18:20:00'));
+    await first.shutdown();
+    await runtime((await open()).store, { sources: [source], publisher }).tick();
+    expect(publish).toHaveBeenCalledTimes(25);
+    expect(http).toHaveBeenCalledTimes(2);
+  });
+
+  it('pauses a rejected batch until its persisted retry deadline while another guild proceeds', async () => {
+    const { store } = await open();
+    await store.configure({ feed: 'continuous', destination });
+    await store.configure({
+      feed: 'continuous',
+      destination: { guildId: '101', channelId: '201' },
+    });
+    let ids = [90001];
+    const source = createDenniknSource(async ({ url }) => ({
+      outcome: 'ok',
+      url,
+      html: snapshot(ids),
+      validators: {},
+    }));
+    const publish = vi.fn<NewsPublisher['publish']>(async (input) =>
+      input.destination.guildId === '100'
+        ? { outcome: 'rejected', retryAt: at('18:22:00') }
+        : { outcome: 'sent', messageId: '600' },
+    );
+    const publisher = { ...quietPublisher(), ready: () => true, publish };
+    const first = runtime(store, { sources: [source], publisher });
+    await first.tick();
+    instant = at('18:20:00');
+    ids = [90001, 90002, 90003, 90004];
+    await first.tick();
+    expect(
+      publish.mock.calls.filter(([input]) => input.destination.guildId === '100'),
+    ).toHaveLength(1);
+    expect(
+      publish.mock.calls.filter(([input]) => input.destination.guildId === '101'),
+    ).toHaveLength(3);
+    const nonce = publish.mock.calls.find(([input]) => input.destination.guildId === '100')![0]
+      .nonce;
+    await first.shutdown();
+    const second = runtime((await open()).store, { publisher });
+    await second.tick();
+    expect(publish).toHaveBeenCalledTimes(4);
+    publish.mockImplementation(async () => ({ outcome: 'sent', messageId: '600' }));
+    instant = at('18:22:00');
+    await second.tick();
+    expect(publish).toHaveBeenCalledTimes(7);
+    expect(publish.mock.calls.slice(4).some(([input]) => input.nonce === nonce)).toBe(true);
+  });
+
+  it('drains shutdown during a batch and restarts only its unsent remainder', async () => {
+    const { store } = await open();
+    await store.configure({ feed: 'continuous', destination });
+    let ids = [90001];
+    const source = createDenniknSource(async ({ url }) => ({
+      outcome: 'ok',
+      url,
+      html: snapshot(ids),
+      validators: {},
+    }));
+    const entered = deferred<void>();
+    const publish = vi.fn<NewsPublisher['publish']>(async ({ signal }) => {
+      if (publish.mock.calls.length === 2) {
+        entered.resolve();
+        await new Promise<void>((resolve) =>
+          signal.addEventListener('abort', () => resolve(), { once: true }),
+        );
+        return { outcome: 'uncertain' };
+      }
+      return { outcome: 'sent', messageId: '600' };
+    });
+    const publisher = { ...quietPublisher(), ready: () => true, publish };
+    const first = runtime(store, { sources: [source], publisher });
+    await first.tick();
+    instant = at('18:20:00');
+    ids = [90001, 90002, 90003, 90004];
+    const draining = first.tick();
+    await entered.promise;
+    await first.shutdown();
+    await draining;
+    expect(publish).toHaveBeenCalledTimes(2);
+    await runtime((await open()).store, { publisher }).tick();
+    expect(publish).toHaveBeenCalledTimes(3);
+    expect(new Set(publish.mock.calls.map(([input]) => input.content.id)).size).toBe(3);
   });
 
   it('delivers stored daily news while another source stalls, and records timeout without error contents', async () => {
@@ -641,7 +768,7 @@ describe('news coordinator with real Mongo, source parsers and Discord publisher
     expect(await collections.newsPublications.countDocuments({ status: 'pending' })).toBe(1);
   });
 
-  it('bounds work per tick and lets other destinations progress on later ticks', async () => {
+  it('yields between bounded chunks and drains all ready destinations in one tick', async () => {
     const { store, collections } = await open();
     for (const channel of ['200', '201', '202'])
       await store.configure({
@@ -654,12 +781,11 @@ describe('news coordinator with real Mongo, source parsers and Discord publisher
     }));
     const r = runtime(store, {
       sources: [fixtureDaily().source],
-      maxDeliveriesPerTick: 1,
+      deliveryChunkSize: 1,
       publisher: { ...quietPublisher(), ready: () => true, publish },
     });
     await r.tick();
-    expect(publish).toHaveBeenCalledTimes(1);
-    await r.tick();
+    expect(publish).toHaveBeenCalledTimes(3);
     await r.tick();
     expect(await collections.newsPublications.countDocuments({ status: 'sent' })).toBe(3);
   });

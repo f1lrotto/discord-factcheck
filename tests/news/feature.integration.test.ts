@@ -607,7 +607,7 @@ describe('whole news journeys from native command configuration to durable deliv
     expect(h.published).toHaveLength(1);
   });
 
-  it('deduplicates corrections and importance promotion and bounds a real outbox backlog after restart', async () => {
+  it('deduplicates corrections and importance promotion and drains the complete real outbox batch before restart', async () => {
     const h = await harness();
     h.state.posts = [story(90001), story(90002, false)];
     await h.first.command('continuous');
@@ -621,10 +621,10 @@ describe('whole news journeys from native command configuration to durable deliv
     h.state.now = at('17:40:00');
     h.state.posts = [
       { ...story(90002), excerpt: '<p><strong>Corrected public headline.</strong></p>' },
-      ...Array.from({ length: 10 }, (_, index) => story(90100 + index)),
+      ...Array.from({ length: 25 }, (_, index) => story(90100 + index)),
     ];
     await h.first.runtime.tick();
-    expect(h.published).toHaveLength(2);
+    expect(h.published).toHaveLength(26);
     await h.first.close();
     const restarted = await h.open();
     for (const minute of [0, 20, 40]) {
@@ -636,12 +636,9 @@ describe('whole news journeys from native command configuration to durable deliv
       h.state.now = at(`19:${String(minute).padStart(2, '0')}:00`);
       await restarted.runtime.tick();
     }
-    expect(h.published).toHaveLength(7); // One promotion plus six of ten burst stories.
-    expect(new Set(h.published.map((post) => post.body.embeds[0].url)).size).toBe(7);
-    for (let index = 1; index < h.published.length; index++)
-      expect(+h.published[index]!.at - +h.published[index - 1]!.at).toBeGreaterThanOrEqual(
-        20 * 60_000,
-      );
+    expect(h.published).toHaveLength(26); // One promotion plus the full 25-story batch.
+    expect(new Set(h.published.map((post) => post.body.embeds[0].url)).size).toBe(26);
+    expect(h.published.slice(1).every((post) => +post.at === +at('17:40:00'))).toBe(true);
     expect(
       await restarted.collections.newsPublications.countDocuments({
         status: { $in: ['pending', 'claimed', 'sending'] },

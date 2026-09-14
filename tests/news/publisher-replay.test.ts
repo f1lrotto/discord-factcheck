@@ -11,9 +11,9 @@ import {
   establishContinuousBaseline,
   newsLocalDate,
   newsPolicy,
-  nextContinuousDeliveryAt,
   observeStory,
   planContinuousPublication,
+  planContinuousPublications,
 } from '../../src/news/policy.js';
 import type { NewsObservation, NewsSourceCache, NewsSubscription } from '../../src/news/types.js';
 
@@ -93,23 +93,31 @@ describe('publisher-grounded policy replay (simulated observations and sends)', 
         observed.set(story.id, observeStory(story, current, observed.get(story.id)));
       for (const sub of subscriptions) {
         sub.baseline = establishContinuousBaseline(sub.baseline, current);
-        const draft = planContinuousPublication(sub, [...observed.values()], now, reserved);
-        if (!draft) continue;
-        expect(
-          canAdmitSend({ ...draft, status: 'claimed', attempts: 1, nonce: 'simulation' }, sub, now),
-        ).toBe(true);
-        reserved.add(draft.key);
-        sub.nextDeliveryAt = nextContinuousDeliveryAt(now);
-        const observation = observed.get(draft.content.id)!;
-        sends.push({
-          guild: sub.key,
-          id: draft.content.id,
-          publishedAt: draft.content.publishedAt.toISOString(),
-          firstImportantAt: observation.firstImportantAt!.toISOString(),
-          sentAt: now.toISOString(),
-          delayMinutes: (+now - +draft.content.publishedAt) / 60_000,
-          queueMinutes: (+now - +observation.firstImportantAt!) / 60_000,
-        });
+        for (const draft of planContinuousPublications(
+          sub,
+          [...observed.values()],
+          now,
+          reserved,
+        )) {
+          expect(
+            canAdmitSend(
+              { ...draft, status: 'claimed', attempts: 1, nonce: 'simulation' },
+              sub,
+              now,
+            ),
+          ).toBe(true);
+          reserved.add(draft.key);
+          const observation = observed.get(draft.content.id)!;
+          sends.push({
+            guild: sub.key,
+            id: draft.content.id,
+            publishedAt: draft.content.publishedAt.toISOString(),
+            firstImportantAt: observation.firstImportantAt!.toISOString(),
+            sentAt: now.toISOString(),
+            delayMinutes: (+now - +draft.content.publishedAt) / 60_000,
+            queueMinutes: (+now - +observation.firstImportantAt!) / 60_000,
+          });
+        }
       }
     }
     const delivered = sends.filter(({ guild }) => guild === subscriptions[0]!.key);
@@ -155,8 +163,8 @@ describe('publisher-grounded policy replay (simulated observations and sends)', 
       actualCaptured: 50,
       sendsPerSubscription: 50,
       expiredIds: [],
-      maximumPublicationDelayMinutes: 29.57,
-      maximumQueueDelayMinutes: 20,
+      maximumPublicationDelayMinutes: 19.5,
+      maximumQueueDelayMinutes: 0,
       publicationCountsBySlovakDate: {
         '2026-09-10': 14,
         '2026-09-11': 9,
@@ -204,7 +212,7 @@ describe('fully synthetic adversarial source/policy replay', () => {
       planContinuousPublication(sub, [revised], revised.lastSeenAt, new Set([draft.key])),
     ).toBeNull();
   });
-  it('limits a ten-story burst to six paced sends and explicitly expires four at two hours', () => {
+  it('delivers every story in a ten-story burst at its collection time', () => {
     const now = new Date('2026-09-14T06:20:00Z');
     const sub = {
       ...subscription('synthetic-burst', now),
@@ -224,19 +232,16 @@ describe('fully synthetic adversarial source/policy replay', () => {
     );
     const reserved = new Set<string>();
     const sent: string[] = [];
-    for (let step = 0; step <= 6; step++) {
-      const clock = new Date(+now + step * interval);
-      const draft = planContinuousPublication(sub, observations, clock, reserved);
-      if (!draft) continue;
+    for (const draft of planContinuousPublications(sub, observations, now, reserved)) {
+      const clock = now;
       expect(
         canAdmitSend({ ...draft, status: 'claimed', attempts: 1, nonce: 'burst' }, sub, clock),
       ).toBe(true);
       reserved.add(draft.key);
       sent.push(draft.content.id);
-      sub.nextDeliveryAt = nextContinuousDeliveryAt(clock);
     }
-    expect(sent).toHaveLength(6);
-    expect(stories.filter((story) => !sent.includes(story.id))).toHaveLength(4);
+    expect(sent).toHaveLength(10);
+    expect(stories.filter((story) => !sent.includes(story.id))).toHaveLength(0);
     expect(
       planContinuousPublication(sub, observations, new Date(+now + newsPolicy.catchUpMs), reserved),
     ).toBeNull();

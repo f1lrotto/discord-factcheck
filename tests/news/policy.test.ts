@@ -9,9 +9,9 @@ import {
   isCurrentDailyEdition,
   newsLocalDate,
   nextContinuousCollectionAt,
-  nextContinuousDeliveryAt,
   observeStory,
   planContinuousPublication,
+  planContinuousPublications,
   planDailyPublication,
   publicationKey,
   safeRetryAt,
@@ -310,7 +310,7 @@ describe('daily eligibility, identity, activation and delivery cutoff', () => {
   });
 });
 
-describe('continuous baselines, promotion and bounded pacing', () => {
+describe('continuous baselines, promotion and batch delivery', () => {
   const baseline = { sequence: 1, collectedAt: at('11:40:00') };
   const sub = () => subscription({ feed: 'continuous', baseline });
   const observed = (overrides: Partial<NewsStory> = {}, sequence = 2, time = '12:00:00') =>
@@ -425,39 +425,28 @@ describe('continuous baselines, promotion and bounded pacing', () => {
     ).toBeNull();
   });
 
-  it('respects durable pacing and does not queue stories whose deadline precedes their due time', () => {
-    const paced = sub();
-    paced.nextDeliveryAt = at('12:20:00');
-    const draft = planContinuousPublication(paced, [observed()], at('12:00:00'), noReservations)!;
-    expect(draft).toMatchObject({ dueAt: at('12:20:00'), expiresAt: at('14:00:00') });
-    expect(canAdmitSend(publication(draft), paced, at('12:00:00'))).toBe(false);
-    expect(canAdmitSend(publication(draft), paced, at('12:20:00'))).toBe(true);
-    expect(canAdmitSend(publication(draft, { dueAt: at('12:00:00') }), paced, at('12:00:00'))).toBe(
-      false,
-    );
+  it('ignores legacy pacing while preserving expiry and explicit retry deadlines', () => {
+    const current = { ...sub(), nextDeliveryAt: at('14:00:00') };
+    const draft = planContinuousPublication(current, [observed()], at('12:00:00'), noReservations)!;
+    expect(draft).toMatchObject({ dueAt: at('12:00:00'), expiresAt: at('14:00:00') });
+    expect(canAdmitSend(publication(draft), current, at('12:00:00'))).toBe(true);
     expect(
-      planContinuousPublication(
-        { ...paced, nextDeliveryAt: at('14:00:00') },
-        [observed()],
-        at('12:00:00'),
-        noReservations,
-      ),
-    ).toBeNull();
+      canAdmitSend(publication(draft, { dueAt: at('12:01:00') }), current, at('12:00:00')),
+    ).toBe(false);
     const sending = publication(draft, { status: 'sending' });
     expect(safeRetryAt(sending, at('13:59:00'), 59_999)).toEqual(at('13:59:59.999'));
     expect(safeRetryAt(sending, at('14:00:00'), 0)).toBeNull();
   });
 
-  it('sets independent 20-minute collection/delivery floors and honors publisher backoff', () => {
+  it('keeps the 20-minute collection floor and honors publisher backoff', () => {
     expect(nextContinuousCollectionAt(at('12:00:00'))).toEqual(at('12:20:00'));
     expect(nextContinuousCollectionAt(at('12:00:00'), at('12:05:00'))).toEqual(at('12:20:00'));
     expect(nextContinuousCollectionAt(at('12:00:00'), at('13:00:00'))).toEqual(at('13:00:00'));
-    expect(nextContinuousDeliveryAt(at('12:03:00'))).toEqual(at('12:23:00'));
   });
 
   it('replays synthetic multi-day steady traffic without a 15-story quota or manufactured messages', () => {
     const replay = ['2026-01-15', '2026-01-16', '2026-01-17'].map((date) => {
-      let current = subscription({
+      const current = subscription({
         feed: 'continuous',
         baseline: { sequence: 0, collectedAt: at('00:00:00', date) },
         activatedAt: at('00:00:00', date),
@@ -473,7 +462,6 @@ describe('continuous baselines, promotion and bounded pacing', () => {
         const draft = planContinuousPublication(current, [observation], now, reserved)!;
         expect(canAdmitSend(publication(draft), current, now)).toBe(true);
         reserved.add(draft.key);
-        current = { ...current, nextDeliveryAt: nextContinuousDeliveryAt(now) };
         expect(planContinuousPublication(current, [observation], now, reserved)).toBeNull();
         return draft.content.id;
       });
@@ -484,20 +472,22 @@ describe('continuous baselines, promotion and bounded pacing', () => {
     expect(new Set(replay.flat()).size).toBe(54);
   });
 
-  it('bounds synthetic burst catch-up to six deliveries over two hours after restart', () => {
-    const observations = Array.from({ length: 10 }, (_, i) => observed({ id: String(i) }));
-    let current = sub();
-    const reserved = new Set<string>();
-    const sent = Array.from({ length: 7 }, (_, i) => {
-      const now = new Date(+at('12:00:00') + i * 20 * 60_000);
-      const draft = planContinuousPublication(current, observations, now, reserved);
-      if (!draft) return null;
-      reserved.add(draft.key);
-      // Recreated state models durable pacing and tombstones loaded on process restart.
-      current = { ...current, nextDeliveryAt: nextContinuousDeliveryAt(now) };
-      return draft;
-    });
-    expect(sent.filter(Boolean)).toHaveLength(6);
-    expect(sent[6]).toBeNull();
+  it('plans a complete burst at the observation time and preserves reservations after restart', () => {
+    const observations = Array.from({ length: 25 }, (_, i) => observed({ id: String(i) }));
+    const current = sub();
+    const now = at('12:00:00');
+    const drafts = planContinuousPublications(current, observations, now, new Set());
+    expect(drafts).toHaveLength(25);
+    expect(
+      drafts.every(
+        (draft) => +draft.dueAt === +now && canAdmitSend(publication(draft), current, now),
+      ),
+    ).toBe(true);
+    expect(
+      planContinuousPublications(current, observations, now, new Set(drafts.map(({ key }) => key))),
+    ).toEqual([]);
+    expect(planContinuousPublications(current, observations, at('14:00:00'), new Set())).toEqual(
+      [],
+    );
   });
 });

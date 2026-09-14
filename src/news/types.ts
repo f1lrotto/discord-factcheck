@@ -107,6 +107,7 @@ export type NewsSubscription = {
   activatedAt: Date;
   // Null waits for the first successful snapshot. Sequence avoids same-clock activation races.
   baseline: NewsSnapshot | null;
+  // Legacy pacing field retained for stored configuration compatibility; admission ignores it.
   nextDeliveryAt: Date;
   pausedReason?: 'destination-unavailable' | 'decryption-failed';
 };
@@ -184,8 +185,8 @@ export type NewsStore = NewsSubscriptionStore & {
   planPublications: () => Promise<void>;
   claimPublication: () => Promise<NewsPublicationClaim | null>;
   // Caller checks publisher readiness first. Atomically check revision, enabled/paused state,
-  // deadline, claim ownership and pace, then mark sending.
-  // Resolve the destination only for that revision; reserve continuous pacing in the same operation.
+  // deadline and claim ownership, then mark sending.
+  // Resolve the destination only for that revision in the same operation.
   beginSend: (claim: NewsPublicationClaim) => Promise<NewsDestination | null>;
   // Hash messageId before persistence. Expired sending leases become uncertain, never pending.
   finishSend: (claim: NewsPublicationClaim, result: NewsPublishResult) => Promise<void>;
