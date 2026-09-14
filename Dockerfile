@@ -27,6 +27,7 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY scripts/reels-smoke.mjs ./scripts/reels-smoke.mjs
+COPY scripts/news-smoke.mjs ./scripts/news-smoke.mjs
 
 USER node
 CMD ["node", "dist/index.js"]

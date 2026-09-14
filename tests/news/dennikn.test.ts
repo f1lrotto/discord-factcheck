@@ -198,14 +198,12 @@ describe('Denník strict source data parsing', () => {
 
 describe('Denník one-request collector and cache proposals', () => {
   it('returns stories including false records and commits validators only after valid parsing', async () => {
-    const http = vi
-      .fn<NewsHttp>()
-      .mockResolvedValue({
-        outcome: 'ok',
-        html: envelope([{ ...post, isImportant: false }]),
-        url: denniknListingUrl,
-        validators: { etag: 'new' },
-      });
+    const http = vi.fn<NewsHttp>().mockResolvedValue({
+      outcome: 'ok',
+      html: envelope([{ ...post, isImportant: false }]),
+      url: denniknListingUrl,
+      validators: { etag: 'new' },
+    });
     const result = await createDenniknSource(http).collect({
       now,
       cache: { listing: { etag: 'old' } },
@@ -266,14 +264,12 @@ describe('Denník one-request collector and cache proposals', () => {
     expect(await createDenniknSource(http).collect({ now, cache: {}, signal })).toEqual(failure);
   });
   it('rejects a listing redirected to a story even if it contains recognizable state', async () => {
-    const http = vi
-      .fn<NewsHttp>()
-      .mockResolvedValue({
-        outcome: 'ok',
-        html: captured,
-        url: 'https://dennikn.sk/minuta/90001/',
-        validators: {},
-      });
+    const http = vi.fn<NewsHttp>().mockResolvedValue({
+      outcome: 'ok',
+      html: captured,
+      url: 'https://dennikn.sk/minuta/90001/',
+      validators: {},
+    });
     expect(await createDenniknSource(http).collect({ now, cache: {}, signal })).toEqual({
       outcome: 'malformed',
     });
