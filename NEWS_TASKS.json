@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "specVersion": 1,
   "feature": "jolanda-news",
-  "status": "local_acceptance_complete_release_packet_in_progress",
+  "status": "locally_complete",
   "plan": "NEWS_IMPLEMENTATION_PLAN.md",
   "runbook": "NEWS_AGENT_RUNBOOK.md",
   "inspectedBaseRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370",
@@ -391,7 +391,7 @@
     {
       "id": "N11",
       "title": "Operational documentation and release packet",
-      "state": "reviewing",
+      "state": "accepted",
       "dependsOn": ["N10"],
       "requirements": ["R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n11--operational-documentation-and-release-packet",
@@ -401,10 +401,12 @@
       "assignedAgent": "/root",
       "worktree": null,
       "baseRevision": "0fede26",
-      "candidateRevision": null,
-      "acceptedRevision": null,
-      "repairRounds": 0,
+      "candidateRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec",
+      "acceptedRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec",
+      "repairRounds": 1,
       "evidence": [
+        ".news-work/N11/review-1.json",
+        ".news-work/N11/acceptance.json",
         "NEWS_ACCEPTANCE.md",
         "NEWS_VERIFICATION.json",
         "NEWS_PREVIEWS.json",
@@ -413,7 +415,7 @@
       "blockingFindings": [],
       "preparation": {
         "id": "N11a",
-        "state": "locally_verified_pending_final_review",
+        "state": "accepted",
         "dependsOn": ["N03", "N04", "N07"],
         "owner": "/root",
         "baseRevision": "58a57ac",
@@ -426,7 +428,8 @@
           "pnpm check:990passed/30existing skips",
           "pnpm build",
           "node scripts/news-smoke.mjs --fixtures"
-        ]
+        ],
+        "acceptedRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec"
       },
       "reviewer": "/root/feature_evaluator"
     }

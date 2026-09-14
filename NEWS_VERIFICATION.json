@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "feature": "jolanda-news",
-  "status": "locally_verified_pending_release_packet_review",
+  "status": "locally_complete",
   "integratedRevision": "0fede26",
   "localImplementationComplete": true,
   "liveDiscordVerified": false,
@@ -856,8 +856,131 @@
     "taskDurations": "not consistently recorded; individual check timings are retained in local logs",
     "agentTokenCost": "not exposed by harness; not estimated",
     "recurringCause": "Cancellation tests needed to cross the production publisher boundary to prove complete cleanup and preserve definite results",
-    "recordedIntegrationConflicts": 0
+    "recordedIntegrationConflicts": 0,
+    "packetCorrections": ["N11-F1: removed accidentally exported requirement-table header"]
   },
   "codeTreeSha256": "05240daf29ad77dda994ea418f5c11d4359a1af442b559080e10d263accd9854",
-  "codeTreeHashAlgorithm": "SHA-256 of each relative POSIX path, NUL, then file bytes; sorted recursively within src, then tests"
+  "codeTreeHashAlgorithm": "SHA-256 of each relative POSIX path, NUL, then file bytes; sorted recursively within src, then tests",
+  "releasePacketReview": {
+    "taskId": "N11",
+    "reviewedRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec",
+    "initialReviewedRevision": "290af532bcc57a2345547ebb7fa1d5aab1a1eeaf",
+    "baseRevision": "83987441916d8a4b3652848bd65456b96d5b6387",
+    "verdict": "approved",
+    "acceptanceAuthority": "Root only accepts N11 and finalizes status metadata; this approves the repaired release packet content.",
+    "findings": [],
+    "dispositions": [
+      {
+        "id": "N11-F1",
+        "requirement": "R10",
+        "severity": "minor_packet_discrepancy",
+        "location": "NEWS_VERIFICATION.json requirements[0] at initial 290af53",
+        "scenario": "Read the exported requirement evidence array as the portable R01–R10 matrix.",
+        "observed": "Markdown table header was exported as a fake eleventh requirement named Requirement.",
+        "expected": "Exactly one entry for each of R01 through R10.",
+        "status": "fixed",
+        "fixedRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec",
+        "evidence": "Inspected immutable repair diff: only the five-line header object was removed; independent JSON assertion now finds exactly R01–R10 in order and all eight scenario numbers."
+      }
+    ],
+    "verified": [
+      "Inspected release packet changes from base 8398744 to initial 290af53 and repaired 5f422b7; implementation plan product contract is unchanged except its accurate implementation/status introduction.",
+      "Portable NEWS_VERIFICATION embeds all ten requirement entries and eight complete journey descriptions, retaining the simulation/real-Mongo/fake-transport distinctions from N10. Supplemental temporary paths occur within archived reviewer receipts; substantive matrix and outcomes are present in tracked files.",
+      "Root N10 acceptance at 0fede26 references the evaluator b133cb3 candidate and 31 rerun feature/application tests. Production/tests/dependency manifests/lock/config and coverage gates are byte-equivalent to the independently checked evaluator candidate.",
+      "Independently recomputed src/tests SHA-256 05240daf29ad77dda994ea418f5c11d4359a1af442b559080e10d263accd9854 using the documented path/NUL/file-byte algorithm; matches portable packet.",
+      "Inspected final root format/check/build logs: all reported successful, 1109 tests passed / 30 existing opt-in live skips, 47 test files passed / 1 skipped; coverage 95.78 statements / 91.10 branches / 95.88 functions / 97.90 lines matches packet. Format command explicitly preserves unrelated user NEWS_ARCHITECTURE.html; no tracked dirty files.",
+      "Root offline preview results exactly equal tracked NEWS_PREVIEWS payloads; no new smoke/network run was needed. One-embed daily introduction/seven headings, source metadata, notification flags and stale sample status retain N10 verified behavior.",
+      "Six component findings are distinct from the N11 packet correction. N06-F1/F2 and N07-F1 repaired dispositions were inspected in local independent re-review receipts; N09a-F1/F2/F3 repaired outcomes are embedded with concrete scenarios and re-review evidence. Counts match NEWS_ACCEPTANCE and reviewMetrics.",
+      "NEWS_ACCEPTANCE, NEWS_TASKS and NEWS_VERIFICATION consistently mark local implementation/N10 accepted and release packet review pending, with publisher-only developer-host verification, false liveDiscordVerified and false deployed. Historical component-review statements about later work being pending remain revision-scoped evidence.",
+      "Unchanged NEWS_OPERATIONS/README/SECURITY/.env/preview/smoke guidance remains accurate: native commands, Europe/Bratislava windows, deadline/no fallback after collection success, erasure and bounded retention, uncertainty, permission revalidation, NEWS_ENABLED rollback and keeping deployment single-replica.",
+      "External inputs are concrete: explicitly authorized test guild/channel for live Discord; separate explicit role configuration for any ping; access to deployment host for read-only source smoke. Existing locally present token is correctly not represented as validated. No additional credentials were requested or read.",
+      "No production/test/doc edits, subagents, live publisher/Discord requests, deployment or external messages occurred during this review. Only this review artifact was written."
+    ],
+    "checks": [
+      {
+        "command": "git diff --check 8398744..5f422b7",
+        "exitCode": 0
+      },
+      {
+        "command": "pnpm exec prettier --check NEWS_ACCEPTANCE.md NEWS_VERIFICATION.json NEWS_TASKS.json NEWS_IMPLEMENTATION_PLAN.md NEWS_OPERATIONS.md README.md SECURITY.md NEWS_PREVIEWS.json scripts/news-smoke.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "Independent Python JSON assertions for requirements/scenarios/finding count/check counts/accepted revision/external states and git code/test/dependency/gate equivalence",
+        "exitCode": 0
+      },
+      {
+        "command": "Independent SHA-256 src/tests recomputation and exact offline preview result comparison",
+        "exitCode": 0
+      }
+    ],
+    "notVerified": [
+      "Full 1109-test gates were independently executed for N10 unchanged code and root final logs were inspected here; no redundant full-suite run for metadata-only N11 packet.",
+      "Token presence is a root-reported environment fact; reviewer deliberately did not read secret files or validate token/live Discord.",
+      "Actual designated Discord messages, command registration/client notifications, deployment-network access and deployment remain pending/unperformed.",
+      "Only root may finalize status/acceptance fields after this review. Any substantive production/test/operational content change would require appropriate renewed review; ordinary acceptance/status metadata can be finalized against this receipt."
+    ]
+  },
+  "acceptedTasks": [
+    {
+      "id": "N00",
+      "state": "accepted",
+      "acceptedRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370"
+    },
+    {
+      "id": "N01",
+      "state": "accepted",
+      "acceptedRevision": "6340b5c"
+    },
+    {
+      "id": "N02",
+      "state": "accepted",
+      "acceptedRevision": "ec03abe"
+    },
+    {
+      "id": "N03",
+      "state": "accepted",
+      "acceptedRevision": "7777a4a"
+    },
+    {
+      "id": "N04",
+      "state": "accepted",
+      "acceptedRevision": "7777a4a"
+    },
+    {
+      "id": "N05",
+      "state": "accepted",
+      "acceptedRevision": "148b301"
+    },
+    {
+      "id": "N06",
+      "state": "accepted",
+      "acceptedRevision": "58a57ac"
+    },
+    {
+      "id": "N07",
+      "state": "accepted",
+      "acceptedRevision": "e87cbe6"
+    },
+    {
+      "id": "N08",
+      "state": "accepted",
+      "acceptedRevision": "bd03bde"
+    },
+    {
+      "id": "N09",
+      "state": "accepted",
+      "acceptedRevision": "825334a"
+    },
+    {
+      "id": "N10",
+      "state": "accepted",
+      "acceptedRevision": "0fede26"
+    },
+    {
+      "id": "N11",
+      "state": "accepted",
+      "acceptedRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec"
+    }
+  ]
 }

@@ -1,8 +1,8 @@
 # Jolanda news acceptance
 
 The complete feature is implemented in the existing Jolanda bot. Local feature
-acceptance passed at code/test revision `0fede26`; the release packet is undergoing
-its final review. Exact task decisions and integrated revisions are in
+acceptance passed at code/test revision `0fede26`; the release packet is independently
+reviewed. All N00–N11 tasks are accepted locally. Exact decisions and integrated revisions are in
 [NEWS_TASKS.json](NEWS_TASKS.json).
 
 ## Implemented behavior
