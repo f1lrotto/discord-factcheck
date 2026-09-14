@@ -9,6 +9,15 @@ const requiredEnvironment = {
 };
 
 describe('environment configuration', () => {
+  it('enables idle-by-default news and accepts only an explicit true/false kill switch', () => {
+    expect(loadConfig(requiredEnvironment).NEWS_ENABLED).toBe(true);
+    expect(loadConfig({ ...requiredEnvironment, NEWS_ENABLED: 'true' }).NEWS_ENABLED).toBe(true);
+    expect(loadConfig({ ...requiredEnvironment, NEWS_ENABLED: 'false' }).NEWS_ENABLED).toBe(false);
+    for (const value of ['', '0', 'yes', 'FALSE'])
+      expect(() => loadConfig({ ...requiredEnvironment, NEWS_ENABLED: value })).toThrow(
+        'NEWS_ENABLED',
+      );
+  });
   it('accepts an empty optional app URL without a global ZDR flag', () => {
     const config = loadConfig({ ...requiredEnvironment, OPENROUTER_APP_URL: '' });
 

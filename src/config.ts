@@ -7,6 +7,10 @@ import { timeZoneIsSupported } from './clock.js';
 const optionalUrl = z.preprocess((value) => (value === '' ? undefined : value), z.url().optional());
 
 const envSchema = z.object({
+  NEWS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
   INSTAGRAM_REELS_ENABLED: z
     .enum(['true', 'false'])
     .default('false')

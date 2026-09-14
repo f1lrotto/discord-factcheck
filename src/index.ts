@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 import { loadConfig } from './config.js';
 import { createReelDiscordTransport } from './discord-reel-transport.js';
@@ -10,11 +12,11 @@ import { createLifecycle } from './lifecycle.js';
 import { createAppLogger } from './logger.js';
 import { createMongoStore } from './mongo-store.js';
 import { createOpenRouter } from './openrouter.js';
+import { createNewsRuntime } from './news/index.js';
 import { createIdentifierProtector, safeError } from './security.js';
 
-loadDotenv({ quiet: true });
-
-const main = async () => {
+export const main = async () => {
+  loadDotenv({ quiet: true });
   const config = loadConfig();
   const protectIdentifier = createIdentifierProtector(config.DATA_PROTECTION_SECRET);
   const instanceId = process.env.RAILWAY_REPLICA_ID ?? randomUUID();
@@ -36,6 +38,7 @@ const main = async () => {
     instanceId,
     protectIdentifier,
     logger,
+    news: { secret: config.DATA_PROTECTION_SECRET },
   });
 
   await store.initialize();
@@ -85,6 +88,8 @@ const main = async () => {
     transport: createReelDiscordTransport(config.DISCORD_TOKEN),
   });
   const discord = createDiscordBot({
+    newsStore: store.news!,
+    newsEnabled: config.NEWS_ENABLED,
     reels,
     reelStore: store.reels,
     reelsEnabled: config.INSTAGRAM_REELS_ENABLED,
@@ -97,19 +102,38 @@ const main = async () => {
     store,
     logger,
   });
+  const news = createNewsRuntime({
+    store: store.news!,
+    publisher: discord.newsPublisher!,
+    enabled: config.NEWS_ENABLED,
+    logger,
+  });
   const lifecycle = createLifecycle({
     stopTurns: async () => {
       discord.stopAccepting();
-      await Promise.all([jolanda.shutdown(), reels.shutdown()]);
+      const stopped = await Promise.allSettled([
+        news.shutdown(),
+        jolanda.shutdown(),
+        reels.shutdown(),
+      ]);
       await discord.drain();
+      for (const result of stopped) if (result.status === 'rejected') throw result.reason;
     },
     destroyDiscord: discord.destroy,
     closeStore: store.close,
     logger,
   });
 
+  let stopping = false;
+  const shutdown = (reason: string) => {
+    stopping = true;
+    return lifecycle.shutdown(reason).finally(() => {
+      process.off('SIGINT', onInterrupt);
+      process.off('SIGTERM', onTerminate);
+    });
+  };
   const onSignal = (signal: string) => {
-    void lifecycle.shutdown(signal).then(
+    void shutdown(signal).then(
       () => process.exit(0),
       (error: unknown) => {
         logger.error({ event: 'shutdown_failed', signal, error: safeError(error) });
@@ -117,21 +141,37 @@ const main = async () => {
       },
     );
   };
-  process.once('SIGINT', () => onSignal('SIGINT'));
-  process.once('SIGTERM', () => onSignal('SIGTERM'));
+  const onInterrupt = () => onSignal('SIGINT');
+  const onTerminate = () => onSignal('SIGTERM');
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onTerminate);
 
   try {
     await discord.start();
+    // A signal during login may already have drained and closed every dependency.
+    if (!stopping) await news.start();
   } catch (error) {
-    await lifecycle.shutdown('login_failure');
+    await shutdown('login_failure');
     throw error;
+  }
+  return { shutdown };
+};
+
+const isEntrypoint = () => {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return pathToFileURL(realpathSync(entry)).href === import.meta.url;
+  } catch {
+    return false;
   }
 };
 
-main().catch((error: unknown) => {
-  const failure = safeError(error);
-  process.stderr.write(
-    `Jolanda failed to start: ${failure.type}${'message' in failure ? `: ${failure.message}` : ''}\n`,
-  );
-  process.exitCode = 1;
-});
+if (isEntrypoint())
+  main().catch((error: unknown) => {
+    const failure = safeError(error);
+    process.stderr.write(
+      `Jolanda failed to start: ${failure.type}${'message' in failure ? `: ${failure.message}` : ''}\n`,
+    );
+    process.exitCode = 1;
+  });
