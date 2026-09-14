@@ -1,0 +1,1625 @@
+{
+  "postsApi": {
+    "queries": {
+      "getInfinitePosts({\"important\":1,\"language\":\"sk\"})": {
+        "data": {
+          "pages": [
+            {
+              "posts": [
+                {
+                  "id": 5559444,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5557239/vo-svedskych-volbach-smeruje-k-vitazstvu-lavica-pravicovi-populisti-dopadli-horsie-ako-sa-cakalo-naznacuju-exit-polly/\">Švédski Sociálni demokrati dosiahli vo voľbách najhorší výsledok za posledné desaťročia.</a> Podľa predbežných výsledkov majú o tri kreslá viac ako doterajší vládny blok. „Budeme si musieť počkať na konečné výsledky volieb. Môj odkaz je však jasný: my sociálni demokrati budeme vždy pripravení prevziať zodpovednosť za výsledok. Zdá sa, že súboj bude veľmi tesný,“ povedala ich šéfka Magdalena Andersson ešte v nedeľu v noci.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5559444/",
+                  "tags": [],
+                  "image": null,
+                  "published_at": "2026-09-14T08:45:35+02:00",
+                  "published_at_date": 1789368335000
+                },
+                {
+                  "id": 5559393,
+                  "title": "",
+                  "excerpt": "<p><strong>Rektor UMB Vladimír Hiadlovský požiadal o bezodkladné odvolanie profesora Jaroslava Klátika zo všetkých funkcií,</strong> ktoré zastáva na právnickej fakulte. Žiada aj bezodkladný koniec Jozefa Michalka vo funkcii prodekana pre vedu a výskum. </p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5559393/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 5213,
+                      "slug": "skolstvo-skolska-reforma",
+                      "url": "https://dennikn.sk/tema/skolstvo-skolska-reforma/",
+                      "name": "Školstvo"
+                    }
+                  ],
+                  "image": {
+                    "id": 5558658,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/MixCollageA-13-Sep-2026-05-44-PM-5076-copy.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/MixCollageA-13-Sep-2026-05-44-PM-5076-copy.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5554777/clen-sudnej-rady-a-prodekan-umb-odovzdali-ako-svoju-vedecku-pracu-diplomovku-studentky-co-podnikli-po-odhaleni-video/"
+                  },
+                  "published_at": "2026-09-14T08:17:04+02:00",
+                  "published_at_date": 1789366624000
+                },
+                {
+                  "id": 5559255,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Vo švédskych voľbách vedie podľa predbežných výsledkov o tri kreslá stredoľavý opozičný blok – získal 176 kresiel, doterajší vládny blok 173.</strong> Stredoľavý blok vedú opoziční sociálni demokrati. Súčasťou pravicového bloku sú krajne pravicoví Švédski demokrati, ktorí chcú byť prvýkrát vo vláde.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5559255/",
+                  "tags": [],
+                  "image": null,
+                  "published_at": "2026-09-14T06:20:30+02:00",
+                  "published_at_date": 1789359630000
+                },
+                {
+                  "id": 5559014,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Alexander Zverev prvý raz v kariére vyhral mužskú dvojhru na US Open.</strong> Vo finále porazil domáceho Bena Sheltona v štyroch setoch 6:3, 7:6, 5:7 a 6:2. Ide o jeho druhý kariérny grandslamový titul po tohtoročnom víťazstve na Roland Garros.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5559014/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 12067,
+                      "slug": "tenis",
+                      "url": "https://dennikn.sk/tema/tenis/",
+                      "name": "Tenis"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 11631,
+                      "slug": "us-open",
+                      "url": "https://dennikn.sk/tema/us-open/",
+                      "name": "US Open"
+                    }
+                  ],
+                  "image": {
+                    "id": 5559134,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/USOpenTennis666913.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/USOpenTennis666913.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": null
+                  },
+                  "published_at": "2026-09-13T23:52:34+02:00",
+                  "published_at_date": 1789336354000
+                },
+                {
+                  "id": 5559010,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Švédske voľby sú mimoriadne tesné. Podľa prognózy verejnoprávnej televízie v nich zvíťazí vládny pravicový blok</strong> a bude mať o jedno parlamentné kreslo viac ako stredoľavý blok vedený opozičnými sociálnymi demokratmi. Súčasťou pravicového bloku sú krajne pravicoví Švédski demokrati, ktorí chcú byť prvýkrát vo vláde. Výsledky volieb sa očakávajú v priebehu noci.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5559010/",
+                  "tags": [],
+                  "image": null,
+                  "published_at": "2026-09-13T22:59:50+02:00",
+                  "published_at_date": 1789333190000
+                },
+                {
+                  "id": 5558855,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5557239/vo-svedskych-volbach-smeruje-k-vitazstvu-lavica-pravicovi-populisti-dopadli-horsie-ako-sa-cakalo-naznacuju-exit-polly/\">Vo švédskych voľbách smeruje k víťazstvu ľavica. Krajná pravica dopadla horšie, než sa očakávalo, naznačujú exitpolly.</a> Opozičné ľavicové strany majú dohromady väčšinu – 51,3 %, pravicové strany 46,8 %. Konečné výsledky sa očakávajú počas noci.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558855/",
+                  "tags": [],
+                  "image": {
+                    "id": 5557246,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/SwedenElection653613.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/SwedenElection653613.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5557239/vo-svedskych-volbach-smeruje-k-vitazstvu-lavica-pravicovi-populisti-dopadli-horsie-ako-sa-cakalo-naznacuju-exit-polly/"
+                  },
+                  "published_at": "2026-09-13T20:36:40+02:00",
+                  "published_at_date": 1789324600000
+                },
+                {
+                  "id": 5558679,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5554777/clen-sudnej-rady-a-prodekan-umb-odovzdali-ako-svoju-vedecku-pracu-diplomovku-studentky-co-podnikli-po-odhaleni-video/\">Vysokí funkcionári Právnickej fakulty UMB Jaroslav Klátik a Jozef Michalko odovzdali ako svoj vedecký príspevok diplomovku študentky.</a> V ich texte ostalo aj slovné spojenie „cieľom tejto diplomovej práce“ a nesprávne údaje o použitých knihách. Plagiátorstvo odmietajú. Rektor školy Vladimír Hiadlovský si po otázkach Denníka N zavolal dekana na pondelok.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558679/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 5213,
+                      "slug": "skolstvo-skolska-reforma",
+                      "url": "https://dennikn.sk/tema/skolstvo-skolska-reforma/",
+                      "name": "Školstvo"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 21279,
+                      "slug": "sudna-rada",
+                      "url": "https://dennikn.sk/tema/sudna-rada/",
+                      "name": "Súdna rada"
+                    }
+                  ],
+                  "image": {
+                    "id": 5558228,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/GeminiGeneratedImage7t20kc7t20kc7t20.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 481,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/GeminiGeneratedImage7t20kc7t20kc7t20.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5554777/clen-sudnej-rady-a-prodekan-umb-odovzdali-ako-svoju-vedecku-pracu-diplomovku-studentky-co-podnikli-po-odhaleni-video/"
+                  },
+                  "published_at": "2026-09-13T19:34:19+02:00",
+                  "published_at_date": 1789320859000
+                },
+                {
+                  "id": 5558758,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5558595/tyzdnovy-newsfilter-taraba-uz-zacal-s-vydieranim-fica-ten-premenoval-parlament-na-dom-hrozy/\">Taraba už začal s vydieraním Fica, ten premenoval parlament na dom hrôzy, píše v Newsfiltri Monika Tódová.</a> „Ak by si poslanci Taraba, Ferenčák a Slyško v nejakej veci postavili hlavu, koalícii by v tejto chvíli zostala najtesnejšia väčšina 76 poslancov.“</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558758/",
+                  "tags": [
+                    {
+                      "type": "newsfilter",
+                      "id": 6358,
+                      "slug": "newsfilter",
+                      "url": "https://dennikn.sk/tema/newsfilter/",
+                      "name": "Newsfilter"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 15807,
+                      "slug": "tomas-taraba",
+                      "url": "https://dennikn.sk/tema/tomas-taraba/",
+                      "name": "Tomáš Taraba"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-13T19:08:24+02:00",
+                  "published_at_date": 1789319304000
+                },
+                {
+                  "id": 5558710,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Emma Zapletalová skončila druhá vo finále behu na 400 metrov cez prekážky na atletickom podujatí Ultimate Championship v Budapešti.</strong> Do cieľa dobehla s časom 52,68 sekundy a zdolala ju iba Američanka Jasmine Jones s náskokom 23 stotín sekundy.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558710/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 13257,
+                      "slug": "atletika",
+                      "url": "https://dennikn.sk/tema/atletika/",
+                      "name": "Atletika"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 21746,
+                      "slug": "emma-zapletalova",
+                      "url": "https://dennikn.sk/tema/emma-zapletalova/",
+                      "name": "Emma Zapletalová"
+                    }
+                  ],
+                  "image": {
+                    "id": 5558723,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/HungaryUltimateChampionshipAthletics664616.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/HungaryUltimateChampionshipAthletics664616.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": null
+                  },
+                  "published_at": "2026-09-13T18:24:06+02:00",
+                  "published_at_date": 1789316646000
+                },
+                {
+                  "id": 5558615,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5558484/z-ministra-autonomny-poslanec-taraba-ukazuje-silu-aj-moznych-spojencov/\">Tomáš Taraba pred odvolaním ukazuje svoju politickú silu aj možných spojencov.</a> Po návrate do parlamentu odmieta vstúpiť do koaličných klubov a odkazuje, že jeho hlas nemá koalícia istý ani pri rozpočte.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558615/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 19325,
+                      "slug": "ficova-vlada",
+                      "url": "https://dennikn.sk/tema/ficova-vlada/",
+                      "name": "Ficova vláda"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 15807,
+                      "slug": "tomas-taraba",
+                      "url": "https://dennikn.sk/tema/tomas-taraba/",
+                      "name": "Tomáš Taraba"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-13T17:19:24+02:00",
+                  "published_at_date": 1789312764000
+                },
+                {
+                  "id": 5558492,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Krátko pred zasiahnutým vlakom pri hranici Ukrajiny s Poľskom prechádzal po rovnakej trati iný vlak s množstvom prominentných postáv</strong> verejného života, ktoré sa vracali z bezpečnostnej konferencie v Kyjive. Podľa nemeckého Spiegelu bol vo vlaku aj britský expremiér Boris Johnson, bezpečnostný poradca nemeckého kancelára Friedricha Merza Günter Sautter či bývalý švédsky premiér Carl Bildt.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558492/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 21674,
+                      "slug": "nato-vs-rusko",
+                      "url": "https://dennikn.sk/tema/nato-vs-rusko/",
+                      "name": "NATO vs. Rusko"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 6826,
+                      "slug": "vojna-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vojna-na-ukrajine/",
+                      "name": "Vojna na Ukrajine"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-13T16:26:12+02:00",
+                  "published_at_date": 1789309572000
+                },
+                {
+                  "id": 5558475,
+                  "title": "Trump vyzval Ukrajinu, aby prestala útočiť na ruské naftové zariadenia",
+                  "excerpt": "\n<p><strong>Donald Trump vyzval Volodymyra Zelenského, aby prestal útočiť na ruskú ropnú infraštruktúru.</strong> Americký prezident vyhlásil, že ukrajinské údery na ropné zariadenia vedú k nedostatku paliva, čo má negatívne dôsledky pre celý svet.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://e.dennikn.sk/minuta/5558475/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 4573,
+                      "slug": "volby-v-usa",
+                      "url": "https://dennikn.sk/tema/volby-v-usa/",
+                      "name": "Donald Trump"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 20800,
+                      "slug": "rusko",
+                      "url": "https://dennikn.sk/tema/rusko/",
+                      "name": "Rusko"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 6826,
+                      "slug": "vojna-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vojna-na-ukrajine/",
+                      "name": "Vojna na Ukrajine"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-13T15:59:39+02:00",
+                  "published_at_date": 1789307979000
+                },
+                {
+                  "id": 5558287,
+                  "title": "",
+                  "excerpt": "\n<p> <strong>Koaličná rada bude v pondelok rokovať o znížení spotrebnej dane na pohonné hmoty, povedal Andrej Danko</strong> v STVR. „Treba s tým začať robiť,“ uviedol predseda SNS. Zníženie spotrebnej dane koalícia dlhodobo odmietala napriek vysokým cenám benzínu a nafty.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://e.dennikn.sk/minuta/5558287/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 8037,
+                      "slug": "andrej-danko",
+                      "url": "https://dennikn.sk/tema/andrej-danko/",
+                      "name": "Andrej Danko"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 9422,
+                      "slug": "energetika",
+                      "url": "https://dennikn.sk/tema/energetika/",
+                      "name": "Ceny energií"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 9424,
+                      "slug": "doprava",
+                      "url": "https://dennikn.sk/tema/doprava/",
+                      "name": "Doprava"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 19325,
+                      "slug": "ficova-vlada",
+                      "url": "https://dennikn.sk/tema/ficova-vlada/",
+                      "name": "Ficova vláda"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 4967,
+                      "slug": "sns",
+                      "url": "https://dennikn.sk/tema/sns/",
+                      "name": "SNS"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-13T13:31:47+02:00",
+                  "published_at_date": 1789299107000
+                },
+                {
+                  "id": 5558050,
+                  "title": "",
+                  "excerpt": "\n<p>   <a href=\"https://dennikn.sk/5553227/kto-z-vasej-obce-ci-mesta-chce-byt-zupnym-poslancom-mapa-kandidatov/\">Pozrite si na mape, kto z vašej obce či mesta chce byť župným poslancom a kto sú kandidáti na županov.</a> O kreslo v župnom zastupiteľstve sa v októbrových voľbách uchádza 2472 kandidátov, z toho len 540 žien. Opozícia sa vo väčšine krajov spojila, nejednotne postupuje v Bratislavskom a Prešovskom kraji.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558050/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 21757,
+                      "slug": "komunalne-zupne-volby-2026",
+                      "url": "https://dennikn.sk/tema/komunalne-zupne-volby-2026/",
+                      "name": "Komunálne a župné voľby 2026"
+                    }
+                  ],
+                  "image": {
+                    "id": 5555180,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/Copy-of-Kandidati-na-zupnych-poslancov.png?w=200&fit=fill&fm=png"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/Copy-of-Kandidati-na-zupnych-poslancov.png?w=720&fit=fill&fm=png"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5553227/kto-z-vasej-obce-ci-mesta-chce-byt-zupnym-poslancom-mapa-kandidatov/"
+                  },
+                  "published_at": "2026-09-13T11:36:59+02:00",
+                  "published_at_date": 1789292219000
+                },
+                {
+                  "id": 5558065,
+                  "title": "Rusi zasiahli vlak do Varšavy tesne pred hranicou Ukrajiny s Poľskom",
+                  "excerpt": "\n<p><strong>Ruský dron zasiahol lokomotívu osobného vlaku len dva kilometre od hraníc Ukrajiny s Poľskom,</strong> uviedli ukrajinské železnice. Vďaka včasnej výstrahe nebol pri nálete nikto z 206 cestujúcich zranený. Vlak smeroval z Kyjiva do Varšavy.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558065/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 20487,
+                      "slug": "polsko",
+                      "url": "https://dennikn.sk/tema/polsko/",
+                      "name": "Poľsko"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 6826,
+                      "slug": "vojna-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vojna-na-ukrajine/",
+                      "name": "Vojna na Ukrajine"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-13T11:17:54+02:00",
+                  "published_at_date": 1789291074000
+                },
+                {
+                  "id": 5558033,
+                  "title": "Požiar na Brači: Ľudia pred ohňom utekali na pláže, mnohých museli evakuovať po mori",
+                  "excerpt": "\n<p><strong>Chorvátsky ostrov Brač zasiahol lesný požiar, z oblasti museli od piatka evakuovať vyše 700 ľudí.</strong> Niektorí v noci pred ohňom utekali na pláže, mnohých presúvali do bezpečia po mori. Oheň dosiaľ pohltil približne 10 % územia, po ťažkej noci sa však situácia dnes ráno výrazne zlepšila.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5558033/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 21466,
+                      "slug": "extremne-leto",
+                      "url": "https://dennikn.sk/tema/extremne-leto/",
+                      "name": "Extrémne leto"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 17147,
+                      "slug": "poziare-dovolenky",
+                      "url": "https://dennikn.sk/tema/poziare-dovolenky/",
+                      "name": "Požiare v Stredomorí"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-13T10:44:17+02:00",
+                  "published_at_date": 1789289057000
+                },
+                {
+                  "id": 5557839,
+                  "title": "",
+                  "excerpt": "\n<p>   <a href=\"https://dennikn.sk/5548107/imunolog-jesenak-histaminovu-intoleranciu-ma-len-zlomok-z-tych-ktorym-ju-diagnostikuju/\">Histamínová intolerancia je naddiagnostikovaná. Postihuje zlomok tých, čo si myslia, že ju majú, hovorí imunológ Miloš Jeseňák.</a> „Je to naozaj ‚hit‘. V medicíne sa v každom období objaví nejaká diagnóza, ktorá je do istej miery obskúrna. Kedysi to bol syndróm bakteriálneho prerastania, potom chronický únavový syndróm a teraz histamínová intolerancia.“</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557839/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 6053,
+                      "slug": "cesta-k-zdraviu",
+                      "url": "https://dennikn.sk/tema/cesta-k-zdraviu/",
+                      "name": "Cesta k zdraviu"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 3656,
+                      "slug": "rozhovory",
+                      "url": "https://dennikn.sk/tema/rozhovory/",
+                      "name": "Rozhovory"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 4090,
+                      "slug": "zdravotnictvo",
+                      "url": "https://dennikn.sk/tema/zdravotnictvo/",
+                      "name": "Zdravotníctvo"
+                    }
+                  ],
+                  "image": {
+                    "id": 2012741,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 132,
+                        "url": "https://img.projektn.sk/wp-static/2020/08/IMG_1738.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 475,
+                        "url": "https://img.projektn.sk/wp-static/2020/08/IMG_1738.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5548107/imunolog-jesenak-histaminovu-intoleranciu-ma-len-zlomok-z-tych-ktorym-ju-diagnostikuju/"
+                  },
+                  "published_at": "2026-09-13T07:19:19+02:00",
+                  "published_at_date": 1789276759000
+                },
+                {
+                  "id": 5557686,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Jelena Rybakina vyhrala ženskú dvojhru na US Open</strong>, nasadená dvojka vo finále zdolala doterajšiu svetovú jednotku Arynu Sabalenku 6:4, 5:7, 6:2. Kazašská tenistka mala už pred zápasom isté, že sa posunie na čelo rebríčka.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557686/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 13625,
+                      "slug": "grandslamove-turnaje",
+                      "url": "https://dennikn.sk/tema/grandslamove-turnaje/",
+                      "name": "Grandslamové turnaje"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 12067,
+                      "slug": "tenis",
+                      "url": "https://dennikn.sk/tema/tenis/",
+                      "name": "Tenis"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 11631,
+                      "slug": "us-open",
+                      "url": "https://dennikn.sk/tema/us-open/",
+                      "name": "US Open"
+                    }
+                  ],
+                  "image": {
+                    "id": 5557687,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/USOpenTennis662690.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/USOpenTennis662690.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5557623/us-open-bol-hlucny-a-okazaly-ako-sabalenka-jej-99-tyzdnov-bolo-potvrdenim-ako-sa-az-sportovec-dokaze-zlepsit/"
+                  },
+                  "published_at": "2026-09-13T01:01:50+02:00",
+                  "published_at_date": 1789254110000
+                },
+                {
+                  "id": 5557573,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Premiér Fico vraví, že je nešťastný z vývoja vzťahu medzi ministrom Tarabom a SNS</strong>, keďže konflikt sa nielenže neutlmuje, ale hrotí sa do extrému. Hlasu vo videu pripomenul, že stratili ďalšieho poslanca po tom, čo sa Peter Slyško prihlásil k Tarabovi. Takisto Hlasu odkázal, že ďalšie sociálne zákony už v parlamente neprejdú.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557573/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 19325,
+                      "slug": "ficova-vlada",
+                      "url": "https://dennikn.sk/tema/ficova-vlada/",
+                      "name": "Ficova vláda"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 4967,
+                      "slug": "sns",
+                      "url": "https://dennikn.sk/tema/sns/",
+                      "name": "SNS"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 15807,
+                      "slug": "tomas-taraba",
+                      "url": "https://dennikn.sk/tema/tomas-taraba/",
+                      "name": "Tomáš Taraba"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-12T20:34:55+02:00",
+                  "published_at_date": 1789238095000
+                },
+                {
+                  "id": 5557541,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Emma Zapletalová s časom 52,93 sekundy vyhrala prvý semifinálový beh na Ultimate Championship v Budapešti.</strong> Finále pobeží v nedeľu o 18.08 hod. Podujatie vysiela STVR.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557541/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 13257,
+                      "slug": "atletika",
+                      "url": "https://dennikn.sk/tema/atletika/",
+                      "name": "Atletika"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 21746,
+                      "slug": "emma-zapletalova",
+                      "url": "https://dennikn.sk/tema/emma-zapletalova/",
+                      "name": "Emma Zapletalová"
+                    }
+                  ],
+                  "image": {
+                    "id": 5557571,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/HungaryUltimateChampionshipAthletics660980243195.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 481,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/HungaryUltimateChampionshipAthletics660980243195.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": null
+                  },
+                  "published_at": "2026-09-12T18:50:26+02:00",
+                  "published_at_date": 1789231826000
+                },
+                {
+                  "id": 5557499,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Riaditeľ Anthropicu Dario Amodei vyzval firmy zaoberajúce sa AI, aby spomalili tempo, </strong>akým rozširujú schopnosti svojich modelov. Práve jeho spoločnosť tento týždeň zverejnila správu o tom, ako viacerí aktéri zneužili jej model Claude na vývoj zbraní či sledovanie a podvody.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557499/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 9505,
+                      "slug": "umela-inteligencia",
+                      "url": "https://dennikn.sk/tema/umela-inteligencia/",
+                      "name": "AI"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-12T18:48:26+02:00",
+                  "published_at_date": 1789231706000
+                },
+                {
+                  "id": 5557377,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5553021/navstivil-tiso-goliana-vo-vazeni-a-aky-mali-vztah-s-husakom-co-sedi-a-co-nie-v-novom-filme-o-povstaleckom-generalovi/\">Navštívil Tiso povstaleckého veliteľa Jána Goliana vo väzení a aký mali vzťah s Gustávom Husákom? </a>Pozreli sme sa na nový film režiséra Juraja Štepku s názvom <em>Generál Golian</em> pohľadom historika, vybrali niekoľko motívov a porovnali ich s tým, ako sa udiali v skutočnosti, alebo čo o nich na základe výskumu vieme. Niektoré scény vyznievajú kontroverzne a rozpačito.</p>\n\n\n\n<p></p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557377/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 3173,
+                      "slug": "ww2",
+                      "url": "https://dennikn.sk/tema/ww2/",
+                      "name": "2. svetová vojna"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 7028,
+                      "slug": "filmy",
+                      "url": "https://dennikn.sk/tema/filmy/",
+                      "name": "Filmy"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 12708,
+                      "slug": "historia",
+                      "url": "https://dennikn.sk/tema/historia/",
+                      "name": "História"
+                    }
+                  ],
+                  "image": {
+                    "id": 5553035,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/GeneralGolianzdrojIgorStancik-1200x799-1.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/GeneralGolianzdrojIgorStancik-1200x799-1.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5553021/navstivil-tiso-goliana-vo-vazeni-a-aky-mali-vztah-s-husakom-co-sedi-a-co-nie-v-novom-filme-o-povstaleckom-generalovi/"
+                  },
+                  "published_at": "2026-09-12T15:02:25+02:00",
+                  "published_at_date": 1789218145000
+                },
+                {
+                  "id": 5557325,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Ministerstvo zahraničných vecí sa ohradilo voči výstave v bratislavskom Ruskom centre vedy a kultúry,</strong> kde je Krym označený za ruské územie a Rusi tvrdia, že Európa a Ukrajina „drancujú ruské poklady“. Rezort označil za neprijateľné, že ruská strana prezentuje niečo, čo Slovensko považuje za porušenie medzinárodného práva.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557325/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 19709,
+                      "slug": "juraj-blanar",
+                      "url": "https://dennikn.sk/tema/juraj-blanar/",
+                      "name": "Juraj Blanár"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 20800,
+                      "slug": "rusko",
+                      "url": "https://dennikn.sk/tema/rusko/",
+                      "name": "Rusko"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 6826,
+                      "slug": "vojna-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vojna-na-ukrajine/",
+                      "name": "Vojna na Ukrajine"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-12T14:03:53+02:00",
+                  "published_at_date": 1789214633000
+                },
+                {
+                  "id": 5557273,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Vláda nemôže predložiť vyrovnaný rozpočet, tvrdí Matúš Šutaj Eštok</strong> s tým, že to vzhľadom na súčasný stav financií nie je reálne. „Znamenalo by to rozvrat sociálneho štátu,“ hovorí.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://e.dennikn.sk/minuta/5557273/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 19325,
+                      "slug": "ficova-vlada",
+                      "url": "https://dennikn.sk/tema/ficova-vlada/",
+                      "name": "Ficova vláda"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 9498,
+                      "slug": "rozpocet-2020",
+                      "url": "https://dennikn.sk/tema/rozpocet-2020/",
+                      "name": "Rozpočet a dlh"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-12T12:36:10+02:00",
+                  "published_at_date": 1789209370000
+                },
+                {
+                  "id": 5557212,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5550541/chcem-byt-slavny-niekoho-zabijem-ako-sa-brniansky-mladik-pokusil-stat-teroristom/\">Respekt zrekonštruoval príbeh mladého muža z Brna, ktorý sa rozhodol zabiť bezdomovca, aby sa stal slávnym.</a> Navštevoval islamistické fóra, plánoval cestu do Sýrie a o pocitoch si písal s ChatomGPT, čo na súde poslúžilo ako dôkaz. Dušan Gábor jeho útok prežil, no odvtedy sa so strachom ukrýva v lesíku.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557212/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 9505,
+                      "slug": "umela-inteligencia",
+                      "url": "https://dennikn.sk/tema/umela-inteligencia/",
+                      "name": "AI"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 20971,
+                      "slug": "cesko",
+                      "url": "https://dennikn.sk/tema/cesko/",
+                      "name": "Česko"
+                    }
+                  ],
+                  "image": {
+                    "id": 5552226,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 135,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/RespektGabor.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 486,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/RespektGabor.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5550541/chcem-byt-slavny-niekoho-zabijem-ako-sa-brniansky-mladik-pokusil-stat-teroristom/"
+                  },
+                  "published_at": "2026-09-12T11:43:58+02:00",
+                  "published_at_date": 1789206238000
+                },
+                {
+                  "id": 5557184,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Keď nebudem minister životného prostredia, budem radový autonómny poslanec, povedal v piatok Tomáš Taraba</strong> (nom. SNS) a vylúčil presun do diplomacie alebo do inej funkcie.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557184/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 19325,
+                      "slug": "ficova-vlada",
+                      "url": "https://dennikn.sk/tema/ficova-vlada/",
+                      "name": "Ficova vláda"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 4967,
+                      "slug": "sns",
+                      "url": "https://dennikn.sk/tema/sns/",
+                      "name": "SNS"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 15807,
+                      "slug": "tomas-taraba",
+                      "url": "https://dennikn.sk/tema/tomas-taraba/",
+                      "name": "Tomáš Taraba"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-12T11:11:58+02:00",
+                  "published_at_date": 1789204318000
+                },
+                {
+                  "id": 5557128,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5556047/komentatori-bez-klasickych-medii-ostane-na-internete-iba-to-komu-fiki-sulik-vynadal/\">Newsfilter Denníka N vznikol pred desiatimi rokmi ako článok, ktorý mal zrozumiteľne odfiltrovať udalosti dňa pre ľudí, čo nestíhajú sledovať správy.</a> Konštantín Čikovský, Roman Pataj a Monika Tódová opisujú, ako vzniká, ako si vyberajú udalosti dňa aj čo je podľa nich dobrý komentár. „Keď to večer dopíšem, cítim sa, akoby som celý deň robila na stavbe,“ hovorí Monika Tódová.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5557128/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 3656,
+                      "slug": "rozhovory",
+                      "url": "https://dennikn.sk/tema/rozhovory/",
+                      "name": "Rozhovory"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 14251,
+                      "slug": "v-redakcii-podcast",
+                      "url": "https://dennikn.sk/tema/v-redakcii-podcast/",
+                      "name": "V redakcii"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-12T09:42:10+02:00",
+                  "published_at_date": 1789198930000
+                },
+                {
+                  "id": 5556537,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5553620/bush-maluje-spadnute-dvojicky-hlavny-planovac-caka-na-sud-co-robili-pocas-utoku-a-co-robia-teraz-hlavne-postavy-z-9-11/\">Pozreli sme sa na to, ako sa hlavné postavy z 11. septembra a americkej odpovede dozvedeli o útokoch.</a> Bin Ládin správy o útokoch na Dvojičky počúval v rozhlasovom vysielaní, viceprezident Dick Cheney riadil prvú americkú odpoveď z bunkra v Bielom dome.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5556537/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 14006,
+                      "slug": "utoky-z-11-septembra",
+                      "url": "https://dennikn.sk/tema/utoky-z-11-septembra/",
+                      "name": "Útoky z 11. septembra"
+                    }
+                  ],
+                  "image": {
+                    "id": 5555734,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 142,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/MixCollage-11-Sep-2026-01-57-PM-578.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 510,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/MixCollage-11-Sep-2026-01-57-PM-578.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5553620/bush-maluje-spadnute-dvojicky-hlavny-planovac-caka-na-sud-co-robili-pocas-utoku-a-co-robia-teraz-hlavne-postavy-z-9-11/"
+                  },
+                  "published_at": "2026-09-11T18:07:15+02:00",
+                  "published_at_date": 1789142835000
+                },
+                {
+                  "id": 5556502,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5556150/smer-priznal-ze-za-utokom-na-zilinku-je-ich-vlastny-prepad-pre-nesplnene-sluby/\">Smer priznal, že útok na Maroša Žilinku je reakciou na sklamaných voličov a odliv podpory k Republike.</a> Mladí straníci Richard Glück, Juraj Gedra a Erik Kaliňák otvorene hovoria, že tvrdá kampaň proti generálnemu prokurátorovi má upokojiť ľudí frustrovaných z nenaplnených sľubov o potrestaní „pandemických“ vinníkov.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5556502/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 19325,
+                      "slug": "ficova-vlada",
+                      "url": "https://dennikn.sk/tema/ficova-vlada/",
+                      "name": "Ficova vláda"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 10982,
+                      "slug": "volba-generalneho-prokuratora",
+                      "url": "https://dennikn.sk/tema/volba-generalneho-prokuratora/",
+                      "name": "Maroš Žilinka"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 4969,
+                      "slug": "smer",
+                      "url": "https://dennikn.sk/tema/smer/",
+                      "name": "Smer"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-11T17:56:03+02:00",
+                  "published_at_date": 1789142163000
+                },
+                {
+                  "id": 5556371,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5554934/sud-s-matkou-ktora-utopila-svoje-deti-pokracuje-z-pripadu-ani-zo-smrti-matky-a-dcery-z-benadikovej-sme-sa-nepoucili-system-nefunguje/\">Proces s nepočujúcou matkou, ktorá vlani v Bratislave usmrtila svoje dcéry, pokračuje. Z prípadu sme sa nepoučili, systém nefunguje,</a> zhodujú sa odborníci. Zdravotne znevýhodnené ženy a matky znevýhodnených detí majú minimálnu šancu včas nájsť adekvátnu pomoc pri duševných ťažkostiach.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5556371/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 13018,
+                      "slug": "domace-nasilie",
+                      "url": "https://dennikn.sk/tema/domace-nasilie/",
+                      "name": "Domáce násilie"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 13532,
+                      "slug": "dusevne-zdravie",
+                      "url": "https://dennikn.sk/tema/dusevne-zdravie/",
+                      "name": "Duševné zdravie"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 7646,
+                      "slug": "rodicovstvo",
+                      "url": "https://dennikn.sk/tema/rodicovstvo/",
+                      "name": "Rodičovstvo"
+                    }
+                  ],
+                  "image": {
+                    "id": 5555038,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/20260209ivanafvrazdadeti03240559.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/20260209ivanafvrazdadeti03240559.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5554934/sud-s-matkou-ktora-utopila-svoje-deti-pokracuje-z-pripadu-ani-zo-smrti-matky-a-dcery-z-benadikovej-sme-sa-nepoucili-system-nefunguje/"
+                  },
+                  "published_at": "2026-09-11T17:13:33+02:00",
+                  "published_at_date": 1789139613000
+                },
+                {
+                  "id": 5556064,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5545872/danko-ponukol-tarabovi-svoje-miesto-podpredsedu-parlamentu/\">Andrej Danko v dezinformačnej Infovojne prezradil, že Tomášovi Tarabovi cez leto núkal svoje miesto podpredsedu parlamentu</a>, aby vyriešili spory. Teraz hovorí, že Taraba nemá podporu poslancov a je osamotený.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5556064/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 8037,
+                      "slug": "andrej-danko",
+                      "url": "https://dennikn.sk/tema/andrej-danko/",
+                      "name": "Andrej Danko"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 19325,
+                      "slug": "ficova-vlada",
+                      "url": "https://dennikn.sk/tema/ficova-vlada/",
+                      "name": "Ficova vláda"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 4967,
+                      "slug": "sns",
+                      "url": "https://dennikn.sk/tema/sns/",
+                      "name": "SNS"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 15807,
+                      "slug": "tomas-taraba",
+                      "url": "https://dennikn.sk/tema/tomas-taraba/",
+                      "name": "Tomáš Taraba"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-11T16:01:16+02:00",
+                  "published_at_date": 1789135276000
+                },
+                {
+                  "id": 5555874,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5553367/vyvoj-bojov-1660-den-ai-model-od-antrophicu-sa-stal-sucastou-vojny-rusi-ho-dokazali-vyuzit-vo-svoj-prospech/\">Vývoj bojov (1660. deň): AI model od Anthropicu sa stal súčasťou vojny a Rusi ho dokázali využiť vo svoj prospech.</a> Na Rusko napojené skupiny využili model Claude na analýzu a kopírovanie vývoja dronov na Ukrajine.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5555874/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 9505,
+                      "slug": "umela-inteligencia",
+                      "url": "https://dennikn.sk/tema/umela-inteligencia/",
+                      "name": "AI"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 6826,
+                      "slug": "vojna-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vojna-na-ukrajine/",
+                      "name": "Vojna na Ukrajine"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 14432,
+                      "slug": "vyvoj-vojny-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vyvoj-vojny-na-ukrajine/",
+                      "name": "Vývoj bojov na Ukrajine"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-11T15:33:20+02:00",
+                  "published_at_date": 1789133600000
+                },
+                {
+                  "id": 5555654,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5494776/len-sme-chranili-peniaze-statu-pribehy-uradnikov-ktorym-dezinfoscena-nadavala-za-veterne-parky/\">Rozprávali sme sa s úradníkmi, ktorých šikanovala dezinformačná scéna v súvislosti s témou veterných parkov.</a> „Len sme chránili štátne peniaze a postupovali podľa zákona,“ hovoria.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5555654/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 6279,
+                      "slug": "hoaxy-a-propaganda",
+                      "url": "https://dennikn.sk/tema/hoaxy-a-propaganda/",
+                      "name": "Hoaxy a propaganda"
+                    }
+                  ],
+                  "image": {
+                    "id": 5416233,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/06/MixCollage-24-Jun-2026-05-36-PM-1573.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 480,
+                        "url": "https://img.projektn.sk/wp-static/2026/06/MixCollage-24-Jun-2026-05-36-PM-1573.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5494776/len-sme-chranili-peniaze-statu-pribehy-uradnikov-ktorym-dezinfoscena-nadavala-za-veterne-parky/"
+                  },
+                  "published_at": "2026-09-11T13:50:16+02:00",
+                  "published_at_date": 1789127416000
+                },
+                {
+                  "id": 5555324,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Jemenskí povstalci húsiovci ovládli strategicky dôležité miesta priamo pri prielive Báb al-Mandab, píše AFP.</strong> Ide o ostrov Perim a pobrežné mesto Zúbáb – kľúčové body na získanie kontroly nad touto úžinou. Ovládnutie územia je veľkým víťazstvom pre kľúčového spojenca Iránu.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5555324/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 7679,
+                      "slug": "iran",
+                      "url": "https://dennikn.sk/tema/iran/",
+                      "name": "Irán"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 8152,
+                      "slug": "vojna-v-jemene-husiovci",
+                      "url": "https://dennikn.sk/tema/vojna-v-jemene-husiovci/",
+                      "name": "Jemen a húsiovci"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 20951,
+                      "slug": "blizky-vychod",
+                      "url": "https://dennikn.sk/tema/blizky-vychod/",
+                      "name": "Konflikt na Blízkom východe"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-11T11:50:23+02:00",
+                  "published_at_date": 1789120223000
+                },
+                {
+                  "id": 5555062,
+                  "title": "Šutaj Eštok neuspel s disciplinárnym návrhom na advokáta Kubinu",
+                  "excerpt": "\n<p><strong>Matúš Šutaj Eštok neuspel s disciplinárnym návrhom na advokáta Petra Kubinu.</strong> Revízna komisia Slovenskej advokátskej komory posúdila jeho sťažnosť a dospela k záveru o jej neopodstatnenosti.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5555062/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 14024,
+                      "slug": "vojna-v-policii",
+                      "url": "https://dennikn.sk/tema/vojna-v-policii/",
+                      "name": "Čurillovci"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 19329,
+                      "slug": "matus-sutaj-estok",
+                      "url": "https://dennikn.sk/tema/matus-sutaj-estok/",
+                      "name": "Matúš Šutaj Eštok"
+                    }
+                  ],
+                  "image": {
+                    "id": 5098881,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/01/TBEN0922-copy.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 481,
+                        "url": "https://img.projektn.sk/wp-static/2026/01/TBEN0922-copy.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": null
+                  },
+                  "published_at": "2026-09-11T10:21:12+02:00",
+                  "published_at_date": 1789114872000
+                },
+                {
+                  "id": 5554915,
+                  "title": "Bývalý záchranár dostal v prípade únosu študentky 17,5 roka väzenia",
+                  "excerpt": "\n<p><strong>V prípade únosu študentky z roku 2023 dostal bývalý záchranár trest 17 a pol roka väzenia.</strong> Rozhodol o tom Mestský súd Bratislava I. Právnu kvalifikáciu zmenil zo znásilnenia na sexuálne násilie. Poškodenej uznal nemajetkovú ujmu vo výške 100-tisíc eur. Rozsudok nie je právoplatný.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5554915/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 7173,
+                      "slug": "bratislava",
+                      "url": "https://dennikn.sk/tema/bratislava/",
+                      "name": "Bratislava"
+                    }
+                  ],
+                  "image": {
+                    "id": 5555052,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/MixCollage-11-Sep-2026-10-07-AM-6189.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 481,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/MixCollage-11-Sep-2026-10-07-AM-6189.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/3563645/pripad-22-rocnej-zeny-ktora-cez-vikend-zmizla-v-bratislave-pritahuje-pozornost-policia-hlada-svedkov/"
+                  },
+                  "published_at": "2026-09-11T09:54:07+02:00",
+                  "published_at_date": 1789113247000
+                },
+                {
+                  "id": 5554391,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Jemenskí povstalci húsíovci získali kontrolu nad významným prístavom Mokka v Červenom mori.</strong> Ide o veľké víťazstvo pre kľúčového spojenca Iránu, ktorý pokračuje vo svojej ofenzíve spustenej minulý týždeň smerom k strategickému prielivu Báb al-Mandab.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5554391/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 7679,
+                      "slug": "iran",
+                      "url": "https://dennikn.sk/tema/iran/",
+                      "name": "Irán"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 8152,
+                      "slug": "vojna-v-jemene-husiovci",
+                      "url": "https://dennikn.sk/tema/vojna-v-jemene-husiovci/",
+                      "name": "Jemen a húsiovci"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 20951,
+                      "slug": "blizky-vychod",
+                      "url": "https://dennikn.sk/tema/blizky-vychod/",
+                      "name": "Konflikt na Blízkom východe"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T20:58:46+02:00",
+                  "published_at_date": 1789066726000
+                },
+                {
+                  "id": 5553947,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5552841/vsetko-o-atentatnikovi-na-sude-kauza-ocistec-novy-skatepark-aj-muzikanti-na-kralovej-holi-pozrite-si-novinarske-fotky-roka/\">Pozrite si najlepšie novinárske fotky roka.</a> Hlavnú cenu Slovak Press Photo 2026 získala séria zo súdu s atentátnikom na premiéra. Denník N má cenu v kategórii Krátke video za Sprievodcu kauzou Očistec.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5553947/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 7607,
+                      "slug": "media",
+                      "url": "https://dennikn.sk/tema/media/",
+                      "name": "Médiá"
+                    }
+                  ],
+                  "image": {
+                    "id": 5554020,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/MixCollage-10-Sep-2026-05-30-PM-4090.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 481,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/MixCollage-10-Sep-2026-05-30-PM-4090.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5552841/vsetko-o-atentatnikovi-na-sude-kauza-ocistec-novy-skatepark-aj-muzikanti-na-kralovej-holi-pozrite-si-novinarske-fotky-roka/"
+                  },
+                  "published_at": "2026-09-10T17:07:33+02:00",
+                  "published_at_date": 1789052853000
+                },
+                {
+                  "id": 5553893,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5553294/fico-do-utorka-odvola-tarabu-sns-sa-pripravila-aj-na-obstrukciu-prezidenta/\">Robert Fico odvolá Tomáša Tarabu do 15. septembra. Tvrdí to SNS, ktorej to údajne premiér sľúbil.</a> Vďaka tomu sa môže v utorok rozbehnúť schôdza parlamentu s takmer 300 bodmi. „Nemáme dôvod blokovať otvorenie schôdze, pretože koaličný partner splní to, čo vyplýva z koaličnej dohody,“ hovorí Roman Michelko.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5553893/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 8037,
+                      "slug": "andrej-danko",
+                      "url": "https://dennikn.sk/tema/andrej-danko/",
+                      "name": "Andrej Danko"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 19325,
+                      "slug": "ficova-vlada",
+                      "url": "https://dennikn.sk/tema/ficova-vlada/",
+                      "name": "Ficova vláda"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 4967,
+                      "slug": "sns",
+                      "url": "https://dennikn.sk/tema/sns/",
+                      "name": "SNS"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 15807,
+                      "slug": "tomas-taraba",
+                      "url": "https://dennikn.sk/tema/tomas-taraba/",
+                      "name": "Tomáš Taraba"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T16:52:30+02:00",
+                  "published_at_date": 1789051950000
+                },
+                {
+                  "id": 5553752,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Nárast podpory Republiky zaznamenala aj agentúra Focus v prieskume pre 360tku.</strong> Na prvom mieste skončili PS a Smer so zhodnou podporou (17,3 %), Republiku by volilo 12,4 % ľudí. Do parlamentu by sa dostali aj Hnutie Slovensko (8,9 %), Hlas (8,4 %) a SaS so ziskom 7,5 %. KDH by volilo 6,4 % voličov a Demokratov 5 %.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5553752/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 14291,
+                      "slug": "prieskumy-preferencii",
+                      "url": "https://dennikn.sk/tema/prieskumy-preferencii/",
+                      "name": "Prieskumy preferencií"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T16:06:16+02:00",
+                  "published_at_date": 1789049176000
+                },
+                {
+                  "id": 5553671,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5552306/utok-na-dronovu-fabriku-podpalac-dostal-gps-udaje-iba-den-vopred-naverbovali-ma-cez-telegram-hovori/\">Lotyš, ktorý chcel podpáliť prešovskú fabriku, dostal GPS súradnice a inštrukcie len deň vopred.</a> Na mieste ho čakal Ukrajinec, ktorý ho mal hneď odviesť do Poľska. Polícia na nich čakala a zatkla ich priamo na mieste. Lotyš tvrdí, že ho naverbovali cez Telegram a jeden z objednávateľov hovoril po rusky.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5553671/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 21754,
+                      "slug": "kriminalita",
+                      "url": "https://dennikn.sk/tema/kriminalita/",
+                      "name": "Kriminalita"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 6826,
+                      "slug": "vojna-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vojna-na-ukrajine/",
+                      "name": "Vojna na Ukrajine"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T15:49:56+02:00",
+                  "published_at_date": 1789048196000
+                },
+                {
+                  "id": 5553552,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Cena americkej ropy WTI prvý raz od mája prekročila 100 dolárov</strong> za barel, popoludní si pripisovala takmer 5 %. K zdražovaniu prispieva eskalácia konfliktu na Blízkom východe, ktorý narúša dodávky suroviny na trh.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://e.dennikn.sk/minuta/5553552/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 9422,
+                      "slug": "energetika",
+                      "url": "https://dennikn.sk/tema/energetika/",
+                      "name": "Ceny energií"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 20951,
+                      "slug": "blizky-vychod",
+                      "url": "https://dennikn.sk/tema/blizky-vychod/",
+                      "name": "Konflikt na Blízkom východe"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T15:15:27+02:00",
+                  "published_at_date": 1789046127000
+                },
+                {
+                  "id": 5553475,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5550850/vyvoj-bojov-1659-den-rusi-nebrzdia-na-armadu-davaju-tento-rok-o-tretinu-viac-ako-vlani/\">Vývoj bojov (1659. deň): Rusi nebrzdia – na armádu dávajú tento rok o tretinu viac ako vlani.</a> Každý druhý rubeľ ide vojakom. Napriek tomu si Ukrajinci myslia, že zdroje na vojnu bude mať Rusko aj nasledujúce dva roky.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5553475/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 6826,
+                      "slug": "vojna-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vojna-na-ukrajine/",
+                      "name": "Vojna na Ukrajine"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 14432,
+                      "slug": "vyvoj-vojny-na-ukrajine",
+                      "url": "https://dennikn.sk/tema/vyvoj-vojny-na-ukrajine/",
+                      "name": "Vývoj bojov na Ukrajine"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T14:47:55+02:00",
+                  "published_at_date": 1789044475000
+                },
+                {
+                  "id": 5553356,
+                  "title": "",
+                  "excerpt": "\n<p><strong>ECB podľa očakávaní zvýšila úroky o štvrť percentného bodu,</strong> kľúčová depozitná sadzba stúpla na 2,5 %. Ide o druhé sprísnenie menovej politiky v tomto roku, centrálnu banku k nemu nútia inflačné tlaky v dôsledku konfliktu na Blízkom východe.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://e.dennikn.sk/minuta/5553356/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 8562,
+                      "slug": "investovanie",
+                      "url": "https://dennikn.sk/tema/investovanie/",
+                      "name": "Investovanie a úvery"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T14:31:54+02:00",
+                  "published_at_date": 1789043514000
+                },
+                {
+                  "id": 5553289,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Policajt Juraj Svitok by sa mal vrátiť do vedenia policajnej inšpekcie.</strong> Správny súd v Banskej Bystrici vyhovel jeho žalobe a zrušil personálny rozkaz, ktorým bol Svitok ustanovený do nižšej funkcie na Okresnom riaditeľstve polície v Bánovciach nad Bebravou.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5553289/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 14024,
+                      "slug": "vojna-v-policii",
+                      "url": "https://dennikn.sk/tema/vojna-v-policii/",
+                      "name": "Čurillovci"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 19329,
+                      "slug": "matus-sutaj-estok",
+                      "url": "https://dennikn.sk/tema/matus-sutaj-estok/",
+                      "name": "Matúš Šutaj Eštok"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T14:13:12+02:00",
+                  "published_at_date": 1789042392000
+                },
+                {
+                  "id": 5553040,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Lukáš Machala zatiaľ zostáva v Rade STVR,</strong> povedala Martina Šimkovičová pre Ta3 po tom, ako ho odvolala z vysokého postu na rezorte kultúry. Ministerka pripomenula, že spolupracovali na zmenách v telerozhlase, a tak predpokladá, že Machala „zostane verný“ ich spoločnej vízii.</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5553040/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 20953,
+                      "slug": "lukas-machala",
+                      "url": "https://dennikn.sk/tema/lukas-machala/",
+                      "name": "Lukáš Machala"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 19416,
+                      "slug": "martina-simkovicova",
+                      "url": "https://dennikn.sk/tema/martina-simkovicova/",
+                      "name": "Martina Šimkovičová"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T12:51:59+02:00",
+                  "published_at_date": 1789037519000
+                },
+                {
+                  "id": 5552698,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5549809/pisa-ukazala-ze-zhruba-20-tisic-tinedzerov-nedokaze-porozumiet-citanemu-textu-hovori-analytik-rehus/\">PISA ukázala, že zhruba 20-tisíc tínedžerov nedokáže porozumieť čítanému textu, odhaduje v rozhovore analytik Michal Rehúš.</a> Žiaci pod základnou úrovňou čitateľskej gramotnosti síce dokážu text prečítať, no nedokážu mu hlbšie porozumieť ani vyvodiť závery. Nedisponujú tak ani základnými čitateľskými zručnosťami nevyhnutnými pre ďalšie vzdelávanie.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5552698/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 3656,
+                      "slug": "rozhovory",
+                      "url": "https://dennikn.sk/tema/rozhovory/",
+                      "name": "Rozhovory"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 5213,
+                      "slug": "skolstvo-skolska-reforma",
+                      "url": "https://dennikn.sk/tema/skolstvo-skolska-reforma/",
+                      "name": "Školstvo"
+                    }
+                  ],
+                  "image": {
+                    "id": 4926629,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 134,
+                        "url": "https://img.projektn.sk/wp-static/2025/10/TBEN1249-copy.jpg?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 481,
+                        "url": "https://img.projektn.sk/wp-static/2025/10/TBEN1249-copy.jpg?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": "https://dennikn.sk/5549809/pisa-ukazala-ze-zhruba-20-tisic-tinedzerov-nedokaze-porozumiet-citanemu-textu-hovori-analytik-rehus/"
+                  },
+                  "published_at": "2026-09-10T11:19:14+02:00",
+                  "published_at_date": 1789031954000
+                },
+                {
+                  "id": 5552498,
+                  "title": "",
+                  "excerpt": "\n<p><strong>Republika sa vo volebnom modeli NMS s 15,6 % doťahuje na Smer, ktorý by mal 16,2 %.</strong> Voľby by aj podľa tohto merania vyhralo Progresívne Slovensko s 21,6 %. Do parlamentu by sa ešte dostali Hnutie Slovensko (9 %), SaS (6,8 %), Hlas (6,4 %) a KDH (5,8 %).</p>\n\n\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5552498/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 14291,
+                      "slug": "prieskumy-preferencii",
+                      "url": "https://dennikn.sk/tema/prieskumy-preferencii/",
+                      "name": "Prieskumy preferencií"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 9052,
+                      "slug": "progresivne-slovensko",
+                      "url": "https://dennikn.sk/tema/progresivne-slovensko/",
+                      "name": "Progresívne Slovensko"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 13858,
+                      "slug": "strana-republika",
+                      "url": "https://dennikn.sk/tema/strana-republika/",
+                      "name": "Republika"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 4969,
+                      "slug": "smer",
+                      "url": "https://dennikn.sk/tema/smer/",
+                      "name": "Smer"
+                    }
+                  ],
+                  "image": {
+                    "id": 5552567,
+                    "sizes": [
+                      {
+                        "width": 200,
+                        "height": 181,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/unnamed.png?w=200&fit=fill&fm=jpg&q=85"
+                      },
+                      {
+                        "width": 720,
+                        "height": 650,
+                        "url": "https://img.projektn.sk/wp-static/2026/09/unnamed.png?w=720&fit=fill&fm=jpg&q=85"
+                      }
+                    ],
+                    "target_link": null
+                  },
+                  "published_at": "2026-09-10T10:20:59+02:00",
+                  "published_at_date": 1789028459000
+                },
+                {
+                  "id": 5552461,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5541279/rozdelenu-ameriku-spojil-odpor-proti-vystavbe-datacentier-pre-ai-trump-hovori-o-spiatocnictve/\">Odpor proti výstavbe dátových centier pre AI je jednou z mála tém, ktoré spájajú rozdelenú Ameriku.</a> Rovnaký postoj majú voliči demokratov i republikánov, mestá aj vidiek a podporujú ho politici od Bernieho Sandersa až po konzervatívcov. Pod tlakom verejnosti už stovky okresov zaviedli moratóriá a téma sa zaradila medzi hlavné otázky pred novembrovými voľbami.</p>\n",
+                  "isImportant": true,
+                  "url": "https://e.dennikn.sk/minuta/5552461/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 9505,
+                      "slug": "umela-inteligencia",
+                      "url": "https://dennikn.sk/tema/umela-inteligencia/",
+                      "name": "AI"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 20996,
+                      "slug": "usa",
+                      "url": "https://dennikn.sk/tema/usa/",
+                      "name": "USA"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T10:02:14+02:00",
+                  "published_at_date": 1789027334000
+                },
+                {
+                  "id": 5552159,
+                  "title": "",
+                  "excerpt": "\n<p><a href=\"https://dennikn.sk/5547517/ucitel-ktoreho-mali-ziacky-oslovovat-daddy-a-hrat-s-nim-dialogy-z-patdesiatich-odtienov-sivej-v-skole-skoncil-vedenie-o-jeho-odchode-mlci/\">Učiteľ, ktorého mali žiačky oslovovať „daddy“ a hrať s ním dialógy z Päťdesiatich odtieňov sivej, v škole skončil. </a>Angličtinár z trnavskej Strednej pedagogickej školy blahoslavenej Laury cez právnika potvrdil, že odišiel na konci školského roka, pričom ako dôvod uvádza zhoršovanie pracovného prostredia a konanie, ktoré vnímal ako šikanovanie.</p>\n",
+                  "isImportant": true,
+                  "url": "https://dennikn.sk/minuta/5552159/",
+                  "tags": [
+                    {
+                      "type": "tag",
+                      "id": 8137,
+                      "slug": "sexualne-obtazovanie",
+                      "url": "https://dennikn.sk/tema/sexualne-obtazovanie/",
+                      "name": "Sexuálne násilie"
+                    },
+                    {
+                      "type": "tag",
+                      "id": 5213,
+                      "slug": "skolstvo-skolska-reforma",
+                      "url": "https://dennikn.sk/tema/skolstvo-skolska-reforma/",
+                      "name": "Školstvo"
+                    }
+                  ],
+                  "image": null,
+                  "published_at": "2026-09-10T07:15:06+02:00",
+                  "published_at_date": 1789017306000
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

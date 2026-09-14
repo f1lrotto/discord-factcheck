@@ -1,0 +1,356 @@
+{
+  "observedAt": "2026-09-14T07:39:32.136001+00:00",
+  "kind": "single-observation-with-historical-publication-times",
+  "posts": [
+    {
+      "id": 5559444,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5559444/",
+      "published_at": "2026-09-14T08:45:35+02:00",
+      "published_at_date": 1789368335000
+    },
+    {
+      "id": 5559393,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5559393/",
+      "published_at": "2026-09-14T08:17:04+02:00",
+      "published_at_date": 1789366624000
+    },
+    {
+      "id": 5559255,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5559255/",
+      "published_at": "2026-09-14T06:20:30+02:00",
+      "published_at_date": 1789359630000
+    },
+    {
+      "id": 5559014,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5559014/",
+      "published_at": "2026-09-13T23:52:34+02:00",
+      "published_at_date": 1789336354000
+    },
+    {
+      "id": 5559010,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5559010/",
+      "published_at": "2026-09-13T22:59:50+02:00",
+      "published_at_date": 1789333190000
+    },
+    {
+      "id": 5558855,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558855/",
+      "published_at": "2026-09-13T20:36:40+02:00",
+      "published_at_date": 1789324600000
+    },
+    {
+      "id": 5558679,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558679/",
+      "published_at": "2026-09-13T19:34:19+02:00",
+      "published_at_date": 1789320859000
+    },
+    {
+      "id": 5558758,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558758/",
+      "published_at": "2026-09-13T19:08:24+02:00",
+      "published_at_date": 1789319304000
+    },
+    {
+      "id": 5558710,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558710/",
+      "published_at": "2026-09-13T18:24:06+02:00",
+      "published_at_date": 1789316646000
+    },
+    {
+      "id": 5558615,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558615/",
+      "published_at": "2026-09-13T17:19:24+02:00",
+      "published_at_date": 1789312764000
+    },
+    {
+      "id": 5558492,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558492/",
+      "published_at": "2026-09-13T16:26:12+02:00",
+      "published_at_date": 1789309572000
+    },
+    {
+      "id": 5558475,
+      "isImportant": true,
+      "url": "https://e.dennikn.sk/minuta/5558475/",
+      "published_at": "2026-09-13T15:59:39+02:00",
+      "published_at_date": 1789307979000
+    },
+    {
+      "id": 5558287,
+      "isImportant": true,
+      "url": "https://e.dennikn.sk/minuta/5558287/",
+      "published_at": "2026-09-13T13:31:47+02:00",
+      "published_at_date": 1789299107000
+    },
+    {
+      "id": 5558050,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558050/",
+      "published_at": "2026-09-13T11:36:59+02:00",
+      "published_at_date": 1789292219000
+    },
+    {
+      "id": 5558065,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558065/",
+      "published_at": "2026-09-13T11:17:54+02:00",
+      "published_at_date": 1789291074000
+    },
+    {
+      "id": 5558033,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5558033/",
+      "published_at": "2026-09-13T10:44:17+02:00",
+      "published_at_date": 1789289057000
+    },
+    {
+      "id": 5557839,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557839/",
+      "published_at": "2026-09-13T07:19:19+02:00",
+      "published_at_date": 1789276759000
+    },
+    {
+      "id": 5557686,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557686/",
+      "published_at": "2026-09-13T01:01:50+02:00",
+      "published_at_date": 1789254110000
+    },
+    {
+      "id": 5557573,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557573/",
+      "published_at": "2026-09-12T20:34:55+02:00",
+      "published_at_date": 1789238095000
+    },
+    {
+      "id": 5557541,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557541/",
+      "published_at": "2026-09-12T18:50:26+02:00",
+      "published_at_date": 1789231826000
+    },
+    {
+      "id": 5557499,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557499/",
+      "published_at": "2026-09-12T18:48:26+02:00",
+      "published_at_date": 1789231706000
+    },
+    {
+      "id": 5557377,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557377/",
+      "published_at": "2026-09-12T15:02:25+02:00",
+      "published_at_date": 1789218145000
+    },
+    {
+      "id": 5557325,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557325/",
+      "published_at": "2026-09-12T14:03:53+02:00",
+      "published_at_date": 1789214633000
+    },
+    {
+      "id": 5557273,
+      "isImportant": true,
+      "url": "https://e.dennikn.sk/minuta/5557273/",
+      "published_at": "2026-09-12T12:36:10+02:00",
+      "published_at_date": 1789209370000
+    },
+    {
+      "id": 5557212,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557212/",
+      "published_at": "2026-09-12T11:43:58+02:00",
+      "published_at_date": 1789206238000
+    },
+    {
+      "id": 5557184,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557184/",
+      "published_at": "2026-09-12T11:11:58+02:00",
+      "published_at_date": 1789204318000
+    },
+    {
+      "id": 5557128,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5557128/",
+      "published_at": "2026-09-12T09:42:10+02:00",
+      "published_at_date": 1789198930000
+    },
+    {
+      "id": 5556537,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5556537/",
+      "published_at": "2026-09-11T18:07:15+02:00",
+      "published_at_date": 1789142835000
+    },
+    {
+      "id": 5556502,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5556502/",
+      "published_at": "2026-09-11T17:56:03+02:00",
+      "published_at_date": 1789142163000
+    },
+    {
+      "id": 5556371,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5556371/",
+      "published_at": "2026-09-11T17:13:33+02:00",
+      "published_at_date": 1789139613000
+    },
+    {
+      "id": 5556064,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5556064/",
+      "published_at": "2026-09-11T16:01:16+02:00",
+      "published_at_date": 1789135276000
+    },
+    {
+      "id": 5555874,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5555874/",
+      "published_at": "2026-09-11T15:33:20+02:00",
+      "published_at_date": 1789133600000
+    },
+    {
+      "id": 5555654,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5555654/",
+      "published_at": "2026-09-11T13:50:16+02:00",
+      "published_at_date": 1789127416000
+    },
+    {
+      "id": 5555324,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5555324/",
+      "published_at": "2026-09-11T11:50:23+02:00",
+      "published_at_date": 1789120223000
+    },
+    {
+      "id": 5555062,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5555062/",
+      "published_at": "2026-09-11T10:21:12+02:00",
+      "published_at_date": 1789114872000
+    },
+    {
+      "id": 5554915,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5554915/",
+      "published_at": "2026-09-11T09:54:07+02:00",
+      "published_at_date": 1789113247000
+    },
+    {
+      "id": 5554391,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5554391/",
+      "published_at": "2026-09-10T20:58:46+02:00",
+      "published_at_date": 1789066726000
+    },
+    {
+      "id": 5553947,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5553947/",
+      "published_at": "2026-09-10T17:07:33+02:00",
+      "published_at_date": 1789052853000
+    },
+    {
+      "id": 5553893,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5553893/",
+      "published_at": "2026-09-10T16:52:30+02:00",
+      "published_at_date": 1789051950000
+    },
+    {
+      "id": 5553752,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5553752/",
+      "published_at": "2026-09-10T16:06:16+02:00",
+      "published_at_date": 1789049176000
+    },
+    {
+      "id": 5553671,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5553671/",
+      "published_at": "2026-09-10T15:49:56+02:00",
+      "published_at_date": 1789048196000
+    },
+    {
+      "id": 5553552,
+      "isImportant": true,
+      "url": "https://e.dennikn.sk/minuta/5553552/",
+      "published_at": "2026-09-10T15:15:27+02:00",
+      "published_at_date": 1789046127000
+    },
+    {
+      "id": 5553475,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5553475/",
+      "published_at": "2026-09-10T14:47:55+02:00",
+      "published_at_date": 1789044475000
+    },
+    {
+      "id": 5553356,
+      "isImportant": true,
+      "url": "https://e.dennikn.sk/minuta/5553356/",
+      "published_at": "2026-09-10T14:31:54+02:00",
+      "published_at_date": 1789043514000
+    },
+    {
+      "id": 5553289,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5553289/",
+      "published_at": "2026-09-10T14:13:12+02:00",
+      "published_at_date": 1789042392000
+    },
+    {
+      "id": 5553040,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5553040/",
+      "published_at": "2026-09-10T12:51:59+02:00",
+      "published_at_date": 1789037519000
+    },
+    {
+      "id": 5552698,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5552698/",
+      "published_at": "2026-09-10T11:19:14+02:00",
+      "published_at_date": 1789031954000
+    },
+    {
+      "id": 5552498,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5552498/",
+      "published_at": "2026-09-10T10:20:59+02:00",
+      "published_at_date": 1789028459000
+    },
+    {
+      "id": 5552461,
+      "isImportant": true,
+      "url": "https://e.dennikn.sk/minuta/5552461/",
+      "published_at": "2026-09-10T10:02:14+02:00",
+      "published_at_date": 1789027334000
+    },
+    {
+      "id": 5552159,
+      "isImportant": true,
+      "url": "https://dennikn.sk/minuta/5552159/",
+      "published_at": "2026-09-10T07:15:06+02:00",
+      "published_at_date": 1789017306000
+    }
+  ]
+}

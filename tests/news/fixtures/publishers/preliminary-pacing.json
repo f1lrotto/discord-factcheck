@@ -1,0 +1,419 @@
+{
+  "kind": "preliminary publisher-grounded policy simulation, not runtime verification",
+  "actualData": "50 captured important IDs and publication timestamps spanning Sep 10\u201314; boundary days partial",
+  "assumptions": [
+    "All captured posts became important at publication (not historically observed)",
+    "Synthetic UTC-aligned 20-minute polls, empty baseline before first timestamp",
+    "No outages or source/delivery errors"
+  ],
+  "counts": {
+    "captured": 50,
+    "simulatedSent": 50,
+    "simulatedExpired": 0
+  },
+  "maximumPublicationDelayMinutes": 29.57,
+  "maximumQueueDelayMinutes": 20.0,
+  "expiredIds": [],
+  "deliveries": [
+    {
+      "id": 5552159,
+      "published": 1789017306.0,
+      "observed": 1789017600,
+      "sent": 1789017600,
+      "publicationDelayMinutes": 4.9,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5552461,
+      "published": 1789027334.0,
+      "observed": 1789028400,
+      "sent": 1789028400,
+      "publicationDelayMinutes": 17.77,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5552498,
+      "published": 1789028459.0,
+      "observed": 1789029600,
+      "sent": 1789029600,
+      "publicationDelayMinutes": 19.02,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5552698,
+      "published": 1789031954.0,
+      "observed": 1789032000,
+      "sent": 1789032000,
+      "publicationDelayMinutes": 0.77,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553040,
+      "published": 1789037519.0,
+      "observed": 1789038000,
+      "sent": 1789038000,
+      "publicationDelayMinutes": 8.02,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553289,
+      "published": 1789042392.0,
+      "observed": 1789042800,
+      "sent": 1789042800,
+      "publicationDelayMinutes": 6.8,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553356,
+      "published": 1789043514.0,
+      "observed": 1789044000,
+      "sent": 1789044000,
+      "publicationDelayMinutes": 8.1,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553475,
+      "published": 1789044475.0,
+      "observed": 1789045200,
+      "sent": 1789045200,
+      "publicationDelayMinutes": 12.08,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553552,
+      "published": 1789046127.0,
+      "observed": 1789046400,
+      "sent": 1789046400,
+      "publicationDelayMinutes": 4.55,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553671,
+      "published": 1789048196.0,
+      "observed": 1789048800,
+      "sent": 1789048800,
+      "publicationDelayMinutes": 10.07,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553752,
+      "published": 1789049176.0,
+      "observed": 1789050000,
+      "sent": 1789050000,
+      "publicationDelayMinutes": 13.73,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553893,
+      "published": 1789051950.0,
+      "observed": 1789052400,
+      "sent": 1789052400,
+      "publicationDelayMinutes": 7.5,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5553947,
+      "published": 1789052853.0,
+      "observed": 1789053600,
+      "sent": 1789053600,
+      "publicationDelayMinutes": 12.45,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5554391,
+      "published": 1789066726.0,
+      "observed": 1789066800,
+      "sent": 1789066800,
+      "publicationDelayMinutes": 1.23,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5554915,
+      "published": 1789113247.0,
+      "observed": 1789113600,
+      "sent": 1789113600,
+      "publicationDelayMinutes": 5.88,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5555062,
+      "published": 1789114872.0,
+      "observed": 1789116000,
+      "sent": 1789116000,
+      "publicationDelayMinutes": 18.8,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5555324,
+      "published": 1789120223.0,
+      "observed": 1789120800,
+      "sent": 1789120800,
+      "publicationDelayMinutes": 9.62,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5555654,
+      "published": 1789127416.0,
+      "observed": 1789128000,
+      "sent": 1789128000,
+      "publicationDelayMinutes": 9.73,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5555874,
+      "published": 1789133600.0,
+      "observed": 1789134000,
+      "sent": 1789134000,
+      "publicationDelayMinutes": 6.67,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5556064,
+      "published": 1789135276.0,
+      "observed": 1789136400,
+      "sent": 1789136400,
+      "publicationDelayMinutes": 18.73,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5556371,
+      "published": 1789139613.0,
+      "observed": 1789140000,
+      "sent": 1789140000,
+      "publicationDelayMinutes": 6.45,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5556502,
+      "published": 1789142163.0,
+      "observed": 1789142400,
+      "sent": 1789142400,
+      "publicationDelayMinutes": 3.95,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5556537,
+      "published": 1789142835.0,
+      "observed": 1789143600,
+      "sent": 1789143600,
+      "publicationDelayMinutes": 12.75,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557128,
+      "published": 1789198930.0,
+      "observed": 1789200000,
+      "sent": 1789200000,
+      "publicationDelayMinutes": 17.83,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557184,
+      "published": 1789204318.0,
+      "observed": 1789204800,
+      "sent": 1789204800,
+      "publicationDelayMinutes": 8.03,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557212,
+      "published": 1789206238.0,
+      "observed": 1789207200,
+      "sent": 1789207200,
+      "publicationDelayMinutes": 16.03,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557273,
+      "published": 1789209370.0,
+      "observed": 1789209600,
+      "sent": 1789209600,
+      "publicationDelayMinutes": 3.83,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557325,
+      "published": 1789214633.0,
+      "observed": 1789215600,
+      "sent": 1789215600,
+      "publicationDelayMinutes": 16.12,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557377,
+      "published": 1789218145.0,
+      "observed": 1789219200,
+      "sent": 1789219200,
+      "publicationDelayMinutes": 17.58,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557499,
+      "published": 1789231706.0,
+      "observed": 1789232400,
+      "sent": 1789232400,
+      "publicationDelayMinutes": 11.57,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557541,
+      "published": 1789231826.0,
+      "observed": 1789232400,
+      "sent": 1789233600,
+      "publicationDelayMinutes": 29.57,
+      "queueDelayMinutes": 20.0
+    },
+    {
+      "id": 5557573,
+      "published": 1789238095.0,
+      "observed": 1789238400,
+      "sent": 1789238400,
+      "publicationDelayMinutes": 5.08,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557686,
+      "published": 1789254110.0,
+      "observed": 1789255200,
+      "sent": 1789255200,
+      "publicationDelayMinutes": 18.17,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5557839,
+      "published": 1789276759.0,
+      "observed": 1789276800,
+      "sent": 1789276800,
+      "publicationDelayMinutes": 0.68,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558033,
+      "published": 1789289057.0,
+      "observed": 1789290000,
+      "sent": 1789290000,
+      "publicationDelayMinutes": 15.72,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558065,
+      "published": 1789291074.0,
+      "observed": 1789291200,
+      "sent": 1789291200,
+      "publicationDelayMinutes": 2.1,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558050,
+      "published": 1789292219.0,
+      "observed": 1789292400,
+      "sent": 1789292400,
+      "publicationDelayMinutes": 3.02,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558287,
+      "published": 1789299107.0,
+      "observed": 1789299600,
+      "sent": 1789299600,
+      "publicationDelayMinutes": 8.22,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558475,
+      "published": 1789307979.0,
+      "observed": 1789308000,
+      "sent": 1789308000,
+      "publicationDelayMinutes": 0.35,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558492,
+      "published": 1789309572.0,
+      "observed": 1789310400,
+      "sent": 1789310400,
+      "publicationDelayMinutes": 13.8,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558615,
+      "published": 1789312764.0,
+      "observed": 1789312800,
+      "sent": 1789312800,
+      "publicationDelayMinutes": 0.6,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558710,
+      "published": 1789316646.0,
+      "observed": 1789317600,
+      "sent": 1789317600,
+      "publicationDelayMinutes": 15.9,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558758,
+      "published": 1789319304.0,
+      "observed": 1789320000,
+      "sent": 1789320000,
+      "publicationDelayMinutes": 11.6,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558679,
+      "published": 1789320859.0,
+      "observed": 1789321200,
+      "sent": 1789321200,
+      "publicationDelayMinutes": 5.68,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5558855,
+      "published": 1789324600.0,
+      "observed": 1789324800,
+      "sent": 1789324800,
+      "publicationDelayMinutes": 3.33,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5559010,
+      "published": 1789333190.0,
+      "observed": 1789333200,
+      "sent": 1789333200,
+      "publicationDelayMinutes": 0.17,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5559014,
+      "published": 1789336354.0,
+      "observed": 1789336800,
+      "sent": 1789336800,
+      "publicationDelayMinutes": 7.43,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5559255,
+      "published": 1789359630.0,
+      "observed": 1789360800,
+      "sent": 1789360800,
+      "publicationDelayMinutes": 19.5,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5559393,
+      "published": 1789366624.0,
+      "observed": 1789366800,
+      "sent": 1789366800,
+      "publicationDelayMinutes": 2.93,
+      "queueDelayMinutes": 0.0
+    },
+    {
+      "id": 5559444,
+      "published": 1789368335.0,
+      "observed": 1789369200,
+      "sent": 1789369200,
+      "publicationDelayMinutes": 14.42,
+      "queueDelayMinutes": 0.0
+    }
+  ]
+}

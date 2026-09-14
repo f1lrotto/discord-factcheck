@@ -1,0 +1,52 @@
+{
+  "metadata": [
+    {
+      "name": "description",
+      "content": "Dnešok priniesol aj totálne absurdnú situáciu po zatvorení ruského diskontu"
+    },
+    {
+      "property": "og:image",
+      "content": "https://img.aktuality.sk/foto/denny-vyber-sprav-10092026/MTIwMHg2MzAvc21hcnQvZmlsdGVyczpmb3JtYXQod2VicCk6cXVhbGl0eSg3MCk6d2F0ZXJtYXJrKGh0dHA6Ly9sb2NhbGhvc3Q6ODEvaW1nL2FrdHVhbGl0eV93YXRlcm1hcmtfdjIsLTI0LC0yNCwwKS9odHRwOi8vbG9jYWxob3N0OjgxL3B1bHNjbXMtdHJhbnNmb3Jtcy8x/b7qktktTURBXy8wMjc0MjE4Ny1hYTkwLTQ1MTktYThjYy05ZjVmNjI4MTgwZDQucG5nkZUCzQfQAMLD?st=V9FdYG_k-HAK0L1YnAwpY7yHUryIrfZFYHEtsMNPjFo&ts=1789336800&e=0"
+    },
+    {
+      "property": "og:title",
+      "content": "PS a Smer sú v prieskume na hrane a polícia odhalila plán útoku na dronovú fabriku (denný výber) | Aktuality.sk"
+    },
+    {
+      "property": "og:description",
+      "content": "Dnešok priniesol aj totálne absurdnú situáciu po zatvorení ruského diskontu"
+    },
+    {
+      "property": "og:url",
+      "content": "https://www.aktuality.sk/clanok/E0rnklb/ps-a-smer-su-v-prieskume-na-hrane-a-policia-odhalila-plan-utoku-na-dronovu-fabriku-denny-vyber/"
+    },
+    {
+      "name": "article:published_time",
+      "content": "2026-09-10T17:13:20.000Z"
+    },
+    {
+      "name": "article:modified_time",
+      "content": "2026-09-10T17:13:20.000Z"
+    }
+  ],
+  "jsonLd": [
+    {
+      "@context": "http://schema.org",
+      "@type": "WebPage",
+      "url": "https://www.aktuality.sk/clanok/E0rnklb/ps-a-smer-su-v-prieskume-na-hrane-a-policia-odhalila-plan-utoku-na-dronovu-fabriku-denny-vyber/",
+      "name": "PS a Smer sú v prieskume na hrane a polícia odhalila plán útoku na dronovú fabriku (denný výber) | Aktuality.sk",
+      "description": "Dnešok priniesol aj totálne absurdnú situáciu po zatvorení ruského diskontu",
+      "datePublished": "2026-09-10T19:13:20+02:00",
+      "dateModified": "2026-09-10T19:13:20+02:00"
+    },
+    {
+      "@context": "http://schema.org",
+      "@type": "NewsArticle",
+      "mainEntityOfPage": {},
+      "headline": "PS a Smer sú v prieskume na hrane a polícia odhalila plán útoku na dronovú fabriku (denný výber)",
+      "datePublished": "2026-09-10T19:13:20+02:00",
+      "dateModified": "2026-09-10T19:13:20+02:00",
+      "description": "Dnešok priniesol aj totálne absurdnú situáciu po zatvorení ruského diskontu"
+    }
+  ]
+}
