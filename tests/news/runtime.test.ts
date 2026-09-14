@@ -442,6 +442,85 @@ describe('news coordinator with real Mongo, source parsers and Discord publisher
     expect(await collections.newsPublications.countDocuments({ status: 'uncertain' })).toBe(1);
   });
 
+  it.each([
+    { phase: 'post', status: 403, expected: { outcome: 'destination-unavailable' } },
+    { phase: 'post', status: 429, expected: { outcome: 'rejected', retryAt: at('18:02:00') } },
+    { phase: 'preflight', status: 200, expected: { outcome: 'rejected' } },
+  ])(
+    'preserves production publisher $phase HTTP $status results after timeout and body cleanup',
+    async ({ phase, status, expected }) => {
+      const { store, collections } = await open();
+      await store.configure({ feed: 'daily', destination });
+      const finish = vi.spyOn(store, 'finishSend');
+      const d = discord();
+      const respond = d.makeRequest.getMockImplementation()!;
+      const cancellation = deferred<void>();
+      const aborted = deferred<void>();
+      const releaseCleanup = deferred<void>();
+      let cleanupFinished = false;
+      d.makeRequest.mockImplementation(async (url, init) => {
+        if ((phase === 'post') !== (init?.method === 'POST')) return respond(url, init);
+        init!.signal!.addEventListener('abort', () => aborted.resolve(), { once: true });
+        return new Response(
+          new ReadableStream({
+            async cancel() {
+              cancellation.resolve();
+              await releaseCleanup.promise;
+              cleanupFinished = true;
+            },
+          }),
+          { status, headers: status === 429 ? { 'retry-after': '120' } : {} },
+        );
+      });
+      const r = runtime(store, {
+        sources: [fixtureDaily().source],
+        publisher: d.publisher,
+        sendTimeoutMs: 20,
+      });
+      const tick = r.tick();
+      try {
+        await aborted.promise;
+        await cancellation.promise;
+        expect(cleanupFinished).toBe(false);
+        expect(finish).not.toHaveBeenCalled();
+      } finally {
+        releaseCleanup.resolve();
+      }
+      await tick;
+      expect(cleanupFinished).toBe(true);
+      expect(finish).toHaveBeenCalledTimes(1);
+      expect(finish.mock.calls[0]![1]).toEqual(expected);
+      expect(d.posts()).toHaveLength(phase === 'post' ? 1 : 0);
+      expect(await collections.newsPublications.countDocuments({ status: 'uncertain' })).toBe(0);
+      if (status === 403)
+        expect(
+          await store.getSubscription({ guildId: destination.guildId, feed: 'daily' }),
+        ).toMatchObject({ pausedReason: 'destination-unavailable' });
+      else
+        expect(await collections.newsPublications.findOne({ status: 'pending' })).toMatchObject({
+          dueAt: status === 429 ? at('18:02:00') : at('18:01:00'),
+        });
+    },
+  );
+
+  it('preserves a confirmed sent receipt returned during cooperative timeout cleanup', async () => {
+    const { store, collections } = await open();
+    await store.configure({ feed: 'daily', destination });
+    const publish: NewsPublisher['publish'] = ({ signal }) =>
+      new Promise((resolve) => {
+        signal.addEventListener('abort', () => resolve({ outcome: 'sent', messageId: '600' }), {
+          once: true,
+        });
+      });
+    await runtime(store, {
+      sources: [fixtureDaily().source],
+      publisher: { ...quietPublisher(), ready: () => true, publish },
+      sendTimeoutMs: 10,
+    }).tick();
+    expect(await collections.newsPublications.countDocuments({ status: 'sent' })).toBe(1);
+    expect(await collections.newsPublications.countDocuments({ status: 'uncertain' })).toBe(0);
+  });
+
   it('leaves failed receipt persistence in sending until durable recovery marks it uncertain', async () => {
     const { store, collections } = await open();
     const sub = await store.configure({ feed: 'daily', destination });

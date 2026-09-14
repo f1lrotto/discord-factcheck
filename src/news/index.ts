@@ -17,6 +17,7 @@ const bounded = async <T>(
   milliseconds: number,
   parent: AbortSignal,
   operation: (signal: AbortSignal) => Promise<T>,
+  { preserveResultOnAbort = false } = {},
 ) => {
   parent.throwIfAborted();
   if (milliseconds <= 0) throw timeout;
@@ -38,6 +39,11 @@ const bounded = async <T>(
       }),
       pending,
     ]);
+  } catch (error) {
+    // A publisher's drained result can establish acceptance or a known safe rejection.
+    // Source callers instead retain the timeout/cancellation that ended collection.
+    if (preserveResultOnAbort && signal.aborted && pending) return await pending;
+    throw error;
   } finally {
     clearTimeout(timer);
     signal.removeEventListener('abort', onAbort);
@@ -146,6 +152,7 @@ export const createNewsRuntime = ({
               signal,
             });
           },
+          { preserveResultOnAbort: true },
         );
     } catch {
       // Only a result from the publisher can establish safe rejection after invocation.
