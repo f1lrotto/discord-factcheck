@@ -85,6 +85,7 @@ export const createNewsRuntime = ({
   let active: Promise<void> | null = null;
   let stopping: Promise<void> | null = null;
   let running = false;
+  let lifecycleRevision = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const remaining = (deadline: Date) => +deadline - +clock() - mongoOperationTimeoutMs;
   const failed = (stage: string) => logger.error({ event: 'news_runtime_failed', stage });
@@ -212,13 +213,16 @@ export const createNewsRuntime = ({
     });
   };
   const start = async () => {
+    const requestedRevision = ++lifecycleRevision;
     await stopping;
-    if (!enabled || running) return;
+    if (requestedRevision !== lifecycleRevision || !enabled || running) return;
     if (lifetime.signal.aborted) lifetime = new AbortController();
     running = true;
     loop(lifetime.signal);
   };
   const shutdown = () => {
+    // Cancel every earlier start, including one waiting for an already-running shutdown.
+    lifecycleRevision++;
     if (stopping) return stopping;
     running = false;
     clearTimeout(timer);

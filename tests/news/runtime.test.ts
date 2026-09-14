@@ -816,6 +816,61 @@ describe('news runtime lifecycle and bounded work', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('cancels a same-turn pending start when shutdown is invoked later', async () => {
+    vi.useFakeTimers();
+    const store = fakeStore();
+    const r = createNewsRuntime({
+      store,
+      publisher: quietPublisher(),
+      logger: logger(),
+      tickIntervalMs: 10,
+    });
+    const starting = r.start();
+    const stopping = r.shutdown();
+    await starting;
+    await stopping;
+    await vi.advanceTimersByTimeAsync(50);
+    expect(store.listEnabled).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+    await r.tick();
+    expect(store.listEnabled).not.toHaveBeenCalled();
+    // A new invocation after the completed shutdown is still a valid restart.
+    await r.start();
+    await r.tick();
+    expect(store.listEnabled).toHaveBeenCalledTimes(1);
+    await r.shutdown();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('cancels a start waiting for drainage when another shutdown is invoked', async () => {
+    vi.useFakeTimers();
+    const store = fakeStore();
+    const read = deferred<Awaited<ReturnType<NewsStore['listEnabled']>>>();
+    store.listEnabled.mockReturnValueOnce(read.promise);
+    const r = createNewsRuntime({
+      store,
+      publisher: quietPublisher(),
+      logger: logger(),
+      tickIntervalMs: 10,
+    });
+    await r.start();
+    const firstStop = r.shutdown();
+    const pendingRestart = r.start();
+    const finalStop = r.shutdown();
+    expect(finalStop).toBe(firstStop);
+    read.resolve([]);
+    await pendingRestart;
+    await finalStop;
+    await vi.advanceTimersByTimeAsync(50);
+    expect(store.listEnabled).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+    await r.start();
+    await r.tick();
+    expect(store.listEnabled).toHaveBeenCalledTimes(2);
+    await r.shutdown();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('isolates database failures and logs only a finite stage without exception contents', async () => {
     const store = fakeStore();
     store.listEnabled.mockRejectedValueOnce(new Error('secret-destination response-body'));
