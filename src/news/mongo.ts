@@ -11,6 +11,7 @@ import {
   isCurrentDailyEdition,
   nextContinuousCollectionAt,
   nextContinuousDeliveryAt,
+  newsPolicy,
   observeStory,
   planContinuousPublication,
   planDailyPublication,
@@ -19,6 +20,7 @@ import {
 import type {
   NewsClock,
   NewsContent,
+  NewsEdition,
   NewsObservation,
   NewsPublication,
   NewsSourceState,
@@ -32,6 +34,13 @@ export type NewsSubscriptionDocument = Omit<NewsSubscriptionRecord, 'key'> & {
   guildKey: string;
 };
 export type NewsSourceDocument = NewsSourceState & { _id: NewsSourceState['source'] };
+export type NewsSourcePayloadDocument = {
+  _id: string;
+  source: NewsSourceState['source'];
+  kind: 'daily' | 'candidate';
+  edition: NewsEdition;
+  retainedUntil: Date;
+};
 export type NewsMetadataDocument = { _id: 'encryption-v1'; keyVerifier: string; fence?: number };
 export type NewsObservationDocument = NewsObservation & { _id: string; retainedUntil: Date };
 export type NewsPublicationDocument = Omit<NewsPublication, 'key' | 'content'> & {
@@ -41,6 +50,9 @@ export type NewsPublicationDocument = Omit<NewsPublication, 'key' | 'content'> &
 };
 export type NewsMongoOptions = { secret: string; clock?: NewsClock; leaseMs?: number };
 const dayMs = 24 * 60 * 60_000;
+// Ordinary failures start at the polling cadence and grow to six hours.
+// Access denial always waits at least six hours; later publisher Retry-After wins.
+const maximumSourceBackoffMs = 6 * 60 * 60_000;
 const subscriptionView = (document: NewsSubscriptionDocument) =>
   ({
     key: document._id,
@@ -101,6 +113,7 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
     newsMetadata: metadata,
     newsObservations: observations,
     newsPublications: publications,
+    newsSourcePayloads: sourcePayloads,
   } = context.collections;
   const cipher = createNewsCipher(options.secret);
   const now = options.clock ?? (() => new Date());
@@ -238,6 +251,7 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
       dbOptions(tx),
     );
     await cancelUnsent(document._id, tx);
+    await pruneSourcePayloads(document.feed === 'continuous' ? 'dennikn' : 'aktuality', tx);
   };
   const disable: NewsStore['disable'] = ({ guildId, feed }) =>
     transaction(async (tx) => {
@@ -283,14 +297,100 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
       for (const document of documents) result.push(await inspect(document, tx));
       return result;
     });
-  const readSource = async (source: NewsSourceState['source'], tx: Transaction) =>
-    (await sources.findOne({ _id: source }, dbOptions(tx))) ?? {
-      _id: source,
-      source,
-      nextAttemptAt: new Date(0),
-      cache: {},
-      failures: 0,
+  const sourceMetadata = (state: NewsSourceDocument) => ({
+    ...state,
+    cache: {
+      ...(state.cache.listing ? { listing: state.cache.listing } : {}),
+      ...(state.cache.candidate
+        ? {
+            candidate: {
+              url: state.cache.candidate.url,
+              ...(state.cache.candidate.validators
+                ? { validators: state.cache.candidate.validators }
+                : {}),
+            },
+          }
+        : {}),
+    },
+    ...(state.daily ? { daily: { attemptedSlots: state.daily.attemptedSlots } } : {}),
+  });
+  const pruneSourcePayloads = async (source: NewsSourceState['source'], tx: Transaction) => {
+    const instant = now();
+    await sourcePayloads.deleteMany({ source, retainedUntil: { $lte: instant } }, dbOptions(tx));
+    const feed = source === 'dennikn' ? 'continuous' : 'daily';
+    if (await subscriptions.findOne({ feed, enabled: true }, dbOptions(tx))) return;
+    const saved = await sourcePayloads.find({ source }, dbOptions(tx)).toArray();
+    // Today's cached edition remains necessary for same-day re-enable/new-guild
+    // delivery and collection-driven fallback suppression. Older bodies do not.
+    for (const payload of saved)
+      if (!isCurrentDailyEdition(payload.edition, instant))
+        await sourcePayloads.deleteOne({ _id: payload._id }, dbOptions(tx));
+  };
+  const saveSourcePayloads = async (state: NewsSourceDocument, tx: Transaction) => {
+    for (const [kind, edition] of [
+      ['daily', state.daily?.collectedEdition],
+      ['candidate', state.cache.candidate?.edition],
+    ] as const) {
+      const key = JSON.stringify([state.source, kind]);
+      const retainedUntil = edition ? new Date(+edition.publishedAt + 7 * dayMs) : null;
+      if (edition && retainedUntil && retainedUntil > now()) {
+        await sourcePayloads.replaceOne(
+          { _id: key },
+          {
+            source: state.source,
+            kind,
+            edition,
+            retainedUntil,
+          },
+          { upsert: true, ...dbOptions(tx) },
+        );
+      } else await sourcePayloads.deleteOne({ _id: key }, dbOptions(tx));
+    }
+    await pruneSourcePayloads(state.source, tx);
+  };
+  const readSource = async (source: NewsSourceState['source'], tx: Transaction) => {
+    const stored = await sources.findOne({ _id: source }, dbOptions(tx));
+    if (!stored) return { _id: source, source, nextAttemptAt: new Date(0), cache: {}, failures: 0 };
+    // Migrate pre-retention records within the same write fence. Expired legacy
+    // bodies are discarded; leases, backoff, slots and validators remain intact.
+    if (stored.daily?.collectedEdition || stored.cache.candidate?.edition) {
+      await saveSourcePayloads(stored, tx);
+      await sources.replaceOne({ _id: source }, sourceMetadata(stored), dbOptions(tx));
+    }
+    await pruneSourcePayloads(source, tx);
+    const metadata = sourceMetadata(stored);
+    const payloads = await sourcePayloads
+      .find({ source, retainedUntil: { $gt: now() } }, dbOptions(tx))
+      .toArray();
+    const daily = payloads.find((payload) => payload.kind === 'daily')?.edition;
+    const candidate = payloads.find((payload) => payload.kind === 'candidate')?.edition;
+    const matchingCandidate =
+      candidate && candidate.url === metadata.cache.candidate?.url ? candidate : undefined;
+    return {
+      ...metadata,
+      cache: {
+        ...metadata.cache,
+        ...(metadata.cache.candidate
+          ? {
+              candidate: {
+                url: metadata.cache.candidate.url,
+                ...(matchingCandidate
+                  ? {
+                      ...(metadata.cache.candidate.validators
+                        ? { validators: metadata.cache.candidate.validators }
+                        : {}),
+                      edition: matchingCandidate,
+                    }
+                  : {}),
+              },
+            }
+          : {}),
+      },
+      ...(metadata.daily
+        ? { daily: { ...metadata.daily, ...(daily ? { collectedEdition: daily } : {}) } }
+        : {}),
     };
+  };
   const getSource: NewsStore['getSource'] = (source) =>
     transaction(async (tx) => sourceView(await readSource(source, tx)));
   const claimPoll: NewsStore['claimPoll'] = (source) =>
@@ -326,7 +426,10 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
           ? { daily: { ...daily, attemptedSlots: [...daily.attemptedSlots, slot.key] } }
           : {}),
       };
-      await sources.replaceOne({ _id: source }, updated, { upsert: true, ...dbOptions(tx) });
+      await sources.replaceOne({ _id: source }, sourceMetadata(updated), {
+        upsert: true,
+        ...dbOptions(tx),
+      });
       return { source, lease, ...(slot ? { slot } : {}) };
     });
   const commitPoll: NewsStore['commitPoll'] = async (claim, result) => {
@@ -348,7 +451,14 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
           ? undefined
           : new Date(
               Math.max(
-                +instant + Math.min(60 * 60_000, 60_000 * 2 ** (failures - 1)),
+                +instant +
+                  Math.max(
+                    result.outcome === 'access-denied' ? maximumSourceBackoffMs : 0,
+                    Math.min(
+                      maximumSourceBackoffMs,
+                      newsPolicy.continuousIntervalMs * 2 ** (failures - 1),
+                    ),
+                  ),
                 +('retryAt' in result && result.retryAt ? result.retryAt : instant),
               ),
             );
@@ -392,6 +502,7 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
           if (result.outcome === 'edition' && isCurrentDailyEdition(result.edition, instant))
             updated.daily.collectedEdition = result.edition;
         }
+        await saveSourcePayloads(updated, tx);
         // Roll back observations/baselines as well if processing consumed the poll lease.
         if (state.lease.expiresAt <= now()) throw new LostLease();
         const saved = await sources.replaceOne(
@@ -400,7 +511,7 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
             'lease.owner': claim.lease.owner,
             'lease.expiresAt': { $gt: now() },
           },
-          updated,
+          sourceMetadata(updated),
           dbOptions(tx),
         );
         if (!saved.modifiedCount) throw new LostLease();

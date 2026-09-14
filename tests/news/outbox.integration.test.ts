@@ -176,6 +176,8 @@ describe('durable news source coordination and outbox', () => {
     await collect(news, 'dennikn', { outcome: 'malformed' });
     expect((await news.getSource('dennikn')).failures).toBe(2);
     instant = at('19:35:00');
+    expect(await news.claimPoll('dennikn')).toBeNull();
+    instant = at('19:55:00');
     await collect(news, 'dennikn', { outcome: 'unchanged', cache: { listing: { etag: 'v2' } } });
     expect(await news.getSource('dennikn')).toMatchObject({
       failures: 0,
@@ -754,4 +756,235 @@ describe('durable news source coordination and outbox', () => {
       await collections.newsPublications.findOne({ _id: claim.publication.key }),
     ).not.toHaveProperty('messageKey');
   });
+  it('backs consecutive ordinary failures off from 20 minutes exponentially to a six-hour cap across stores', async () => {
+    const a = await open();
+    const b = await open();
+    await a.news.configure(continuous);
+    for (const [index, delayMinutes] of [20, 40, 80, 160, 320, 360, 360].entries()) {
+      const claims = await Promise.all([a.news.claimPoll('dennikn'), b.news.claimPoll('dennikn')]);
+      expect(claims.filter(Boolean)).toHaveLength(1);
+      expect(await b.news.commitPoll(claims.find(Boolean)!, { outcome: 'unavailable' })).toBe(true);
+      const expected = new Date(+instant + delayMinutes * 60_000);
+      expect(await a.news.getSource('dennikn')).toMatchObject({
+        failures: index + 1,
+        backoffUntil: expected,
+        nextAttemptAt: expected,
+      });
+      instant = new Date(+expected - 1);
+      expect(await a.news.claimPoll('dennikn')).toBeNull();
+      instant = expected;
+    }
+  });
+
+  it('uses at least six hours after access denial, honors a longer Retry-After, and resets on unchanged success', async () => {
+    const { news } = await open();
+    await news.configure(continuous);
+    const start = instant;
+    await collect(news, 'dennikn', { outcome: 'access-denied' });
+    expect(await news.getSource('dennikn')).toMatchObject({
+      failures: 1,
+      nextAttemptAt: new Date(+start + 6 * 60 * 60_000),
+      backoffUntil: new Date(+start + 6 * 60 * 60_000),
+    });
+    instant = new Date(+start + 6 * 60 * 60_000);
+    const later = new Date(+instant + 12 * 60 * 60_000);
+    await collect(news, 'dennikn', { outcome: 'access-denied', retryAt: later });
+    expect(await news.getSource('dennikn')).toMatchObject({
+      failures: 2,
+      nextAttemptAt: later,
+      backoffUntil: later,
+    });
+    instant = later;
+    await collect(news, 'dennikn', { outcome: 'unchanged', cache: {} });
+    expect((await news.getSource('dennikn')).failures).toBe(0);
+    expect((await news.getSource('dennikn')).backoffUntil).toBeUndefined();
+    instant = new Date(+instant + 20 * 60_000);
+    await collect(news, 'dennikn', { outcome: 'timeout' });
+    expect(await news.getSource('dennikn')).toMatchObject({
+      failures: 1,
+      nextAttemptAt: new Date(+instant + 20 * 60_000),
+    });
+  });
+
+  it.each(['unavailable', 'access-denied'] as const)(
+    'keeps the daily fallback conditional after %s with the source cooldown',
+    async (outcome) => {
+      const { news } = await open();
+      await news.configure(daily);
+      await collect(news, 'aktuality', { outcome });
+      instant = at('19:00:00');
+      const fallback = await news.claimPoll('aktuality');
+      if (outcome === 'unavailable') expect(fallback?.slot?.kind).toBe('fallback');
+      else expect(fallback).toBeNull();
+      instant = at('20:00:00');
+      expect(await news.claimPoll('aktuality')).toBeNull();
+    },
+  );
+
+  it('stores source edition bodies separately with TTL and expires reads without losing schedule, lease or backoff', async () => {
+    const { news, collections } = await open();
+    await news.configure(daily);
+    const content = { ...edition(), title: 'source-retention-body' };
+    const cache = {
+      listing: { etag: 'listing-tag' },
+      candidate: { url: content.url, validators: { etag: 'article-tag' }, edition: content },
+    };
+    await collect(news, 'aktuality', { outcome: 'edition', edition: content, cache });
+    const stored = await collections.newsSources.findOne({ _id: 'aktuality' });
+    expect(stored?.daily).not.toHaveProperty('collectedEdition');
+    expect(stored?.cache.candidate).not.toHaveProperty('edition');
+    expect(JSON.stringify(stored)).not.toContain('source-retention-body');
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(2);
+    expect(await collections.newsSourcePayloads.indexes()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: { retainedUntil: 1 }, expireAfterSeconds: 0 }),
+        expect.objectContaining({ key: { _id: 1 } }),
+      ]),
+    );
+    const fence = {
+      nextAttemptAt: at('18:00:00', '2026-11-01'),
+      backoffUntil: at('18:00:00', '2026-11-01'),
+      lease: { owner: 'retained-owner', expiresAt: at('18:00:00', '2026-11-01') },
+    };
+    await collections.newsSources.updateOne({ _id: 'aktuality' }, { $set: fence });
+    await news.disable({ guildId: destination.guildId, feed: 'daily' });
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(2); // Still required for today's re-enable.
+    instant = at('18:00:00', '2026-10-15');
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(2); // Injected clock precedes physical TTL cleanup.
+    expect(await news.claimPoll('aktuality')).toBeNull();
+    await news.planPublications();
+    const expired = await news.getSource('aktuality');
+    expect(expired).toMatchObject(fence);
+    expect(expired.daily?.attemptedSlots).toEqual(stored?.daily?.attemptedSlots);
+    expect(expired.daily).not.toHaveProperty('collectedEdition');
+    expect(expired.cache).toEqual({
+      listing: { etag: 'listing-tag' },
+      candidate: { url: content.url },
+    });
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(0);
+    expect(JSON.stringify(await collections.newsSources.find().toArray())).not.toContain(
+      'source-retention-body',
+    );
+  });
+
+  it('enforces the exact seven-day source-body deadline on reads before TTL cleanup with active subscribers', async () => {
+    const { news, collections } = await open();
+    await news.configure(daily);
+    const content = edition();
+    await collect(news, 'aktuality', {
+      outcome: 'edition',
+      edition: content,
+      cache: {
+        candidate: { url: content.url, validators: { etag: 'candidate-tag' }, edition: content },
+      },
+    });
+    instant = new Date(+content.publishedAt + 7 * 24 * 60 * 60_000 - 1);
+    expect((await news.getSource('aktuality')).cache.candidate?.edition).toEqual(content);
+    instant = new Date(+instant + 1);
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(2);
+    const source = await news.getSource('aktuality');
+    expect(source.daily).not.toHaveProperty('collectedEdition');
+    expect(source.cache.candidate).toEqual({ url: content.url });
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(0);
+  });
+
+  it('keeps current-day cached collection success across last disable for re-enable and newly configured guilds', async () => {
+    const { news, collections } = await open();
+    await news.configure(daily);
+    const content = edition();
+    await collect(news, 'aktuality', {
+      outcome: 'edition',
+      edition: content,
+      cache: { candidate: { url: content.url, edition: content } },
+    });
+    await news.disable({ guildId: destination.guildId, feed: 'daily' });
+    instant = at('19:00:00');
+    await news.configure(daily);
+    await news.configure({
+      ...daily,
+      destination: { ...destination, guildId: 'new-evening-guild' },
+    });
+    expect(await news.claimPoll('aktuality')).toBeNull();
+    await news.planPublications();
+    expect(await collections.newsPublications.countDocuments({ status: 'pending' })).toBe(2);
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(2);
+  });
+
+  it('purges older source bodies when the last guild leaves while preserving another active guild', async () => {
+    const { news, collections } = await open();
+    await news.configure(daily);
+    await news.configure({ ...daily, destination: { ...destination, guildId: 'remaining-guild' } });
+    const content = edition();
+    await collect(news, 'aktuality', {
+      outcome: 'edition',
+      edition: content,
+      cache: { candidate: { url: content.url, edition: content } },
+    });
+    instant = at('06:00:00', '2026-09-15');
+    await news.disable({ guildId: destination.guildId, feed: 'daily' });
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(2);
+    await news.removeGuild('remaining-guild');
+    expect(await collections.newsSourcePayloads.countDocuments()).toBe(0);
+    expect((await news.getSource('aktuality')).cache.candidate).toEqual({ url: content.url });
+  });
+
+  it('hydrates candidate bodies only for the matching URL and drops conditional validators when no body can be used', async () => {
+    const { news, collections } = await open();
+    await news.configure(daily);
+    const content = edition();
+    await collect(news, 'aktuality', {
+      outcome: 'edition',
+      edition: content,
+      cache: {
+        candidate: { url: content.url, validators: { etag: 'body-validator' }, edition: content },
+      },
+    });
+    expect((await news.getSource('aktuality')).cache.candidate?.validators).toEqual({
+      etag: 'body-validator',
+    });
+    await collections.newsSourcePayloads.updateOne(
+      { kind: 'candidate' },
+      { $set: { 'edition.url': 'https://www.aktuality.sk/other-edition' } },
+    );
+    expect((await news.getSource('aktuality')).cache.candidate).toEqual({ url: content.url });
+    await collections.newsSourcePayloads.deleteOne({ kind: 'candidate' });
+    expect((await news.getSource('aktuality')).cache.candidate).toEqual({ url: content.url });
+    expect((await news.getSource('aktuality')).daily?.collectedEdition).toEqual(content);
+  });
+
+  it.each(['current', 'expired'] as const)(
+    'migrates %s legacy embedded bodies without changing source ownership or schedule',
+    async (age) => {
+      const { news, collections } = await open();
+      await news.configure(daily);
+      const content = edition(at('17:00:00', age === 'current' ? '2026-09-14' : '2026-09-01'));
+      const legacy = {
+        _id: 'aktuality' as const,
+        source: 'aktuality' as const,
+        nextAttemptAt: at('19:00:00'),
+        failures: 2,
+        backoffUntil: at('19:30:00'),
+        lease: { owner: 'legacy-owner', expiresAt: at('18:01:00') },
+        daily: { attemptedSlots: ['already-claimed'], collectedEdition: content },
+        cache: {
+          listing: { etag: 'listing' },
+          candidate: { url: content.url, validators: { etag: 'candidate' }, edition: content },
+        },
+      };
+      await collections.newsSources.insertOne(legacy);
+      const loaded = await news.getSource('aktuality');
+      expect(loaded).toMatchObject({
+        lease: legacy.lease,
+        nextAttemptAt: legacy.nextAttemptAt,
+        backoffUntil: legacy.backoffUntil,
+        failures: 2,
+        daily: { attemptedSlots: ['already-claimed'] },
+      });
+      expect(loaded.daily?.collectedEdition).toEqual(age === 'current' ? content : undefined);
+      const metadata = await collections.newsSources.findOne({ _id: 'aktuality' });
+      expect(metadata?.daily).not.toHaveProperty('collectedEdition');
+      expect(metadata?.cache.candidate).not.toHaveProperty('edition');
+      expect(await collections.newsSourcePayloads.countDocuments()).toBe(age === 'current' ? 2 : 0);
+    },
+  );
 });

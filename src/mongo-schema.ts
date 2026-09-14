@@ -1,6 +1,7 @@
 import type {
   NewsSubscriptionDocument,
   NewsSourceDocument,
+  NewsSourcePayloadDocument,
   NewsMetadataDocument,
   NewsObservationDocument,
   NewsPublicationDocument,
@@ -82,6 +83,7 @@ export type RequestDocument = {
 export type Collections = {
   newsSubscriptions: Collection<NewsSubscriptionDocument>;
   newsSources: Collection<NewsSourceDocument>;
+  newsSourcePayloads: Collection<NewsSourcePayloadDocument>;
   newsMetadata: Collection<NewsMetadataDocument>;
   newsObservations: Collection<NewsObservationDocument>;
   newsPublications: Collection<NewsPublicationDocument>;
@@ -99,6 +101,7 @@ export type Collections = {
 export const getCollections = (database: Db): Collections => ({
   newsSubscriptions: database.collection<NewsSubscriptionDocument>('news_subscriptions'),
   newsSources: database.collection<NewsSourceDocument>('news_sources'),
+  newsSourcePayloads: database.collection<NewsSourcePayloadDocument>('news_source_payloads'),
   newsMetadata: database.collection<NewsMetadataDocument>('news_metadata'),
   newsObservations: database.collection<NewsObservationDocument>('news_observations'),
   newsPublications: database.collection<NewsPublicationDocument>('news_publications'),
@@ -115,6 +118,10 @@ export const getCollections = (database: Db): Collections => ({
 
 export const createIndexes = async (collections: Collections) => {
   await Promise.all([
+    collections.newsSourcePayloads.createIndex(
+      { retainedUntil: 1 },
+      { expireAfterSeconds: 0, ...mongoOperationOptions },
+    ),
     collections.newsObservations.createIndex(
       { retainedUntil: 1 },
       { expireAfterSeconds: 0, ...mongoOperationOptions },
