@@ -1,3 +1,8 @@
+import type {
+  NewsSubscriptionDocument,
+  NewsSourceDocument,
+  NewsMetadataDocument,
+} from './news/mongo.js';
 import type { ReelSettingDocument, ReelDeliveryDocument } from './mongo-reels.js';
 import type { Collection, Db } from 'mongodb';
 import type { GuildSettings } from './models.js';
@@ -73,6 +78,9 @@ export type RequestDocument = {
 };
 
 export type Collections = {
+  newsSubscriptions: Collection<NewsSubscriptionDocument>;
+  newsSources: Collection<NewsSourceDocument>;
+  newsMetadata: Collection<NewsMetadataDocument>;
   reelSettings: Collection<ReelSettingDocument>;
   reelDeliveries: Collection<ReelDeliveryDocument>;
   guildSettings: Collection<GuildSettingsDocument>;
@@ -85,6 +93,9 @@ export type Collections = {
 };
 
 export const getCollections = (database: Db): Collections => ({
+  newsSubscriptions: database.collection<NewsSubscriptionDocument>('news_subscriptions'),
+  newsSources: database.collection<NewsSourceDocument>('news_sources'),
+  newsMetadata: database.collection<NewsMetadataDocument>('news_metadata'),
   reelSettings: database.collection<ReelSettingDocument>('reel_settings'),
   reelDeliveries: database.collection<ReelDeliveryDocument>('reel_deliveries'),
   guildSettings: database.collection<GuildSettingsDocument>('guild_settings'),
@@ -98,6 +109,11 @@ export const getCollections = (database: Db): Collections => ({
 
 export const createIndexes = async (collections: Collections) => {
   await Promise.all([
+    collections.newsSubscriptions.createIndex(
+      { guildKey: 1, feed: 1 },
+      { unique: true, ...mongoOperationOptions },
+    ),
+    collections.newsSubscriptions.createIndex({ enabled: 1, feed: 1 }, mongoOperationOptions),
     collections.reelDeliveries.createIndex(
       { expiresAt: 1 },
       { expireAfterSeconds: 0, ...mongoOperationOptions },

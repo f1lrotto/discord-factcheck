@@ -1,3 +1,4 @@
+import { createMongoNews, type NewsMongoOptions } from './news/mongo.js';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 import type { Logger } from 'pino';
 import { createMongoAccounting } from './mongo-accounting.js';
@@ -32,12 +33,13 @@ export const createMongoStore = (
     logger: Logger;
     recoveryIntervalMs?: number;
     requestLeaseMs?: number;
+    news?: NewsMongoOptions;
   },
   dependencies: {
     client?: MongoClient;
     createAccounting?: typeof createMongoAccounting;
   } = {},
-): JolandaStore & { reels: ReelStore } => {
+): JolandaStore & { reels: ReelStore; news?: ReturnType<typeof createMongoNews> } => {
   const client = dependencies.client ?? new MongoClient(input.uri, mongoClientOptions);
   const database = client.db(input.databaseName);
   const context: MongoContext = {
@@ -46,6 +48,7 @@ export const createMongoStore = (
     protectIdentifier: input.protectIdentifier,
     logger: input.logger,
   };
+  const news = input.news ? createMongoNews(context, input.news) : undefined;
   const settings = createMongoSettings(context);
   const conversations = createMongoConversations(context, input.requestLeaseMs);
   const accounting = (dependencies.createAccounting ?? createMongoAccounting)(context, input);
@@ -54,6 +57,7 @@ export const createMongoStore = (
     try {
       await client.connect();
       await createIndexes(context.collections);
+      await news?.initialize();
       await database.command({ ping: 1 }, { timeoutMS: mongoOperationTimeoutMs });
       await accounting.recoverExpiredRequests();
       accounting.startRecovery();
@@ -76,6 +80,7 @@ export const createMongoStore = (
 
   return {
     reels: createMongoReels(context),
+    ...(news ? { news } : {}),
     initialize,
     close,
     ...settings,
