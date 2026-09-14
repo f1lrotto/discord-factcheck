@@ -1,8 +1,10 @@
 import {
   MessageFlags,
+  ChannelType,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  type SlashCommandSubcommandGroupBuilder,
 } from 'discord.js';
 import type { Logger } from 'pino';
 import { findModelProfile, getModel, modelProfiles } from './models.js';
@@ -11,14 +13,47 @@ import { ephemeral, safeMentions } from './discord-response.js';
 import { reelChannelSupported, reelPermissions } from './discord-reels.js';
 import type { ReelStore } from './reel-types.js';
 import type { JolandaStore } from './types.js';
+import { createNewsCommands, type NewsCommandServices } from './news/commands.js';
 
 const effectiveContextLimit = (configured: number, maximum: number) =>
   Math.max(0, Math.min(configured, maximum));
+
+const newsGroup = (group: SlashCommandSubcommandGroupBuilder, feed: 'continuous' | 'daily') =>
+  group
+    .setName(feed)
+    .setDescription(`Configure ${feed} news`)
+    .addSubcommand((command) => {
+      command
+        .setName('feed')
+        .setDescription(`Set the ${feed} news destination`)
+        .addChannelOption((option) =>
+          option
+            .setName('channel')
+            .setDescription('News destination in this server')
+            .setRequired(true)
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
+        );
+      if (feed === 'daily')
+        command.addRoleOption((option) =>
+          option
+            .setName('notify-role')
+            .setDescription('Optional role to notify once per daily edition'),
+        );
+      return command;
+    })
+    .addSubcommand((command) => command.setName('disable').setDescription(`Disable ${feed} news`))
+    .addSubcommand((command) =>
+      command
+        .setName('status')
+        .setDescription(`Show ${feed} news configuration and delivery status`),
+    );
 
 export const createCommand = (maximumContextMessages: number) =>
   new SlashCommandBuilder()
     .setName('jolanda')
     .setDescription('Configure Jolanda for this server')
+    .addSubcommandGroup((group) => newsGroup(group, 'continuous'))
+    .addSubcommandGroup((group) => newsGroup(group, 'daily'))
     .addSubcommand((command) =>
       command
         .setName('reels')
@@ -66,6 +101,7 @@ export const createCommand = (maximumContextMessages: number) =>
     );
 
 export const createCommandHandler = (input: {
+  news?: NewsCommandServices;
   reelStore?: ReelStore;
   reelsEnabled?: boolean;
   transcriptTtlDays: number;
@@ -74,6 +110,7 @@ export const createCommandHandler = (input: {
   logger: Logger;
   protectIdentifier: (identifier: string) => string;
 }) => {
+  const newsCommands = createNewsCommands(input);
   const logChange = (
     interaction: ChatInputCommandInteraction,
     guildId: string,
@@ -88,14 +125,15 @@ export const createCommandHandler = (input: {
       ...values,
     });
 
-  return async (interaction: ChatInputCommandInteraction) => {
+  const handle = async (interaction: ChatInputCommandInteraction) => {
     if (interaction.commandName !== 'jolanda' || !interaction.guildId) return;
     const guildId = interaction.guildId;
+    const group = interaction.options.getSubcommandGroup?.(false) ?? null;
     const subcommand = interaction.options.getSubcommand();
     const defer = () => interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const edit = (content: string) =>
       interaction.editReply({ content, allowedMentions: safeMentions });
-    if (subcommand === 'privacy') {
+    if (!group && subcommand === 'privacy') {
       await defer();
       const settings = await input.store.getSettings(guildId);
       const model = getModel(settings.model);
@@ -106,6 +144,7 @@ export const createCommandHandler = (input: {
       await edit(
         [
           '**Jolanda privacy**',
+          'News copies public publisher content into channels configured by server administrators. News uses no AI or model calls. News routing identifiers are encrypted separately; disabling a feed removes its routing, while copies already posted remain in Discord until removed with Discord moderation.',
           'In channels with automatic Reels enabled, public video identifiers are sent anonymously to Instagram/Meta or TikTok, depending on the link. Videos are temporarily downloaded on the host and copied to Discord. Copies follow Discord message retention, not transcript expiry; deleting the source does not delete an uploaded copy. Administrators can remove copies with normal moderation. Reposting does not mean the AI watched or fact-checked the video.',
           'Your question, explicit replies, and conversation turns are processed by OpenRouter and a selected model provider.',
           model.supportsZdr
@@ -130,6 +169,12 @@ export const createCommandHandler = (input: {
     }
     await defer();
 
+    if (group) {
+      if (group === 'continuous' || group === 'daily')
+        await newsCommands.handle(interaction, group);
+      else await edit('Unknown Jolanda command group.');
+      return;
+    }
     if (subcommand === 'reels') {
       const channel = interaction.channel;
       if (!channel || !reelChannelSupported(channel.type) || !input.reelStore) {
@@ -165,6 +210,7 @@ export const createCommandHandler = (input: {
       const model = getModel(settings.model);
       await edit(
         [
+          await newsCommands.summary(guildId),
           `Reels deployment (Instagram and TikTok): **${input.reelsEnabled ? 'available' : 'disabled'}**`,
           `Reels in this channel (Instagram and TikTok): **${channelEnabled ? 'enabled' : 'disabled'}**`,
           `Model: **${model.label}**`,
@@ -200,6 +246,10 @@ export const createCommandHandler = (input: {
       return;
     }
 
+    if (subcommand !== 'context-limit') {
+      await edit('Unknown Jolanda command.');
+      return;
+    }
     const messages = interaction.options.getInteger('messages', true);
     const settings = await input.store.updateSettings(guildId, {
       contextLimitMessages: messages,
@@ -213,4 +263,8 @@ export const createCommandHandler = (input: {
         : `Members may now request up to **${messages} preceding human messages** with +context.`,
     );
   };
+  return Object.assign(handle, {
+    removeNewsGuild: newsCommands.removeGuild,
+    reconcileNewsGuilds: newsCommands.reconcileGuilds,
+  });
 };

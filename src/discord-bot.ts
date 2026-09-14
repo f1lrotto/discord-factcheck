@@ -21,8 +21,16 @@ import { safeError } from './security.js';
 import type { ReelStore } from './reel-types.js';
 import type { createDiscordReels } from './discord-reels.js';
 import type { JolandaStore } from './types.js';
+import { createNewsDiscordPublisher } from './news/discord.js';
+import type { NewsPublisher, NewsStore } from './news/types.js';
 
 export const createDiscordBot = (input: {
+  newsStore?: NewsStore;
+  newsEnabled?: boolean;
+  newsPublisherOptions?: Pick<
+    Parameters<typeof createNewsDiscordPublisher>[0],
+    'makeRequest' | 'timeoutMs' | 'clock'
+  >;
   reels?: ReturnType<typeof createDiscordReels>;
   reelStore?: ReelStore;
   reelsEnabled?: boolean;
@@ -48,7 +56,25 @@ export const createDiscordBot = (input: {
       ],
       rest: { timeout: discordOperationTimeoutMs },
     });
-  const handleCommand = createCommandHandler(input);
+  const ownedNewsPublisher = input.newsStore
+    ? createNewsDiscordPublisher({ ...input.newsPublisherOptions, client, token: input.token })
+    : undefined;
+  const newsPublisher: NewsPublisher | undefined = ownedNewsPublisher;
+  const handleCommand = createCommandHandler({
+    ...input,
+    ...(input.newsStore && newsPublisher
+      ? {
+          news: {
+            store: input.newsStore,
+            publisher: newsPublisher,
+            enabled: input.newsEnabled ?? true,
+            ...(input.newsPublisherOptions?.clock
+              ? { clock: input.newsPublisherOptions.clock }
+              : {}),
+          },
+        }
+      : {}),
+  });
   const handleMessage = createMessageHandler({
     ...input,
     client,
@@ -142,8 +168,26 @@ export const createDiscordBot = (input: {
       }),
     );
   });
+  client.on(Events.GuildDelete, (guild) => {
+    if (!accepting) return;
+    track(
+      handleCommand.removeNewsGuild(guild.id).catch(() => {
+        input.logger.warn({
+          event: 'news_guild_removal_failed',
+          guildKey: input.protectIdentifier(guild.id),
+        });
+      }),
+    );
+  });
   client.once(Events.ClientReady, (readyClient) => {
     if (!accepting) return;
+    // READY cache includes unavailable guilds; only absent memberships are erased.
+    track(
+      handleCommand.reconcileNewsGuilds(
+        (guildId) => readyClient.guilds.cache.has(guildId),
+        () => accepting,
+      ),
+    );
     admit(() =>
       readyClient.application.commands
         .set([
@@ -206,6 +250,9 @@ export const createDiscordBot = (input: {
       ]);
     }
   };
-  const destroy = () => client.destroy();
-  return { start, stopAccepting, drain, destroy };
+  const destroy = () => {
+    ownedNewsPublisher?.close();
+    return client.destroy();
+  };
+  return { start, stopAccepting, drain, destroy, ...(newsPublisher ? { newsPublisher } : {}) };
 };
