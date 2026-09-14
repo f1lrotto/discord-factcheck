@@ -1,4 +1,4 @@
-import { ChannelType, PermissionFlagsBits, type RESTOptions } from 'discord.js';
+import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNewsDiscordPublisher } from '../../src/news/discord.js';
 import type { NewsContent, NewsDestination, NewsStory } from '../../src/news/types.js';
@@ -44,7 +44,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const fixture = (options: { timeoutMs?: number; transport?: RESTOptions['makeRequest'] } = {}) => {
+const fixture = (
+  options: { timeoutMs?: number; transport?: typeof fetch; clock?: () => Date } = {},
+) => {
   const channel = {
     id: channelId,
     guild_id: guildId,
@@ -64,22 +66,24 @@ const fixture = (options: { timeoutMs?: number; transport?: RESTOptions['makeReq
     body: Record<string, unknown> | undefined;
     signal: AbortSignal | null | undefined;
   }[] = [];
-  const makeRequest = vi.fn<RESTOptions['makeRequest']>(async (url, init) => {
-    const body = init.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
-    requests.push({ url, method: init.method!, body, signal: init.signal });
+  const makeRequest = vi.fn<typeof fetch>(async (url, init) => {
+    const body = init!.body
+      ? (JSON.parse(String(init!.body)) as Record<string, unknown>)
+      : undefined;
+    requests.push({ url: String(url), method: init!.method!, body, signal: init!.signal });
     if (options.transport) return options.transport(url, init);
-    if (init.method === 'POST')
+    if (init!.method === 'POST')
       return response({ id: '600', channel_id: channelId, nonce: body!.nonce });
-    if (url.endsWith(`/channels/${channelId}`)) return response(channel);
-    if (url.endsWith('/roles')) return response(roles);
-    if (url.endsWith(`/members/${userId}`)) return response(member);
+    if (String(url).endsWith(`/channels/${channelId}`)) return response(channel);
+    if (String(url).endsWith('/roles')) return response(roles);
+    if (String(url).endsWith(`/members/${userId}`)) return response(member);
     throw new Error('Unexpected fake Discord request');
   });
   const publisher = createNewsDiscordPublisher({
     client,
     token: 'fake-token',
     makeRequest,
-    clock: () => new Date('2026-09-14T18:00:00Z'),
+    clock: options.clock ?? (() => new Date('2026-09-14T18:00:00Z')),
     ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
   });
   cleanups.push(publisher.close);
@@ -268,7 +272,7 @@ describe('news publication reliability', () => {
     );
     expect(await f.publish()).toEqual({ outcome: 'destination-unavailable' });
   });
-  it('rejects a 429 with a finite retry time and never retries inside REST', async () => {
+  it('rejects a 429 with a finite retry time and never retries inside the publisher', async () => {
     const f = fixture();
     f.makeRequest.mockImplementationOnce(async () =>
       response({ retry_after: 2, global: false }, 429, { 'retry-after': '2' }),
@@ -288,7 +292,7 @@ describe('news publication reliability', () => {
       const f = fixture();
       const normal = f.makeRequest.getMockImplementation()!;
       f.makeRequest.mockImplementation(async (url, init) => {
-        if (init.method !== 'POST') return normal(url, init);
+        if (init!.method !== 'POST') return normal(url, init);
         if (outcome === 'network') throw new Error('connection lost after send');
         if (outcome === '500' || outcome === '408')
           return response({ message: 'unknown acceptance', code: 0 }, Number(outcome));
@@ -298,7 +302,9 @@ describe('news publication reliability', () => {
         return response({ id: '' });
       });
       expect(await f.publish()).toEqual({ outcome: 'uncertain' });
-      expect(f.makeRequest.mock.calls.filter(([, init]) => init.method === 'POST')).toHaveLength(1);
+      expect(f.makeRequest.mock.calls.filter(([, init]) => init!.method === 'POST')).toHaveLength(
+        1,
+      );
     },
   );
   it.each([400, 403, 429])(
@@ -307,7 +313,7 @@ describe('news publication reliability', () => {
       const f = fixture();
       const normal = f.makeRequest.getMockImplementation()!;
       f.makeRequest.mockImplementation(async (url, init) =>
-        init.method === 'POST'
+        init!.method === 'POST'
           ? response({ code: 50013, message: 'rejected', retry_after: 1 }, status, {
               'retry-after': '1',
             })
@@ -316,7 +322,9 @@ describe('news publication reliability', () => {
       const result = await f.publish();
       expect(result.outcome).toBe(status === 403 ? 'destination-unavailable' : 'rejected');
       if (status === 429) expect(result).toHaveProperty('retryAt');
-      expect(f.makeRequest.mock.calls.filter(([, init]) => init.method === 'POST')).toHaveLength(1);
+      expect(f.makeRequest.mock.calls.filter(([, init]) => init!.method === 'POST')).toHaveLength(
+        1,
+      );
     },
   );
   it('times out preflight, aborts transport and cannot send after a late response', async () => {
@@ -350,15 +358,15 @@ describe('news publication reliability', () => {
     const normal = f.makeRequest.getMockImplementation()!;
     let postSignal: AbortSignal | null | undefined;
     f.makeRequest.mockImplementation(async (url, init) => {
-      if (init.method !== 'POST') return normal(url, init);
-      postSignal = init.signal;
+      if (init!.method !== 'POST') return normal(url, init);
+      postSignal = init!.signal;
       return new Promise(() => {});
     });
     const pending = f.publish();
     await vi.advanceTimersByTimeAsync(100);
     expect(await pending).toEqual({ outcome: 'uncertain' });
     expect(postSignal!.aborted).toBe(true);
-    expect(f.makeRequest.mock.calls.filter(([, init]) => init.method === 'POST')).toHaveLength(1);
+    expect(f.makeRequest.mock.calls.filter(([, init]) => init!.method === 'POST')).toHaveLength(1);
   });
   it('never starts a queued POST after its publication deadline aborts', async () => {
     vi.useFakeTimers();
@@ -367,7 +375,7 @@ describe('news publication reliability', () => {
     let resolveFirst!: (response: Response) => void;
     let postCount = 0;
     f.makeRequest.mockImplementation(async (url, init) => {
-      if (init.method !== 'POST') return normal(url, init);
+      if (init!.method !== 'POST') return normal(url, init);
       postCount += 1;
       return new Promise((resolve) => {
         resolveFirst = resolve;
@@ -379,7 +387,7 @@ describe('news publication reliability', () => {
     const second = f.publish();
     await vi.advanceTimersByTimeAsync(100);
     expect(await first).toEqual({ outcome: 'uncertain' });
-    expect(await second).toEqual({ outcome: 'uncertain' });
+    expect(await second).toEqual({ outcome: 'rejected' });
     resolveFirst(response({ id: '600', channel_id: channelId }));
     await vi.advanceTimersByTimeAsync(0);
     expect(postCount).toBe(1);
@@ -392,7 +400,7 @@ describe('news publication reliability', () => {
       started = resolve;
     });
     f.makeRequest.mockImplementation(async (url, init) => {
-      if (init.method !== 'POST') return normal(url, init);
+      if (init!.method !== 'POST') return normal(url, init);
       started();
       return new Promise(() => {});
     });
@@ -416,14 +424,14 @@ describe('news publication reliability', () => {
       return result;
     });
     expect(await f.publish(story, destination, active.signal)).toEqual({ outcome: 'rejected' });
-    expect(f.makeRequest.mock.calls.every(([, init]) => init.method !== 'POST')).toBe(true);
+    expect(f.makeRequest.mock.calls.every(([, init]) => init!.method !== 'POST')).toBe(true);
   });
   it('checks readiness again after permission reads', async () => {
     const f = fixture();
     const normal = f.makeRequest.getMockImplementation()!;
     f.makeRequest.mockImplementation(async (url, init) => {
       const result = await normal(url, init);
-      if (url.includes('/members/')) f.client.isReady.mockReturnValue(false);
+      if (String(url).includes('/members/')) f.client.isReady.mockReturnValue(false);
       return result;
     });
     expect(await f.publish()).toEqual({ outcome: 'rejected' });
@@ -444,5 +452,162 @@ describe('news publication reliability', () => {
     expect(() =>
       createNewsDiscordPublisher({ client: f.client, token: 'fake', timeoutMs: Infinity }),
     ).toThrow('Invalid news Discord timeout');
+  });
+});
+
+describe('news transport cooldown and shutdown regression N07-F1', () => {
+  it.each(['global', 'route', 'bucket'])(
+    'retains learned %s cooldown without creating timers or surviving close',
+    async (scope) => {
+      vi.useFakeTimers();
+      let now = new Date('2026-09-14T18:00:00Z');
+      const f = fixture({ timeoutMs: 100, clock: () => now });
+      const headers = {
+        'retry-after': '2',
+        ...(scope === 'global' ? { 'x-ratelimit-global': 'true' } : {}),
+        ...(scope === 'bucket'
+          ? {
+              'x-ratelimit-bucket': 'channel-bucket',
+              'x-ratelimit-remaining': '0',
+              'x-ratelimit-reset-after': '2',
+            }
+          : {}),
+      };
+      f.makeRequest.mockImplementationOnce(async () =>
+        response({ retry_after: 2, global: scope === 'global' }, 429, headers),
+      );
+      expect(await f.publisher.validateDestination(destination)).toBe(false);
+      expect(await f.publisher.validateDestination(destination)).toBe(false);
+      expect(await f.publish()).toEqual({
+        outcome: 'rejected',
+        retryAt: new Date('2026-09-14T18:00:02Z'),
+      });
+      expect(f.makeRequest).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+      now = new Date('2026-09-14T18:00:02.001Z');
+      expect(await f.publish()).toEqual({ outcome: 'sent', messageId: '600' });
+      f.publisher.close();
+      expect(vi.getTimerCount()).toBe(0);
+      const count = f.makeRequest.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(f.makeRequest).toHaveBeenCalledTimes(count);
+    },
+  );
+  it('learns an exhausted successful bucket and allows unrelated preflight routes', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    f.makeRequest.mockImplementationOnce(async () =>
+      response(f.channel, 200, {
+        'x-ratelimit-bucket': 'channel',
+        'x-ratelimit-remaining': '0',
+        'x-ratelimit-reset-after': '2',
+      }),
+    );
+    expect(await f.publish()).toEqual({ outcome: 'sent', messageId: '600' });
+    expect(f.makeRequest).toHaveBeenCalledTimes(4);
+    expect(await f.publish()).toEqual({
+      outcome: 'rejected',
+      retryAt: new Date('2026-09-14T18:00:02Z'),
+    });
+    expect(f.makeRequest).toHaveBeenCalledTimes(4);
+    f.publisher.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('shares cooldown across previously mapped bucket routes in the same guild', async () => {
+    const f = fixture();
+    const normal = f.makeRequest.getMockImplementation()!;
+    let exhaust = false;
+    f.makeRequest.mockImplementation(async (url, init) => {
+      const result = await normal(url, init);
+      if (String(url).includes('/guilds/')) {
+        result.headers.set('x-ratelimit-bucket', 'shared-guild-bucket');
+        if (exhaust && String(url).includes('/members/')) {
+          result.headers.set('x-ratelimit-remaining', '0');
+          result.headers.set('x-ratelimit-reset-after', '2');
+        }
+      }
+      return result;
+    });
+    expect(await f.publisher.validateDestination(destination)).toBe(true);
+    exhaust = true;
+    expect(await f.publisher.validateDestination(destination)).toBe(true);
+    const count = f.makeRequest.mock.calls.length;
+    expect(await f.publish()).toEqual({
+      outcome: 'rejected',
+      retryAt: new Date('2026-09-14T18:00:02Z'),
+    });
+    expect(f.makeRequest).toHaveBeenCalledTimes(count + 1); // Only unrelated channel GET; guild roles are blocked.
+  });
+  it('retains body-only global Retry-After and a malformed-body header cooldown', async () => {
+    const f = fixture();
+    f.makeRequest.mockImplementationOnce(async () =>
+      response({ retry_after: 3, global: true }, 429),
+    );
+    expect(await f.publish()).toEqual({
+      outcome: 'rejected',
+      retryAt: new Date('2026-09-14T18:00:03Z'),
+    });
+    expect(await f.publish(story, { guildId: '999', channelId: '888' })).toEqual({
+      outcome: 'rejected',
+      retryAt: new Date('2026-09-14T18:00:03Z'),
+    });
+    expect(f.makeRequest).toHaveBeenCalledTimes(1);
+    const malformed = fixture();
+    malformed.makeRequest.mockImplementationOnce(
+      async () => new Response('bad json', { status: 429, headers: { 'retry-after': '4' } }),
+    );
+    expect(await malformed.publish()).toEqual({
+      outcome: 'rejected',
+      retryAt: new Date('2026-09-14T18:00:04Z'),
+    });
+  });
+  it('aborts a stalled body and remains uncertain after an accepted-status POST', async () => {
+    vi.useFakeTimers();
+    const f = fixture({ timeoutMs: 100 });
+    const normal = f.makeRequest.getMockImplementation()!;
+    const cancel = vi.fn();
+    f.makeRequest.mockImplementation(async (url, init) =>
+      init!.method === 'POST' ? new Response(new ReadableStream({ cancel })) : normal(url, init),
+    );
+    const pending = f.publish();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await pending).toEqual({ outcome: 'uncertain' });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    f.publisher.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('preserves confirmed 429 rejection and header backoff even when its body stalls', async () => {
+    vi.useFakeTimers();
+    const f = fixture({ timeoutMs: 100 });
+    const normal = f.makeRequest.getMockImplementation()!;
+    const cancel = vi.fn();
+    f.makeRequest.mockImplementation(async (url, init) =>
+      init!.method === 'POST'
+        ? new Response(new ReadableStream({ cancel }), {
+            status: 429,
+            headers: { 'retry-after': '5' },
+          })
+        : normal(url, init),
+    );
+    const pending = f.publish();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await pending).toEqual({
+      outcome: 'rejected',
+      retryAt: new Date('2026-09-14T18:00:05Z'),
+    });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    f.publisher.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('bounds response bodies and rejects authenticated redirect following', async () => {
+    const f = fixture();
+    const normal = f.makeRequest.getMockImplementation()!;
+    f.makeRequest.mockImplementation(async (url, init) => {
+      expect(init!.redirect).toBe('error');
+      expect(init!.headers).toMatchObject({ Authorization: 'Bot fake-token' });
+      return init!.method === 'POST' ? new Response('x'.repeat(1_048_577)) : normal(url, init);
+    });
+    expect(await f.publish()).toEqual({ outcome: 'uncertain' });
+    expect(f.makeRequest).toHaveBeenCalledTimes(4);
   });
 });

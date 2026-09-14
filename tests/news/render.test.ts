@@ -51,6 +51,16 @@ describe('news renderer', () => {
       allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
     });
   });
+  it('preserves the exact economy hostname present in six captured Denník minute links', () => {
+    const url = 'https://e.dennikn.sk/minuta/5558475/';
+    expect(renderNews({ ...story, id: '5558475', url }).embeds![0]!.url).toBe(url);
+    expect(() =>
+      renderNews({ ...story, url: 'https://e.dennikn.sk.evil.test/minuta/5558475/' }),
+    ).toThrow();
+    expect(() =>
+      renderNews({ ...story, url: 'https://other.dennikn.sk/minuta/5558475/' }),
+    ).toThrow();
+  });
   it('preserves useful descriptions, tags and provider image metadata', () => {
     const payload = renderNews({
       ...story,

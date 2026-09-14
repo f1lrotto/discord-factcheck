@@ -4,7 +4,7 @@ import type { NewsContent, NewsSourceId } from './types.js';
 const sources = {
   dennikn: {
     name: 'Denník N',
-    hosts: ['dennikn.sk', 'www.dennikn.sk'],
+    hosts: ['dennikn.sk', 'www.dennikn.sk', 'e.dennikn.sk'],
     images: ['img.projektn.sk'],
   },
   aktuality: {
