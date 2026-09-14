@@ -15,7 +15,8 @@ small production service even when it is used by only one server.
   isolated research stage. Replies, conversation history, and explicitly requested context can
   therefore influence a model-generated public search query.
 - Spend is authorized transactionally against a worst-case model/search envelope before inference.
-- Discord identifiers are HMAC-pseudonymized before MongoDB persistence or structured logging.
+- AI/media identifiers and news lookup/receipt keys are HMAC-pseudonymized before persistence or
+  structured logging. News also keeps authenticated-encrypted routing identifiers for scheduled delivery.
 - Conversation text remains plaintext in MongoDB until its configured expiry so reply chains work.
 - Model output cannot create mentions or embeds, is length-bounded, and has private, credentialed,
   query-bearing, and fragment-bearing links removed. Only exact URLs supplied by bounded public
@@ -37,13 +38,15 @@ small production service even when it is used by only one server.
 
 Prompting and model refusals govern when read-only tools are used; they are not authorization
 controls. Deterministic limits still bound spending, tool calls, time, output, citations, Discord
-permissions, and network targets. Jolanda deliberately has no tools that can write data, send
+permissions, and network targets. Jolanda's model-facing tools cannot write data, send
 messages outside the current Discord response, execute code, or access private services.
 
 ## Required production controls
 
 1. Generate `DATA_PROTECTION_SECRET` independently from every API credential and keep it stable.
-   Rotating it makes existing pseudonymous records unreachable until their TTL expires.
+   Rotating it makes existing AI/media pseudonymous records unreachable until their TTL expires.
+   News detects a changed secret and fails explicitly instead of silently orphaning its address book;
+   follow the maintenance procedure in [news operations](NEWS_OPERATIONS.md#secret-maintenance).
 2. Use a dedicated, least-privilege Atlas database user and a TLS-enabled Atlas URI. Restrict the
    network access list where Railway networking permits it.
 3. Review each model's retention warning before selecting it. Jolanda requests Zero Data Retention
@@ -157,3 +160,44 @@ Discord. Discord retention governs that copy, including after source deletion. M
 copies through Discord. No login fallback, browser cookies, video splitting, merging or historical scan
 is supported. Keep deployment availability off until Railway-network retrieval and desktop/mobile
 playback acceptance checks in README pass. The explicit smoke test sends no Discord messages.
+
+## Scheduled news boundary
+
+News has no model calls, generated summaries, media jobs, or access to AI conversations and budgets.
+Only Manage Server can configure, disable, or inspect feeds. Configuration and delivery both check
+the selected guild destination's effective View Channel, Send Messages, and Embed Links permissions.
+The optional daily role must belong to that guild and be mentionable or permitted by the bot's
+effective Mention Everyone permission. The everyone role is never accepted. Continuous messages
+suppress notifications and all mentions; daily messages permit only the explicitly selected role.
+
+Guild/channel/optional role references use AES-256-GCM with a fresh nonce, a versioned format, and
+subscription/revision-bound authenticated context. HKDF derives separate encryption and HMAC keys
+from the existing deployment secret. Disabling or removing a guild erases retrievable routing data;
+non-reversible delivery tombstones remain. Encrypted storage still requires protecting the secret
+and database backups. It does not shorten Discord's retention of already posted messages.
+
+Short Mongo transactions serialize news configuration, collection state, planning, and send admission.
+The durable `sending` transition is the uncertainty boundary: a crash after it may miss a message,
+but cannot blindly replay it. Nonces provide additional short-window suppression, not distributed
+exactly-once delivery. Permission loss pauses delivery without posting public failure notices.
+
+Continuous observations expire seven days after their last observation. Complete daily edition/cache
+bodies have separate TTL storage expiring seven days after publication; reads reject expired bodies
+even before Mongo cleanup. Current-day bodies may survive disabling the last subscriber for same-day
+reconfiguration and fallback suppression. Older unnecessary bodies are removed on last-subscriber
+removal. Terminal outbox records drop payloads and retain deduplication metadata/hashed receipts for
+30 days beyond the delivery deadline. Bounded source schedule/cache-reference metadata remains;
+raw publisher HTML is never stored in Mongo or logs. Backups follow their own configured retention.
+
+Anonymous publisher requests enforce exact HTTPS host/path rules, validated redirects, public DNS
+pinning, a 3 MB body cap, and a 25-second per-request deadline. Daily attempts request the listing
+and at most one candidate. Optional images use publisher metadata without additional article or
+image retrieval by Jolanda. Malformed pages do not replace good cache validators. Access denial
+causes at least a six-hour cooldown; ordinary failure backoff starts at 20 minutes and doubles up
+to six hours, respecting longer Retry-After values. No login, cookie, proxy, or generated-digest
+fallback bypasses a publisher restriction.
+
+News Discord requests use bounded native HTTPS fetches, no automatic retries, explicit cancellation,
+and timestamp cooldowns. They share the bot token's quota with AI/media. Payloads contain bounded,
+escaped source text and allowlisted source/image URLs. Logs use finite outcomes and hashed scopes,
+without raw routing IDs, tokens, source bodies, or upstream error bodies.

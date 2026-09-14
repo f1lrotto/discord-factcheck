@@ -279,3 +279,34 @@ Local implementation validation retrieved the provided sample in the runtime con
 13 September 2026 (6,427,035 bytes, 73.164 seconds, audio present). This validates local anonymous
 extraction and inspection only. Railway-network reliability and desktop/mobile Discord playback
 remain release acceptance checks.
+
+## Scheduled news
+
+News uses the existing Jolanda bot and MongoDB, independently of AI and media. A member with
+**Manage Server** can choose one destination per guild for each feed using native channel selectors:
+
+```text
+/jolanda continuous feed channel:#news
+/jolanda daily feed channel:#daily-news [notify-role:@news-readers]
+/jolanda continuous status
+/jolanda daily status
+/jolanda continuous disable
+/jolanda daily disable
+```
+
+Denník N's important Minúta selection is collected once every 20 minutes, shared across guilds.
+Continuous embeds suppress push notifications, never mention anyone, and are paced at one per
+destination per 20 minutes. Activation establishes a baseline; queued stories expire after two hours.
+There is no daily quota. Aktuality's own daily edition is collected at **20:00 Europe/Bratislava**
+(CET/CEST), with one **21:00** fallback only if no fresh edition was collected. A missing edition is
+skipped; no replacement digest is generated. Daily delivery is one message and stops at 22:00.
+Its optional role mention requires explicit configuration and destination permission validation.
+
+Text and announcement channels are supported. Status is independent of AI budget availability;
+`/jolanda settings` also includes a short feed summary. Routing identifiers are encrypted, while
+durable delivery state prevents replay after restarts or channel changes. An ambiguous Discord
+acceptance is held as uncertain instead of automatically retried.
+
+See [news operations](NEWS_OPERATIONS.md) for the kill switch, preview commands, recovery,
+retention, and controlled rollout; [acceptance evidence](NEWS_ACCEPTANCE.md) records what was
+locally tested, checked against publishers, live verified, or deployed.
