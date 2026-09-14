@@ -2,6 +2,8 @@ import type {
   NewsSubscriptionDocument,
   NewsSourceDocument,
   NewsMetadataDocument,
+  NewsObservationDocument,
+  NewsPublicationDocument,
 } from './news/mongo.js';
 import type { ReelSettingDocument, ReelDeliveryDocument } from './mongo-reels.js';
 import type { Collection, Db } from 'mongodb';
@@ -81,6 +83,8 @@ export type Collections = {
   newsSubscriptions: Collection<NewsSubscriptionDocument>;
   newsSources: Collection<NewsSourceDocument>;
   newsMetadata: Collection<NewsMetadataDocument>;
+  newsObservations: Collection<NewsObservationDocument>;
+  newsPublications: Collection<NewsPublicationDocument>;
   reelSettings: Collection<ReelSettingDocument>;
   reelDeliveries: Collection<ReelDeliveryDocument>;
   guildSettings: Collection<GuildSettingsDocument>;
@@ -96,6 +100,8 @@ export const getCollections = (database: Db): Collections => ({
   newsSubscriptions: database.collection<NewsSubscriptionDocument>('news_subscriptions'),
   newsSources: database.collection<NewsSourceDocument>('news_sources'),
   newsMetadata: database.collection<NewsMetadataDocument>('news_metadata'),
+  newsObservations: database.collection<NewsObservationDocument>('news_observations'),
+  newsPublications: database.collection<NewsPublicationDocument>('news_publications'),
   reelSettings: database.collection<ReelSettingDocument>('reel_settings'),
   reelDeliveries: database.collection<ReelDeliveryDocument>('reel_deliveries'),
   guildSettings: database.collection<GuildSettingsDocument>('guild_settings'),
@@ -109,6 +115,23 @@ export const getCollections = (database: Db): Collections => ({
 
 export const createIndexes = async (collections: Collections) => {
   await Promise.all([
+    collections.newsObservations.createIndex(
+      { retainedUntil: 1 },
+      { expireAfterSeconds: 0, ...mongoOperationOptions },
+    ),
+    collections.newsPublications.createIndex(
+      { retainedUntil: 1 },
+      { expireAfterSeconds: 0, ...mongoOperationOptions },
+    ),
+    collections.newsPublications.createIndex(
+      { subscriptionKey: 1, status: 1 },
+      mongoOperationOptions,
+    ),
+    collections.newsPublications.createIndex({ status: 1, dueAt: 1 }, mongoOperationOptions),
+    collections.newsPublications.createIndex(
+      { status: 1, 'lease.expiresAt': 1 },
+      mongoOperationOptions,
+    ),
     collections.newsSubscriptions.createIndex(
       { guildKey: 1, feed: 1 },
       { unique: true, ...mongoOperationOptions },
