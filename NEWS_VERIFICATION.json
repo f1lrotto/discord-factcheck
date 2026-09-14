@@ -713,11 +713,6 @@
   },
   "requirements": [
     {
-      "requirement": "Requirement",
-      "crossModuleEvidence": "Cross-module evidence and inspected behavior",
-      "complementaryEvidenceAndLimits": "Complementary evidence / limits"
-    },
-    {
       "requirement": "R01 source/cadence/shared work",
       "crossModuleEvidence": "feature.integration: both feeds across restart, second guild's fresh continuous baseline, one Denník request per 20-minute tick despite two stores/guilds; actual Denník adapter consumes important-listing fixture.",
       "complementaryEvidenceAndLimits": "dennikn/http/runtime suites cover strict query structure, only important eligibility, unchanged responses and slow/shared polls. Captured publication replay reports one shared request per simulated poll."
