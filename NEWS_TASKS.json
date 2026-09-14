@@ -6,7 +6,7 @@
   "plan": "NEWS_IMPLEMENTATION_PLAN.md",
   "runbook": "NEWS_AGENT_RUNBOOK.md",
   "inspectedBaseRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370",
-  "acceptedIntegrationRevision": null,
+  "acceptedIntegrationRevision": "bd03bde",
   "orchestration": {
     "maximumConcurrentWriters": 2,
     "maximumRepairRoundsBeforeReplan": 2,
@@ -23,53 +23,26 @@
       "title": "Baseline, fixtures strategy, and acceptance contract",
       "state": "accepted",
       "dependsOn": [],
-      "requirements": [
-        "R01",
-        "R02",
-        "R03",
-        "R04",
-        "R05",
-        "R06",
-        "R07",
-        "R08",
-        "R09",
-        "R10"
-      ],
+      "requirements": ["R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n00--baseline-fixtures-strategy-and-acceptance-contract",
-      "proposedOwnedPaths": [
-        "NEWS_IMPLEMENTATION_PLAN.md"
-      ],
+      "proposedOwnedPaths": ["NEWS_IMPLEMENTATION_PLAN.md"],
       "reviewMode": "orchestrator",
-      "requiredChecks": [
-        "pnpm check",
-        "git status --short"
-      ],
+      "requiredChecks": ["pnpm check", "git status --short"],
       "assignedAgent": null,
       "worktree": null,
       "baseRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370",
       "candidateRevision": null,
       "acceptedRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370",
       "repairRounds": 0,
-      "evidence": [
-        ".news-work/N00/check.log",
-        "NEWS_ACCEPTANCE.md"
-      ],
+      "evidence": [".news-work/N00/check.log", "NEWS_ACCEPTANCE.md"],
       "blockingFindings": []
     },
     {
       "id": "N01",
       "title": "Domain contracts and deterministic publication policy",
-      "state": "planned",
-      "dependsOn": [
-        "N00"
-      ],
-      "requirements": [
-        "R01",
-        "R02",
-        "R05",
-        "R06",
-        "R08"
-      ],
+      "state": "accepted",
+      "dependsOn": ["N00"],
+      "requirements": ["R01", "R02", "R05", "R06", "R08"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n01--domain-contracts-and-deterministic-publication-policy",
       "proposedOwnedPaths": [
         "src/news/types.ts",
@@ -77,31 +50,27 @@
         "tests/news/policy.test.ts"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check"
-      ],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
+      "requiredChecks": ["pnpm format", "pnpm check"],
+      "assignedAgent": "/root/domain_implementer",
+      "worktree": "/tmp/jolanda-news-n01",
+      "baseRevision": "66b12f3",
+      "candidateRevision": "7980016",
+      "acceptedRevision": "6340b5c",
       "repairRounds": 0,
-      "evidence": [],
-      "blockingFindings": []
+      "evidence": [
+        ".news-work/N01/implementation.json",
+        ".news-work/N01/review-1.json",
+        ".news-work/N01/acceptance.json"
+      ],
+      "blockingFindings": [],
+      "reviewer": "/root/domain_reviewer"
     },
     {
       "id": "N02",
       "title": "Bounded source HTTP and fixture tooling",
-      "state": "planned",
-      "dependsOn": [
-        "N01"
-      ],
-      "requirements": [
-        "R01",
-        "R07",
-        "R09"
-      ],
+      "state": "accepted",
+      "dependsOn": ["N01"],
+      "requirements": ["R01", "R07", "R09"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n02--bounded-source-http-and-fixture-tooling",
       "proposedOwnedPaths": [
         "src/news/http.ts",
@@ -111,33 +80,27 @@
         "pnpm-lock.yaml"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check"
-      ],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
+      "requiredChecks": ["pnpm format", "pnpm check"],
+      "assignedAgent": "/root/http_implementer",
+      "worktree": "/tmp/jolanda-news-n02",
+      "baseRevision": "6340b5c",
+      "candidateRevision": "d24af686cb060edc9bd08611fde67a011a9ce4bf",
+      "acceptedRevision": "ec03abe",
       "repairRounds": 0,
-      "evidence": [],
-      "blockingFindings": []
+      "evidence": [
+        ".news-work/N02/implementation.json",
+        ".news-work/N02/review-1.json",
+        ".news-work/N02/acceptance.json"
+      ],
+      "blockingFindings": [],
+      "reviewer": "/root/http_reviewer"
     },
     {
       "id": "N03",
       "title": "Denn\u00edk N important-news adapter",
-      "state": "planned",
-      "dependsOn": [
-        "N01",
-        "N02"
-      ],
-      "requirements": [
-        "R01",
-        "R05",
-        "R06",
-        "R07"
-      ],
+      "state": "accepted",
+      "dependsOn": ["N01", "N02"],
+      "requirements": ["R01", "R05", "R06", "R07"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n03--denn\u00edk-n-important-news-adapter",
       "proposedOwnedPaths": [
         "src/news/sources/dennikn.ts",
@@ -145,32 +108,28 @@
         "tests/news/fixtures/dennikn/"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check"
-      ],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
+      "requiredChecks": ["pnpm format", "pnpm check"],
+      "assignedAgent": "/root/http_implementer",
+      "worktree": "/tmp/jolanda-news-sources",
+      "baseRevision": "ec03abe",
+      "candidateRevision": "e81ed8bc4cfc3c09e214234cddbe2bfb3d259c6a",
+      "acceptedRevision": "7777a4a",
       "repairRounds": 0,
-      "evidence": [],
-      "blockingFindings": []
+      "evidence": [
+        ".news-work/N03/implementation.json",
+        ".news-work/N03/review-1.json",
+        ".news-work/N03/acceptance.json"
+      ],
+      "blockingFindings": [],
+      "assignmentGroup": "source-adapters",
+      "reviewer": "/root/sources_reviewer"
     },
     {
       "id": "N04",
       "title": "Aktuality editorial-edition adapter",
-      "state": "planned",
-      "dependsOn": [
-        "N01",
-        "N02"
-      ],
-      "requirements": [
-        "R02",
-        "R05",
-        "R07"
-      ],
+      "state": "accepted",
+      "dependsOn": ["N01", "N02"],
+      "requirements": ["R02", "R05", "R07"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n04--aktuality-editorial-edition-adapter",
       "proposedOwnedPaths": [
         "src/news/sources/aktuality.ts",
@@ -178,31 +137,28 @@
         "tests/news/fixtures/aktuality/"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check"
-      ],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
+      "requiredChecks": ["pnpm format", "pnpm check"],
+      "assignedAgent": "/root/http_implementer",
+      "worktree": "/tmp/jolanda-news-sources",
+      "baseRevision": "ec03abe",
+      "candidateRevision": "e81ed8bc4cfc3c09e214234cddbe2bfb3d259c6a",
+      "acceptedRevision": "7777a4a",
       "repairRounds": 0,
-      "evidence": [],
-      "blockingFindings": []
+      "evidence": [
+        ".news-work/N04/implementation.json",
+        ".news-work/N04/review-1.json",
+        ".news-work/N04/acceptance.json"
+      ],
+      "blockingFindings": [],
+      "assignmentGroup": "source-adapters",
+      "reviewer": "/root/sources_reviewer"
     },
     {
       "id": "N05",
       "title": "Encrypted, guild-scoped subscription persistence",
-      "state": "planned",
-      "dependsOn": [
-        "N01"
-      ],
-      "requirements": [
-        "R03",
-        "R04",
-        "R06"
-      ],
+      "state": "accepted",
+      "dependsOn": ["N01"],
+      "requirements": ["R03", "R04", "R06"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n05--encrypted-guild-scoped-subscription-persistence",
       "proposedOwnedPaths": [
         "src/news/cipher.ts",
@@ -212,34 +168,27 @@
         "tests/news/subscriptions.integration.test.ts"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check"
-      ],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
+      "requiredChecks": ["pnpm format", "pnpm check"],
+      "assignedAgent": "/root/store_implementer",
+      "worktree": "/tmp/jolanda-news-store",
+      "baseRevision": "6340b5c",
+      "candidateRevision": "7876746da660c6db0ea551336ba4bb20972ac33e",
+      "acceptedRevision": "148b301",
       "repairRounds": 0,
-      "evidence": [],
-      "blockingFindings": []
+      "evidence": [
+        ".news-work/N05/implementation.json",
+        ".news-work/N05/review-1.json",
+        ".news-work/N05/acceptance.json"
+      ],
+      "blockingFindings": [],
+      "reviewer": "/root/store_reviewer"
     },
     {
       "id": "N06",
       "title": "Durable poll coordination and delivery outbox",
-      "state": "planned",
-      "dependsOn": [
-        "N01",
-        "N05"
-      ],
-      "requirements": [
-        "R01",
-        "R02",
-        "R06",
-        "R07",
-        "R08"
-      ],
+      "state": "accepted",
+      "dependsOn": ["N01", "N05"],
+      "requirements": ["R01", "R02", "R06", "R07", "R08"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n06--durable-poll-coordination-and-delivery-outbox",
       "proposedOwnedPaths": [
         "src/news/mongo.ts",
@@ -247,32 +196,28 @@
         "tests/news/outbox.integration.test.ts"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check"
+      "requiredChecks": ["pnpm format", "pnpm check"],
+      "assignedAgent": "/root/store_implementer",
+      "worktree": "/tmp/jolanda-news-outbox",
+      "baseRevision": "148b301",
+      "candidateRevision": "cb667f7ff536168544f0fcf89e69432ab228b15b",
+      "acceptedRevision": "58a57ac",
+      "repairRounds": 1,
+      "evidence": [
+        ".news-work/N06/implementation.json",
+        ".news-work/N06/review-2.json",
+        ".news-work/N06/dispositions.json",
+        ".news-work/N06/acceptance.json"
       ],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
-      "repairRounds": 0,
-      "evidence": [],
-      "blockingFindings": []
+      "blockingFindings": [],
+      "reviewer": "/root/outbox_reviewer"
     },
     {
       "id": "N07",
       "title": "Embed renderer and Discord publisher",
-      "state": "planned",
-      "dependsOn": [
-        "N01"
-      ],
-      "requirements": [
-        "R04",
-        "R05",
-        "R08",
-        "R09"
-      ],
+      "state": "accepted",
+      "dependsOn": ["N01"],
+      "requirements": ["R04", "R05", "R08", "R09"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n07--embed-renderer-and-discord-publisher",
       "proposedOwnedPaths": [
         "src/news/render.ts",
@@ -281,34 +226,28 @@
         "tests/news/discord.test.ts"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check"
+      "requiredChecks": ["pnpm format", "pnpm check"],
+      "assignedAgent": "/root/discord_implementer",
+      "worktree": "/tmp/jolanda-news-discord",
+      "baseRevision": "6340b5c",
+      "candidateRevision": "2105edc7112c178728cd8dbc6326dd80096e7674",
+      "acceptedRevision": "e87cbe6",
+      "repairRounds": 1,
+      "evidence": [
+        ".news-work/N07/implementation-repair-1.json",
+        ".news-work/N07/review-2.json",
+        ".news-work/N07/dispositions.json",
+        ".news-work/N07/acceptance.json"
       ],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
-      "repairRounds": 0,
-      "evidence": [],
-      "blockingFindings": []
+      "blockingFindings": [],
+      "reviewer": "/root/discord_reviewer"
     },
     {
       "id": "N08",
       "title": "Channel commands, disable, and feed status",
-      "state": "planned",
-      "dependsOn": [
-        "N05",
-        "N06",
-        "N07"
-      ],
-      "requirements": [
-        "R03",
-        "R04",
-        "R05",
-        "R09"
-      ],
+      "state": "accepted",
+      "dependsOn": ["N05", "N06", "N07"],
+      "requirements": ["R03", "R04", "R05", "R09"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n08--channel-commands-disable-and-feed-status",
       "proposedOwnedPaths": [
         "src/news/commands.ts",
@@ -317,41 +256,27 @@
         "tests/news/commands.test.ts"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check"
-      ],
-      "assignedAgent": null,
-      "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
+      "requiredChecks": ["pnpm format", "pnpm check"],
+      "assignedAgent": "/root/discord_implementer",
+      "worktree": "/tmp/jolanda-news-commands",
+      "baseRevision": "58a57ac",
+      "candidateRevision": "3a81433db517b631760437901924fb8d9aedb9be",
+      "acceptedRevision": "bd03bde",
       "repairRounds": 0,
-      "evidence": [],
-      "blockingFindings": []
+      "evidence": [
+        ".news-work/N08/implementation.json",
+        ".news-work/N08/review-1.json",
+        ".news-work/N08/acceptance.json"
+      ],
+      "blockingFindings": [],
+      "reviewer": "/root/commands_reviewer"
     },
     {
       "id": "N09",
       "title": "News runtime and lifecycle integration",
-      "state": "planned",
-      "dependsOn": [
-        "N03",
-        "N04",
-        "N06",
-        "N07",
-        "N08"
-      ],
-      "requirements": [
-        "R01",
-        "R02",
-        "R03",
-        "R04",
-        "R05",
-        "R06",
-        "R07",
-        "R08",
-        "R09"
-      ],
+      "state": "implementing",
+      "dependsOn": ["N03", "N04", "N06", "N07", "N08"],
+      "requirements": ["R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n09--news-runtime-and-lifecycle-integration",
       "proposedOwnedPaths": [
         "src/news/index.ts",
@@ -362,11 +287,7 @@
         "tests/news/runtime.test.ts"
       ],
       "reviewMode": "independent",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check",
-        "pnpm build"
-      ],
+      "requiredChecks": ["pnpm format", "pnpm check", "pnpm build"],
       "assignedAgent": null,
       "worktree": null,
       "baseRevision": null,
@@ -374,37 +295,37 @@
       "acceptedRevision": null,
       "repairRounds": 0,
       "evidence": [],
-      "blockingFindings": []
+      "blockingFindings": [],
+      "subtasks": [
+        {
+          "id": "N09a",
+          "title": "Runtime coordinator",
+          "dependsOn": ["N03", "N04", "N06", "N07"],
+          "state": "implementing",
+          "assignedAgent": "/root/domain_implementer",
+          "worktree": "/tmp/jolanda-news-runtime",
+          "baseRevision": "bf3971c",
+          "ownedPaths": ["src/news/index.ts", "tests/news/runtime.test.ts"]
+        },
+        {
+          "id": "N09b",
+          "title": "Application startup, config and full lifecycle wiring",
+          "dependsOn": ["N08", "N09a"],
+          "state": "planned",
+          "owner": "/root/discord_implementer"
+        }
+      ]
     },
     {
       "id": "N10",
       "title": "Independent feature acceptance and failure replay",
       "state": "planned",
-      "dependsOn": [
-        "N09"
-      ],
-      "requirements": [
-        "R01",
-        "R02",
-        "R03",
-        "R04",
-        "R05",
-        "R06",
-        "R07",
-        "R08",
-        "R09",
-        "R10"
-      ],
+      "dependsOn": ["N09"],
+      "requirements": ["R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n10--independent-feature-acceptance-and-failure-replay",
-      "proposedOwnedPaths": [
-        "tests/news/feature.integration.test.ts"
-      ],
+      "proposedOwnedPaths": ["tests/news/feature.integration.test.ts"],
       "reviewMode": "fresh_feature_evaluator",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check",
-        "pnpm build"
-      ],
+      "requiredChecks": ["pnpm format", "pnpm check", "pnpm build"],
       "assignedAgent": null,
       "worktree": null,
       "baseRevision": null,
@@ -418,32 +339,12 @@
       "id": "N11",
       "title": "Operational documentation and release packet",
       "state": "planned",
-      "dependsOn": [
-        "N10"
-      ],
-      "requirements": [
-        "R03",
-        "R04",
-        "R05",
-        "R06",
-        "R07",
-        "R08",
-        "R09",
-        "R10"
-      ],
+      "dependsOn": ["N10"],
+      "requirements": ["R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n11--operational-documentation-and-release-packet",
-      "proposedOwnedPaths": [
-        "README.md",
-        "SECURITY.md",
-        ".env.example",
-        "scripts/news-smoke.mjs"
-      ],
+      "proposedOwnedPaths": ["README.md", "SECURITY.md", ".env.example", "scripts/news-smoke.mjs"],
       "reviewMode": "final_packet_review",
-      "requiredChecks": [
-        "pnpm format",
-        "pnpm check",
-        "pnpm build"
-      ],
+      "requiredChecks": ["pnpm format", "pnpm check", "pnpm build"],
       "assignedAgent": null,
       "worktree": null,
       "baseRevision": null,
@@ -451,7 +352,59 @@
       "acceptedRevision": null,
       "repairRounds": 0,
       "evidence": [],
-      "blockingFindings": []
+      "blockingFindings": [],
+      "preparation": {
+        "id": "N11a",
+        "state": "locally_verified_pending_final_review",
+        "dependsOn": ["N03", "N04", "N07"],
+        "owner": "/root",
+        "baseRevision": "58a57ac",
+        "ownedPaths": ["scripts/news-smoke.mjs", "tests/news/smoke-gate.test.ts", "Dockerfile"],
+        "reason": "Read-only release tooling is independent of runtime acceptance; final N11 documentation/acceptance still follows N10.",
+        "candidateRevision": "d7b789a",
+        "documentationRevision": "bf3971c",
+        "checks": [
+          "pnpm format (preserving unrelatedarchitecture)",
+          "pnpm check:990passed/30existing skips",
+          "pnpm build",
+          "node scripts/news-smoke.mjs --fixtures"
+        ]
+      }
+    }
+  ],
+  "reconciliation": {
+    "revision": "66b12f3",
+    "date": "2026-09-14",
+    "preservedUserChanges": ["NEWS_TASKS.json", "NEWS_ARCHITECTURE.html"],
+    "recoveredWorktree": "/tmp/jolanda-news-n01",
+    "previousWorkerActive": false,
+    "baselineCheck": ".news-work/reconcile/check.log"
+  },
+  "protocolAdjustments": [
+    {
+      "scope": "fixture capture",
+      "reason": "First Dennik minimizer omitted actual snake_case timestamps; two real Aktuality edition structures required by N04 acceptance.",
+      "boundedBudget": {
+        "denniknListingRequests": 2,
+        "aktualityListingRequests": 1,
+        "aktualityEditionRequests": 2
+      },
+      "runtimeBudgetUnchanged": true
+    }
+  ],
+  "integrationRefinements": [
+    {
+      "source": "captured Dennik fixture",
+      "change": "Allow exact e.dennikn.sk host for observed minute source links in HTTP and renderer",
+      "evidence": "six captured post URLs in accepted publisher snapshot",
+      "owners": ["/root/http_implementer", "/root/discord_implementer"],
+      "reviewRequired": ["N03/N04 review changedHTTP", "N07 re-review"]
+    }
+  ],
+  "orchestrationRefinements": [
+    {
+      "task": "N09",
+      "reason": "Coordinator only requires already accepted source/store/publisher contracts; application wiring still depends on N08 and reviewed N09a. Separate ownership preserves two writers and sequential integration."
     }
   ]
 }

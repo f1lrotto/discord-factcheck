@@ -1,0 +1,83 @@
+{
+  "mode": "fixtures",
+  "checkedAt": "2026-09-14T07:39:32.136Z",
+  "network": "none",
+  "storage": "not opened",
+  "discord": "not opened; previews only, including stale samples",
+  "requests": [
+    {
+      "source": "dennikn",
+      "url": "https://dennikn.sk/minuta/dolezite",
+      "outcome": "ok",
+      "elapsedMs": 1
+    },
+    {
+      "source": "aktuality",
+      "url": "https://www.aktuality.sk/spravy/denny-vyber-sprav/",
+      "outcome": "ok",
+      "elapsedMs": 33
+    },
+    {
+      "source": "aktuality",
+      "url": "https://www.aktuality.sk/clanok/hAUs7Al/policia-znovu-riesi-cestu-matusa-sutaja-estoka-na-preteky-f1-unosca-studentky-sone-spoznal-trest-a-statny-dlh-nas-moze-vyjst-draho-denny-vyber/",
+      "outcome": "ok",
+      "elapsedMs": 0
+    }
+  ],
+  "results": [
+    {
+      "source": "dennikn",
+      "outcome": "stories",
+      "importantStories": 50,
+      "samplePublishedAt": "2026-09-14T06:45:35.000Z",
+      "preview": {
+        "embeds": [
+          {
+            "title": "Švédski Sociálni demokrati dosiahli vo voľbách najhorší výsledok za posledné desaťročia.",
+            "url": "https://dennikn.sk/minuta/5559444/",
+            "timestamp": "2026-09-14T06:45:35.000Z",
+            "footer": {
+              "text": "Denník N"
+            },
+            "description": "Švédski Sociálni demokrati dosiahli vo voľbách najhorší výsledok za posledné desaťročia. Podľa predbežných výsledkov majú o tri kreslá viac ako doterajší vládny blok. „Budeme si musieť počkať na konečné výsledky volieb. Môj odkaz je však jasný: my sociálni demokrati budeme vždy pripravení prevziať zodpovednosť za výsledok. Zdá sa, že súboj bude veľmi tesný,“ povedala ich šéfka Magdalena Andersson ešte v nedeľu v noci."
+          }
+        ],
+        "allowed_mentions": {
+          "parse": [],
+          "users": [],
+          "roles": [],
+          "replied_user": false
+        },
+        "flags": 4096
+      }
+    },
+    {
+      "source": "aktuality",
+      "outcome": "stale",
+      "freshEditionCollected": false,
+      "samplePublishedAt": "2026-09-11T17:13:38.000Z",
+      "preview": {
+        "embeds": [
+          {
+            "title": "Polícia znovu rieši cestu Matúša Šutaja Eštoka na preteky F1, únosca študentky Sone spoznal trest a štátny dlh nás môže vyjsť draho \\(denný výber\\)",
+            "url": "https://www.aktuality.sk/clanok/hAUs7Al/policia-znovu-riesi-cestu-matusa-sutaja-estoka-na-preteky-f1-unosca-studentky-sone-spoznal-trest-a-statny-dlh-nas-moze-vyjst-draho-denny-vyber/",
+            "timestamp": "2026-09-11T17:13:38.000Z",
+            "footer": {
+              "text": "Aktuality.sk"
+            },
+            "description": "Spory vo vládnej koalícii pokračujú.\n\nŠtefančík: Fico a Smer sú v panike, preto útočia na Žilinku \\(videopodcast\\)\n\nCestu Matúša Šutaja Eštoka na preteky F1 bude opäť riešiť polícia\n\nTakmer unikol trestu: únosca študentky ale má za desivý čin pykať\n\nDlhová pasca sa otvára dokorán. Štát stráca stámilióny eur, zaplatíme to v zdravotníctve aj na školách\n\nMala si udierať nožničkami do úst, preto ju škola neprijala. Ak sa o Emu nepostará mama, skončí v zariadení s 50\\-ročnými\n\nSmeru už neveríme, nie sme ich podržtaška, hovorí Uhrík. Čo sa deje medzi Ficom a Republikou?\n\nDrahé štátne dlhy ohrozujú rozpočty aj bežných ľudí",
+            "image": {
+              "url": "https://img.aktuality.sk/foto/denny-vyber-sprav-11092026/MTIwMHg2MzAvc21hcnQvZmlsdGVyczpmb3JtYXQod2VicCk6cXVhbGl0eSg3MCk6d2F0ZXJtYXJrKGh0dHA6Ly9sb2NhbGhvc3Q6ODEvaW1nL2FrdHVhbGl0eV93YXRlcm1hcmtfdjIsLTI0LC0yNCwwKS9odHRwOi8vbG9jYWxob3N0OjgxL3B1bHNjbXMtdHJhbnNmb3Jtcy8x/RRPktktTURBXy8yYjY1ZGJlNC1iY2UzLTQ0OGUtYWNlMi0zMmJjMzk0ZjA0ODUucG5nkZUCzQfQAMLD?st=56zpBY5PrMms9d27qpf2iezWPmDtonoSxVaCv25Bv0w&ts=1789336800&e=0"
+            }
+          }
+        ],
+        "allowed_mentions": {
+          "parse": [],
+          "users": [],
+          "roles": [],
+          "replied_user": false
+        }
+      }
+    }
+  ]
+}

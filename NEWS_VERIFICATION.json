@@ -1,0 +1,436 @@
+{
+  "schemaVersion": 1,
+  "feature": "jolanda-news",
+  "status": "in_progress",
+  "integratedRevision": "bd03bde",
+  "localImplementationComplete": false,
+  "liveDiscordVerified": false,
+  "deployed": false,
+  "componentReviews": [
+    {
+      "task": "N00",
+      "acceptedRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370",
+      "candidateRevision": null,
+      "repairRounds": 0,
+      "review": {
+        "mode": "orchestrator baseline"
+      }
+    },
+    {
+      "task": "N01",
+      "acceptedRevision": "6340b5c",
+      "candidateRevision": "7980016",
+      "repairRounds": 0,
+      "review": {
+        "reviewedRevision": "79800161d073e067fedd43315b7fadc9053e40ba",
+        "verdict": "approved",
+        "findings": [],
+        "verified": [
+          "Read the original NEWS_IMPLEMENTATION_PLAN.md product defaults, requirement IDs, scheduling/publication invariants, persistent-data requirements, and N01 acceptance before evaluating implementation; read NEWS_AGENT_RUNBOOK.md and existing src/clock.ts.",
+          "Winter, summer and both 2026 DST-transition dates use Europe/Bratislava evening offsets; daily collection is absent before 20:00, primary recovery is bounded to [20:00,21:00), fallback recovery to [21:00,22:00), and startup in the latter window selects only fallback.",
+          "Daily collection eligibility depends on the stored current-day edition and attempted source/date/slot keys, independently of delivery outcome. Missing/stale results allow one fallback; backoff suppresses attempts while active.",
+          "Freshness is based on Slovak publication date and excludes future timestamps. First/late daily activation admits a stored current-day edition only from 20:00 until 22:00, without a continuous baseline.",
+          "Daily identity uses stable subscription/feed/source/local-date identity, excludes destination/configuration revision and edition ID, and therefore preserves daily deduplication through channel changes and corrections while separating guilds and days.",
+          "Daily send admission independently enforces its local-date 20:00-to-22:00 window, revision, ownership identity, due time, status, enabled and paused state. Safe retries cannot reach 22:00 or revive uncertain publications.",
+          "Continuous policy uses snapshot sequences for subscription baselines and same-clock activation; first successful snapshots suppress bootstrap replay. First-important observations survive edits/toggles, with explicit 24-hour promotion age and two-hour replay eligibility.",
+          "Continuous selection is deterministic and respects persisted pacing, reservations and replay deadlines. Synthetic scenarios cover empty intervals, more than 15 stories per day, and bounded burst catch-up.",
+          "Store interface has separable source-wide claims, fenced commits, repeatable durable planning, publication claims, atomic beginSend revision/deadline/pacing admission and finishSend outcomes. Its arguments are sufficient for adapters to implement the required atomic transitions without routing through an unfenced read/send interface.",
+          "Domain content distinguishes stories and editorial editions while preserving source metadata; source outcomes and publisher results retain failure/unchanged/uncertain distinctions required downstream.",
+          "Independently ran pnpm test tests/news/policy.test.ts: exit 0, 28 tests passed. Ran git diff 66b12f3..7980016 --check: exit 0. Reconfirmed clean worktree, exact HEAD and diff hash after verification.",
+          "Inspected implementation receipt reporting pnpm format, pnpm check and pnpm build at the same revision; full gates were not independently rerun. Diff is limited to the three assigned new files and changes no existing tests or gates."
+        ],
+        "notVerified": [
+          "Real Mongo atomicity, lease-owner uniqueness, expired-owner fencing, crash recovery and repeatable planning are contracts only at N01; N05/N06 must demonstrate them with competing stores and failure injection.",
+          "Actual source formats, weekly-roundup exclusion, cache revalidation, HTTP bounds and observed publisher volume are downstream adapter/fixture tasks. Synthetic replay does not establish production pacing suitability.",
+          "Discord permission checks, transport rejection classification, stable nonce behavior, actual delivery, lifecycle wiring and full application journeys are not implemented by this diff and were not exercised.",
+          "No external requests, package installs, production-code edits or live Discord actions were performed by this review."
+        ]
+      }
+    },
+    {
+      "task": "N02",
+      "acceptedRevision": "ec03abe",
+      "candidateRevision": "d24af686cb060edc9bd08611fde67a011a9ce4bf",
+      "repairRounds": 0,
+      "review": {
+        "reviewedRevision": "d24af686cb060edc9bd08611fde67a011a9ce4bf",
+        "verdict": "approved",
+        "findings": [],
+        "verified": [
+          "Read original NEWS_IMPLEMENTATION_PLAN.md source requirements and N02 acceptance, NEWS_AGENT_RUNBOOK.md, HTTP implementation and tests, N01 cache/result contracts, fixture provenance, and dependency-only manifest/lock diff.",
+          "Exact worktree HEAD and diff hash match implementation receipt; frozen worktree remains clean.",
+          "Independently ran pnpm exec vitest run tests/news/http.test.ts: exit 0, 103 tests passed, 1 file passed, no skipped tests (522 ms reported duration). All requests/DNS in these tests are injected in-memory seams; no network requests were made.",
+          "R01/R07: HTTPS, credentials/port/query, exact publisher host and route allowlists; foreign/private literal URL and redirect rejection; loop detection and three-redirect cap; original validators dropped after redirects; no arbitrary headers/cookies or retries.",
+          "R07: Public-address validation fails closed for private, reserved, mapped, mixed, absent and failed DNS results. Source inspection confirms validation is in the lookup callback supplied directly to native HTTPS and agent:false prevents pooled socket reuse; checked answers are the answers supplied to the socket, with no second preflight-to-connect DNS lookup.",
+          "R07/R09: One total deadline spans DNS, redirects, headers and body; caller abort and deadline destroy active request/response. Tests cover stalled DNS, headers/body timeout, redirect deadline, pre-abort and mid-stream abort.",
+          "R07: 200 and conditional-only 304, bounded sanitized validator headers, missing/invalid content type, charset/encoding, byte limits, partial/error/empty/invalid UTF-8 bodies, finite failure outcomes, 401/403/429/503 classification and usable date/delta Retry-After.",
+          "R07: HTTP has no persistence or cache mutation. ok returns proposed validators only after transport success; failures expose no proposed cache update. Source-adapter responsibility to commit only after successful parsing is explicit in provenance and domain result contract.",
+          "Fixture integrity independently checked: all 7 checked-in JSON artifacts deeply equal their explorer originals; all 5 Aktuality HTML artifacts preserve parsed element/attribute/text/JSON-LD structure modulo formatting. Existing test validates reconstructed Dennik HTML strict JSON against its JSON fixture. All 50 Dennik snapshot records match captured state.",
+          "Fixture provenance distinguishes actual capture, approved additional retrievals, reconstructed markup, stale real editions, a single observation spanning publication dates, and synthetic pacing. No unsupported current-day, historical first-seen, section-link or runtime-replay claim was found.",
+          "Manifest and lock changes only add Cheerio and its transitive dependencies; no test/coverage gates or existing runtime files changed."
+        ],
+        "notVerified": [
+          "Did not independently rerun full format/check/build. Implementer receipt reports successful required gates on this exact revision: 770 passed, 30 existing skips. Focused review did not edit production/test files.",
+          "Native HTTPS socket, TLS certificate handshake, real OS DNS completion/cancellation and deployment-network availability were not exercised; inspected production wiring and tested the injected callback/stream seams only.",
+          "No source parser success, parse-failure cache commit/preservation through adapters or store, request-budget orchestration, scheduler or Discord behavior exists in this N02 scope. N03/N04/N06 and integration must verify these contracts.",
+          "Explorer raw publisher pages were intentionally not retained. Integrity was checked against minimized explorer artifacts and provenance, not by refetching sources. No live requests or Discord writes were made.",
+          "Real historical first-seen/promotions and multi-day runtime pacing are not established by the single publisher observation or preliminary synthetic simulation."
+        ]
+      }
+    },
+    {
+      "task": "N03",
+      "acceptedRevision": "7777a4a",
+      "candidateRevision": "e81ed8bc4cfc3c09e214234cddbe2bfb3d259c6a",
+      "repairRounds": 0,
+      "review": {
+        "reviewedRevision": "e81ed8bc4cfc3c09e214234cddbe2bfb3d259c6a",
+        "verdict": "approved",
+        "findings": [],
+        "verified": [
+          "R01: Important Slovak getInfinitePosts query only, strict JSON.parse with no script evaluation, unrelated state tolerated, required query/pages/posts drift rejected; legitimate empty posts succeeds.",
+          "R01/R05: Independently matched all 50 parsed IDs, published_at_date milliseconds, original URLs and isImportant against actual minimized JSON; snake_case timestamp and timezone requirements retained.",
+          "R05: Explicit/opening-bold/first-sentence/bounded fallback titles; optional image/tags/description; executable markup stripped; malformed required fields fail.",
+          "R06: False importance observations preserved; exact duplicate IDs collapse, conflicting duplicates fail closed, order stable; policy integration confirms delayed promotion and corrected revision retain publication identity.",
+          "R07: One HTTP call per collect, unchanged outcome without returned stories, finite failures/retryAt propagation, good cache untouched after parse failure and cancellation handling.",
+          "R01/R06: Publisher-grounded replay uses original 50 IDs/timestamps across five Slovak dates and actual observation timestamp 2026-09-14T07:39:32.136001+00:00, with explicitly synthetic importance-at-publication, baseline, polls and sends. 301 shared simulated polls, two subscriptions, 50 sends each, 0 expiries, maximum publication delay 29.57 minutes and queue delay 20 minutes; date counts 14/9/9/15/3.",
+          "R06: Separately labeled fully synthetic 10-item burst produces 6 paced sends and 4 expiries at two hours; no artificial quota.",
+          "R07 approved N02 refinement: diff adds only exact e.dennikn.sk to existing Dennik page allowlist. Independently matched all six actual URLs (5558475, 5558287, 5557273, 5553552, 5553356, 5552461) and rejected e.dennikn.sk.evil.test, evile.dennikn.sk, a.e.dennikn.sk. Existing path/protocol/query/credential restrictions, redirect validation and DNS checks unchanged."
+        ],
+        "notVerified": [
+          "No live source requests or deployment-network availability verification.",
+          "No Mongo durability, scheduling/outbox concurrency, full runtime subscription fanout or Discord sends; full journeys remain N09/N10.",
+          "Full format/check/build were not rerun by this read-only reviewer; their recorded evidence was inspected.",
+          "Single actual snapshot cannot establish historical first-seen/promotions/revisions, complete boundary-day volume or real delivery delays; these are correctly labeled synthetic or limited."
+        ],
+        "checks": [
+          {
+            "command": "pnpm exec vitest run tests/news/dennikn.test.ts tests/news/aktuality.test.ts tests/news/publisher-replay.test.ts tests/news/http.test.ts",
+            "exitCode": 0,
+            "testsPassed": 200,
+            "filesPassed": 4,
+            "runByReviewer": true
+          },
+          {
+            "command": "Independent node --import tsx assertions against raw captured IDs/timestamps/URLs, two real edition headings/dates, and deceptive hosts",
+            "exitCode": 0,
+            "runByReviewer": true
+          },
+          {
+            "command": "git diff --binary ec03abe..HEAD | shasum -a 256",
+            "exitCode": 0,
+            "result": "e860bd30e5f31afe36c88e45268d13748b538569292781d56138dc7ec36e1633"
+          }
+        ]
+      }
+    },
+    {
+      "task": "N04",
+      "acceptedRevision": "7777a4a",
+      "candidateRevision": "e81ed8bc4cfc3c09e214234cddbe2bfb3d259c6a",
+      "repairRounds": 0,
+      "review": {
+        "reviewedRevision": "e81ed8bc4cfc3c09e214234cddbe2bfb3d259c6a",
+        "verdict": "approved",
+        "findings": [],
+        "verified": [
+          "R02: Real newest weekly entry excluded before one daily candidate is selected; weekly-only listing is empty and unknown/challenge markup malformed. No generated roundup/RSS fallback.",
+          "R02: Current/stale/future publication and Slovakia calendar date handling exercised; modification time does not make stale publication fresh. Collected edition suppresses policy fallback independently of delivery.",
+          "R05: Independently matched all seven actual headings and original publication timestamps in each September 10/11 minimized edition. Source description and available image retained; no section URLs invented where captures have none.",
+          "R05/R07: Alternate property/name and NewsArticle JSON-LD standalone/array/graph metadata handled; 1/2/9-heading variants prove variable section count. Missing/blank required headings, conflicting metadata and unsafe canonical URLs fail; optional images/links can be absent.",
+          "R07: Budget is one listing and at most one selected article call, no linked-section retrieval or retries. Listing 304 revalidates retained candidate; article 304 preserves parsed edition and reevaluates freshness. Validators without parsed article content are not sent, and unusable article 304 fails.",
+          "R07: Malformed listing/article does not return new cache validators or mutate good input cache. Transport failure and retryAt remain distinct; abort before/between/after requests prevents usable late results.",
+          "R02/R10: Original September 10/11 editions remain stale on capture date; fresh/future/fallback availability and alternate markup fixtures are clearly synthetic. Actual stale-day source evidence and synthetic weekly-only missing-day path both covered."
+        ],
+        "notVerified": [
+          "No live source requests or deployment-network availability verification.",
+          "No Mongo durability, scheduling/outbox concurrency, full runtime subscription fanout or Discord sends; full journeys remain N09/N10.",
+          "Full format/check/build were not rerun by this read-only reviewer; their recorded evidence was inspected.",
+          "Two real minimized editions share one structural pattern; alternate placement and current-day success/fallback are synthetic. No actual current-day edition was captured.",
+          "An actually empty listing container has no captured contract; implementation deliberately reports unknown structure as malformed rather than guessing an empty success."
+        ],
+        "checks": [
+          {
+            "command": "pnpm exec vitest run tests/news/dennikn.test.ts tests/news/aktuality.test.ts tests/news/publisher-replay.test.ts tests/news/http.test.ts",
+            "exitCode": 0,
+            "testsPassed": 200,
+            "filesPassed": 4,
+            "runByReviewer": true
+          },
+          {
+            "command": "Independent node --import tsx assertions against raw captured IDs/timestamps/URLs, two real edition headings/dates, and deceptive hosts",
+            "exitCode": 0,
+            "runByReviewer": true
+          },
+          {
+            "command": "git diff --binary ec03abe..HEAD | shasum -a 256",
+            "exitCode": 0,
+            "result": "e860bd30e5f31afe36c88e45268d13748b538569292781d56138dc7ec36e1633"
+          }
+        ]
+      }
+    },
+    {
+      "task": "N05",
+      "acceptedRevision": "148b301",
+      "candidateRevision": "7876746da660c6db0ea551336ba4bb20972ac33e",
+      "repairRounds": 0,
+      "review": {
+        "reviewedRevision": "7876746da660c6db0ea551336ba4bb20972ac33e",
+        "verdict": "approved",
+        "findings": [],
+        "verified": [
+          "R03: real Mongo restart and independent clients preserve destination; guild/feed identities remain independent; names are absent from identity; same-value concurrent configuration remains revision 1; competing replacements receive revisions 2 and 3.",
+          "R04: HKDF-SHA256 derives separate encryption and HMAC keys; guild/subscription/message lookup domains differ; AES-256-GCM uses fresh 12-byte nonces, versioned envelope and authenticated subscription-key/revision context. Stored documents and emitted logs omit raw synthetic destination IDs.",
+          "R04: real Mongo tests reject tag tampering, swapped ciphertext, changed revisions, missing ciphertext and wrong deployment keys; failures surface in status and direct reads, with sanitized logs. Explicit reconfiguration repairs a corrupt destination under a newer revision.",
+          "R04: unique deployment-key marker allows only one of two competing secrets; wrong-key startup leaves original subscription records intact. Exact N11 handoff describes restoring the original secret and the unsupported rotation boundary.",
+          "R03/R06: disable is idempotent, removes ciphertext and role, increments the enabled record revision, and preserves identity. Guild removal erases both active feeds without affecting another guild. Re-enable advances revision and preserves the key used for publication identity.",
+          "R06: configuration replacements preserve persisted pacing and reject destination lookup under earlier revisions; daily publication key remains independent of destination revision. This verifies the N05 seam, not implemented outbox deduplication.",
+          "R06: activation reads actual durable Dennik N source snapshot; current snapshot is retained while absent, stale and future snapshots produce a null baseline; daily baseline stays null.",
+          "Mongo compatibility: shared existing client/context and finite operation options are used; required subscription indexes exist; optional news input preserves legacy callers. Independently reran existing Mongo store unit/integration tests: 22 passed.",
+          "Frozen diff contains only the five assigned files; git diff --check passed and reviewed worktree remained clean. Existing tests and coverage gates were not changed. Implementation format/check/build receipts were inspected, including 679 passed and 30 existing skipped tests."
+        ],
+        "notVerified": [
+          "N06 transactional beginSend versus configure/disable, concurrent pacing writes, pending cancellation/replanning and sent/uncertain daily tombstones: no outbox implementation exists in this revision. Administrative getDestination is not an atomic send permit.",
+          "N06 source-commit/activation interleaving proof, first-success establishment of null continuous baselines, and daily activation/attempt-slot preservation: source commit/scheduling is not implemented in N05.",
+          "N08 selected-channel/role authorization and actual native command behavior; N09 production-secret injection, lifecycle and runtime failure isolation; N11 publication of the exact privacy handoff.",
+          "No live Discord messages, source requests, deployed Mongo/Railway checks or automatic secret rotation were performed.",
+          "Full format/check/build gates were inspected through the implementation receipt/logs, not independently rerun by this read-only reviewer."
+        ],
+        "checks": [
+          {
+            "command": "pnpm exec vitest run tests/news/subscriptions.integration.test.ts",
+            "exitCode": 0,
+            "revision": "7876746da660c6db0ea551336ba4bb20972ac33e",
+            "result": "12 passed; real MongoMemoryReplSet, independent clients, stored document/index inspection; 7.30 seconds"
+          },
+          {
+            "command": "pnpm exec vitest run tests/mongo-store.test.ts tests/mongo-store.integration.test.ts",
+            "exitCode": 0,
+            "revision": "7876746da660c6db0ea551336ba4bb20972ac33e",
+            "result": "22 passed across 2 files; 12.13 seconds"
+          },
+          {
+            "command": "git diff --check 6340b5c...HEAD",
+            "exitCode": 0,
+            "revision": "7876746da660c6db0ea551336ba4bb20972ac33e"
+          }
+        ]
+      }
+    },
+    {
+      "task": "N06",
+      "acceptedRevision": "58a57ac",
+      "candidateRevision": "cb667f7ff536168544f0fcf89e69432ab228b15b",
+      "repairRounds": 1,
+      "review": {
+        "reviewedRevision": "cb667f7ff536168544f0fcf89e69432ab228b15b",
+        "verdict": "approved",
+        "findings": [],
+        "verified": [
+          "Reviewed all repair changes in mongo.ts, mongo-schema.ts and outbox.integration.test.ts against the original plan and both first-review findings. The frozen worktree remained clean at the exact reviewed revision.",
+          "Repeated both original failure reproductions against repaired code with explicit assertions for correct results, not merely printed observations.",
+          "Independently injected an error after the final source metadata write during daily commit: the real Mongo transaction rolled back both payload copies and collection success together; retrying the same valid poll then committed both successfully.",
+          "Independently raced last-subscriber disable against a source read, then concurrently configured the original and a new guild on the same evening. Current-day payloads survived, collection fallback remained suppressed, competing planners reserved exactly two eligible daily publications, and source documents contained no embedded edition bodies.",
+          "Verified seven-day publication-anchored TTL index, exact deadline rejection before physical TTL cleanup, last-subscriber removal of older bodies, read-time removal of unusable conditional validators, and matching-URL candidate hydration through the focused integration suite and code inspection.",
+          "Verified current and expired legacy embedded-body migration on source reads preserves source lease, schedule, failure count, backoff and attempted slots while removing the embedded copies.",
+          "Rechecked that payload persistence, pruning and migration remain inside the shared metadata transaction fence. The final lease deadline guard covers the added writes; no HTTP or Discord operation enters the transaction.",
+          "The original state-machine suites still pass: claim competition, cursor/observation atomicity, repeatable planning, configuration fencing, pacing, crash rollback, uncertain delivery, late send/cutoff handling, tombstone retention, activation baselines and daily identity."
+        ],
+        "notVerified": [
+          "N09 runtime scheduling, application lifecycle/shutdown, publisher readiness and cancellation, and full command-to-runtime integration remain pending; this is approval of the N06 store repair only.",
+          "No live publisher requests, Discord sends, deployments, or production-network/volume checks were performed.",
+          "No physical process kill, Mongo server stepdown, ambiguous commit network fault or elapsed real-time TTL-monitor wait was performed; tests use actual Mongo replica-set transactions, injected failures and controlled clocks, and inspect the TTL index.",
+          "Whole-project format/check/build were reported by the orchestrator but not independently rerun; the focused checks recorded here are the commands executed by this reviewer.",
+          "Legacy embedded-body migration is lazy on source reads, as implemented; this review does not claim a startup-wide migration job or N09 integration behavior that is not yet present."
+        ],
+        "checks": [
+          {
+            "command": "pnpm test tests/news/outbox.integration.test.ts tests/news/subscriptions.integration.test.ts tests/news/policy.test.ts",
+            "workingDirectory": "/tmp/jolanda-news-outbox",
+            "exitCode": 0,
+            "result": "3 test files passed; 82 tests passed; 38.48 seconds",
+            "revision": "cb667f7ff536168544f0fcf89e69432ab228b15b"
+          },
+          {
+            "command": "pnpm exec tsx .news-work/N06/adversarial-review-2.ts",
+            "workingDirectory": "/Users/filiphupka/code/personal/discord-factcheck",
+            "exitCode": 0,
+            "result": "All independent real Mongo assertions passed",
+            "artifact": ".news-work/N06/adversarial-review-2.log",
+            "script": ".news-work/N06/adversarial-review-2.ts",
+            "revision": "cb667f7ff536168544f0fcf89e69432ab228b15b"
+          }
+        ]
+      }
+    },
+    {
+      "task": "N07",
+      "acceptedRevision": "e87cbe6",
+      "candidateRevision": "2105edc7112c178728cd8dbc6326dd80096e7674",
+      "repairRounds": 1,
+      "review": {
+        "reviewedRevision": "2105edc7112c178728cd8dbc6326dd80096e7674",
+        "verdict": "approved",
+        "findings": [],
+        "verified": [
+          "Reviewed complete repaired Discord publisher and diff from prior reviewed revision; production changes remain confined to N07 owned renderer/transport paths and associated tests.",
+          "Verified clean frozen checkout, exact revision, implementation repair receipt, dispositions and matching complete diff hash.",
+          "Native authenticated fetch uses fixed Discord API origin and validated route IDs, redirect:error, caller/lifetime/deadline cancellation, serialized operations, and no application-level automatic retries.",
+          "Queue continuation checks signal before any network operation. Preflight timeout/abort is safe rejection; once POST is admitted, unknown network/timeout/5xx/408/malformed or mismatched receipts remain uncertain. Queued work cannot start after its signal aborts.",
+          "Response reader enforces 1 MiB body cap and cancellation; stalled or oversized successful POST receipt remains uncertain. Non-success HTTP status handling does not depend on reading its error body.",
+          "429 headers and body produce bounded retryAt; header cooldown remains if body malformed/stalls. Confirmed POST 429 remains safely rejected when its body times out. Global and same-major-resource shared bucket limits prevent further requests until expiration without delayed retries.",
+          "Stable nonce, explicit daily role allowlist, silent continuous payload and fresh effective destination permission checks remain intact; focused suite 66 passed.",
+          "Exact e.dennikn.sk hostname allowlisted for displayed links. Verified six distinct matching publisher fixture URLs in accepted main tests/news/fixtures/publishers/dennikn-initial-state.json and dennikn-publication-snapshot.json. Tests preserve exact host and reject e.dennikn.sk.evil.test and other.dennikn.sk.",
+          "Inspected repaired pnpm format, pnpm check and pnpm build logs: 733 passed, 30 existing skips; check coverage and build success recorded on repaired revision."
+        ],
+        "notVerified": [
+          "No live Discord/native production network requests, guild permission changes or actual notification delivery; all executed requests used injected fake transport.",
+          "No independent full format/check/build rerun during re-review; their repaired-revision logs were inspected. Focused tests and original reproduction were independently executed.",
+          "N08/N09 integration must supply same existing bot identity/token, expiration/shutdown cancellation and close. Durable outbox uncertain holds, exact daily deduplication and scheduler retry/backoff remain separate integration acceptance.",
+          "As with original reviewed design, abort bounds the caller and fences late network admission; an intentionally uncooperative injected transport promise cannot be forcibly settled by JavaScript."
+        ],
+        "checks": [
+          {
+            "command": "pnpm exec vitest run tests/news/render.test.ts tests/news/discord.test.ts",
+            "exitCode": 0,
+            "revision": "2105edc7112c178728cd8dbc6326dd80096e7674",
+            "testsPassed": 66,
+            "filesPassed": 2
+          },
+          {
+            "command": "node --import tsx /Users/filiphupka/code/personal/discord-factcheck/.news-work/N07/review-rate-limit-repro.mjs",
+            "exitCode": 0,
+            "revision": "2105edc7112c178728cd8dbc6326dd80096e7674",
+            "output": [
+              "validation1 false",
+              "validation2 false",
+              "closed { elapsedMs: 3, calls: 1 }",
+              "beforeExit { elapsedMs: 5 }"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "task": "N08",
+      "acceptedRevision": "bd03bde",
+      "candidateRevision": "3a81433db517b631760437901924fb8d9aedb9be",
+      "repairRounds": 0,
+      "review": {
+        "reviewedRevision": "3a81433db517b631760437901924fb8d9aedb9be",
+        "verdict": "approved",
+        "findings": [],
+        "verified": [
+          "R03: serialized lowercase jolanda command has continuous/daily groups with feed, disable, status, required native text/announcement channel selectors, and daily-only optional notify-role selector. Existing subcommands remain registered.",
+          "R04: ManageGuild gate covers feed/disable/status before news store access; ordinary ungrouped privacy stays public. Group dispatch precedes legacy mutations and unknown groups/subcommands cannot fall through to context-limit.",
+          "R04/R05: selected destination is passed to real publisher validation before configure; publisher refetches selected channel, guild roles and bot member and checks guild/type/effective permissions and role authorization. Invocation appPermissions are unused. Replies are ephemeral with empty mention parsing. Duplicate names are resolved by channel ID; omission clears prior role.",
+          "R03: Mongo-backed two-feed configure/restart/status/independent-disable regression passes. Dedicated status reads news only despite AI accounting failure, displays destination/outcome/pending/uncertain/pause/deployment and Bratislava next collection; stored edition explicitly differs from delivery receipt. Settings includes concise news summary.",
+          "R09: bot constructs publisher from existing client/token, exposes narrow publisher interface, closes publisher on destroy and retains existing registration owner and legacy guild-command editing. Existing AI/media adapter tests pass.",
+          "R04/R09: GuildDelete cleanup and READY absent-membership reconciliation are tracked for drain, tolerate errors, retain cached unavailable guilds and serialize removal after in-flight same-guild configuration. Installed discord.js GuildDeleteAction confirms transient unavailable emits GuildUnavailable rather than GuildDelete, while actual removal may carry an already unavailable cached Guild.",
+          "Privacy replies measured 1719, 1669, 1665 characters for current model catalog with context limit 50 and retention 7 days, below 2000.",
+          "Frozen revision, diff hash and clean candidate git status verified at review completion. Read implementation receipt and check/build evidence after independent source review; reported full gate 1027 passed with 30 existing skips."
+        ],
+        "notVerified": [
+          "No live Discord requests, command deployment, source fetch or production Mongo operation performed; network routes in behavioral tests are fakes and Mongo uses a local memory replica set.",
+          "N09 environment/startup/coordinator scheduling and shutdown ordering across news runtime/AI/media/store are deferred and are not approved as implemented by this N08 review.",
+          "Full pnpm format/check/build were not rerun by read-only reviewer; their immutable-revision receipt/logs were inspected. Independent verification used the focused 165-test set.",
+          "Review does not establish real deployment overlap or operational source availability; those require later integrated acceptance."
+        ],
+        "checks": [
+          {
+            "command": "pnpm exec vitest run tests/news/commands.test.ts tests/discord.test.ts tests/discord-reels.test.ts tests/news/discord.test.ts",
+            "exitCode": 0,
+            "passed": 128,
+            "files": 3,
+            "note": "tests/discord.test.ts does not exist; the other three named files ran."
+          },
+          {
+            "command": "pnpm exec vitest run tests/discord-bot.test.ts tests/discord-response.test.ts tests/discord-reel-transport.test.ts",
+            "exitCode": 0,
+            "passed": 37,
+            "files": 3
+          },
+          {
+            "command": "git diff --check 58a57ac..HEAD",
+            "exitCode": 0
+          }
+        ]
+      }
+    }
+  ],
+  "publisherReadOnlyCheck": {
+    "revision": "7777a4a",
+    "checkedAt": "2026-09-14T08:28:57.222Z",
+    "environment": "developer machine; not deployment network",
+    "mode": "read-only; no Mongo or Discord writes",
+    "requests": [
+      {
+        "source": "dennikn",
+        "url": "https://dennikn.sk/minuta/dolezite",
+        "outcome": "ok",
+        "durationMs": 125,
+        "bytes": 562352
+      },
+      {
+        "source": "aktuality",
+        "url": "https://www.aktuality.sk/spravy/denny-vyber-sprav/",
+        "outcome": "ok",
+        "durationMs": 292,
+        "bytes": 237206
+      },
+      {
+        "source": "aktuality",
+        "url": "https://www.aktuality.sk/clanok/hAUs7Al/policia-znovu-riesi-cestu-matusa-sutaja-estoka-na-preteky-f1-unosca-studentky-sone-spoznal-trest-a-statny-dlh-nas-moze-vyjst-draho-denny-vyber/",
+        "outcome": "ok",
+        "durationMs": 303,
+        "bytes": 561725
+      }
+    ],
+    "results": [
+      {
+        "source": "dennikn",
+        "outcome": "stories",
+        "stories": 50,
+        "important": 50,
+        "samplePublishedAt": "2026-09-14T06:45:35.000Z"
+      },
+      {
+        "source": "aktuality",
+        "outcome": "stale",
+        "samplePublishedAt": "2026-09-11T17:13:38.000Z"
+      }
+    ]
+  },
+  "publisherReplay": {
+    "kind": "publisher-grounded replay of accepted policy with simulated observations and sends",
+    "actualObservationAt": "2026-09-14T07:39:32.136001+00:00",
+    "assumptions": [
+      "Importance begins at publication (synthetic)",
+      "UTC-aligned 20-minute polls and a synthetic 24-hour source overlap",
+      "Empty subscription baseline before earliest timestamp",
+      "Two subscriptions, no outages or Discord/Mongo effects"
+    ],
+    "actualCaptured": 50,
+    "sourceRequests": 301,
+    "simulatedPolls": 301,
+    "subscriptions": 2,
+    "sendsPerSubscription": 50,
+    "expiredIds": [],
+    "publicationCountsBySlovakDate": {
+      "2026-09-10": 14,
+      "2026-09-11": 9,
+      "2026-09-12": 9,
+      "2026-09-13": 15,
+      "2026-09-14": 3
+    },
+    "maximumPublicationDelayMinutes": 29.57,
+    "maximumQueueDelayMinutes": 20
+  },
+  "limitations": [
+    "Publisher access verified only from developer machine",
+    "Historical polling and importance timestamps in replay are simulated",
+    "Live Discord requires an explicitly authorized test guild/channel",
+    "Deployment-network check and deployment are pending"
+  ]
+}
