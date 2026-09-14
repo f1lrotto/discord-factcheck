@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "feature": "jolanda-news",
   "status": "locally_complete",
-  "integratedRevision": "0fede26",
+  "integratedRevision": "46a2f36",
   "localImplementationComplete": true,
   "liveDiscordVerified": false,
-  "deployed": false,
+  "deployed": true,
   "componentReviews": [
     {
       "task": "N00",
@@ -648,7 +648,7 @@
     "acceptanceAuthority": "Root orchestrator only; this independent evaluation does not accept task N10 or declare deployment complete.",
     "findings": [],
     "dispositions": [],
-    "scope": "Complete NEWS_IMPLEMENTATION_PLAN.md R01–R10 and all eight N10 scenarios, integrated production changes and operational release packet; bounded integration test additions only.",
+    "scope": "Complete NEWS_IMPLEMENTATION_PLAN.md R01\u2013R10 and all eight N10 scenarios, integrated production changes and operational release packet; bounded integration test additions only.",
     "evidenceMatrix": "matrix.md",
     "checks": [
       {
@@ -714,7 +714,7 @@
   "requirements": [
     {
       "requirement": "R01 source/cadence/shared work",
-      "crossModuleEvidence": "feature.integration: both feeds across restart, second guild's fresh continuous baseline, one Denník request per 20-minute tick despite two stores/guilds; actual Denník adapter consumes important-listing fixture.",
+      "crossModuleEvidence": "feature.integration: both feeds across restart, second guild's fresh continuous baseline, one Denn\u00edk request per 20-minute tick despite two stores/guilds; actual Denn\u00edk adapter consumes important-listing fixture.",
       "complementaryEvidenceAndLimits": "dennikn/http/runtime suites cover strict query structure, only important eligibility, unchanged responses and slow/shared polls. Captured publication replay reports one shared request per simulated poll."
     },
     {
@@ -875,12 +875,12 @@
         "requirement": "R10",
         "severity": "minor_packet_discrepancy",
         "location": "NEWS_VERIFICATION.json requirements[0] at initial 290af53",
-        "scenario": "Read the exported requirement evidence array as the portable R01–R10 matrix.",
+        "scenario": "Read the exported requirement evidence array as the portable R01\u2013R10 matrix.",
         "observed": "Markdown table header was exported as a fake eleventh requirement named Requirement.",
         "expected": "Exactly one entry for each of R01 through R10.",
         "status": "fixed",
         "fixedRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec",
-        "evidence": "Inspected immutable repair diff: only the five-line header object was removed; independent JSON assertion now finds exactly R01–R10 in order and all eight scenario numbers."
+        "evidence": "Inspected immutable repair diff: only the five-line header object was removed; independent JSON assertion now finds exactly R01\u2013R10 in order and all eight scenario numbers."
       }
     ],
     "verified": [
@@ -982,5 +982,180 @@
       "state": "accepted",
       "acceptedRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec"
     }
-  ]
+  ],
+  "batchDeliveryAmendment": {
+    "requestedAt": "2026-09-14",
+    "status": "accepted",
+    "requirement": "Each 20-minute collection delivers all newly eligible continuous stories promptly as separate quiet embed messages; no per-story collection-interval delay.",
+    "previousEvidenceScope": "Existing checks and replay metrics below describe the original pacing policy and remain historical until amended verification passes.",
+    "candidateRevision": "8ef7e9983a7bcacec9121f416961264b7802ec65",
+    "integratedCodeRevision": "46a2f36",
+    "implementerChecks": {
+      "format": "passed",
+      "check": "1113 passed, 30 existing opt-in skipped",
+      "build": "passed"
+    },
+    "regressions": [
+      "25 new stories through command configuration, actual parsers, real Mongo replica set and production Discord renderer/transport in one tick",
+      "25-story batch serialized across competing runtime instances without advancing the clock",
+      "Known rejected head retains nonce and retry deadline; other guild continues",
+      "Legacy unattempted future pacing reservation becomes due; attempted retry deadline remains",
+      "Shutdown in a batch drains the admitted send; restart sends unsent remainder without duplicates"
+    ],
+    "publisherReplay": {
+      "kind": "publisher-grounded replay of accepted policy with simulated observations and sends",
+      "actualObservationAt": "2026-09-14T07:39:32.136001+00:00",
+      "assumptions": [
+        "Importance begins at publication (synthetic)",
+        "UTC-aligned 20-minute polls and a synthetic 24-hour source overlap",
+        "Empty subscription baseline before earliest timestamp",
+        "Two subscriptions, no outages or Discord/Mongo effects"
+      ],
+      "actualCaptured": 50,
+      "sourceRequests": 301,
+      "simulatedPolls": 301,
+      "subscriptions": 2,
+      "sendsPerSubscription": 50,
+      "expiredIds": [],
+      "publicationCountsBySlovakDate": {
+        "2026-09-10": 14,
+        "2026-09-11": 9,
+        "2026-09-12": 9,
+        "2026-09-13": 15,
+        "2026-09-14": 3
+      },
+      "maximumPublicationDelayMinutes": 19.5,
+      "maximumQueueDelayMinutes": 0
+    },
+    "review": {
+      "reviewer": "batch_delivery_reviewer",
+      "candidate": "8ef7e9983a7bcacec9121f416961264b7802ec65",
+      "base": "5dc9abc",
+      "verdict": "approved_against_amended_migration_default",
+      "repository_changed": false,
+      "scope": "Original NEWS_IMPLEMENTATION_PLAN.md plus 14 September complete-batch correction; all changed production paths and associated tests, source/publisher/lifecycle integration",
+      "checks": [
+        {
+          "command": "pnpm exec vitest run tests/news",
+          "result": "passed",
+          "files": 14,
+          "tests": 473,
+          "duration_seconds": 99.99
+        },
+        {
+          "command": "pnpm exec vitest run tests/news/policy.test.ts tests/news/render.test.ts tests/news/discord.test.ts tests/news/publisher-replay.test.ts",
+          "result": "passed",
+          "files": 4,
+          "tests": 107
+        },
+        {
+          "command": "pnpm exec tsx /tmp/jolanda-batch-review-repro/repro.mts",
+          "result": "confirmed legacy retry/pacing ambiguity using actual base store and candidate store against isolated ephemeral Mongo replica set"
+        },
+        {
+          "command": "pnpm exec tsx /tmp/jolanda-batch-review-repro/paired-state.mts",
+          "result": "passed; independently reproduced identical state across all 13 collections for short-retry-plus-old-pacing and genuine-long-retry histories, candidate blocks at 18:22 and claims at 18:40 with same nonce"
+        }
+      ],
+      "findings": [
+        {
+          "id": "R1",
+          "severity": "documented_one_time_compatibility_limitation",
+          "file": "src/news/mongo.ts",
+          "lines": [528, 608],
+          "title": "Legacy attempted publications can retain obsolete pacing and block the upgraded batch",
+          "reproduction": [
+            "Use base 5dc9abc store: activate continuous subscription and establish empty baseline at 18:00.",
+            "Collect two eligible stories at 18:20; plan, claim and begin sending the first.",
+            "Finish with confirmed rejection and Retry-After 18:21.",
+            "At 18:21 call old claimPublication: it overwrites dueAt with nextDeliveryAt 18:40 while attempts remains 1.",
+            "Upgrade to candidate at 18:22, plan the second story and call claimPublication."
+          ],
+          "observed": {
+            "upgrade_time": "2026-09-14T18:22:00.000Z",
+            "claim": null,
+            "pending": [
+              {
+                "attempts": 1,
+                "dueAt": "2026-09-14T18:40:00.000Z"
+              },
+              {
+                "attempts": 0,
+                "dueAt": "2026-09-14T18:22:00.000Z"
+              }
+            ]
+          },
+          "limitation": "Legacy schema stores no separate retry-deadline provenance. This record is indistinguishable from a genuine Retry-After ending at 18:40; clearing attempted deadlines would violate genuine-retry preservation.",
+          "suggested_disposition": "Explicitly document conservative one-time exception for ambiguous legacy attempted records, with separate evidence of normal new-version batch behavior; do not infer and advance real retry deadlines.",
+          "status": "resolved_by_explicit_contract_refinement",
+          "disposition": "Root explicitly amended NEWS_IMPLEMENTATION_PLAN.md:37, NEWS_OPERATIONS.md:40 and NEWS_ACCEPTANCE.md:38 to retain ambiguous deadlines on attempted legacy records. Reviewer read those amendments and independently reran implementer paired-state proof. Both actual old-writer histories produce identical contents in all 13 collections. Advancing one would necessarily advance the other genuine Retry-After. Preserving the saved deadline is the only safe automated migration without additional provenance. This exception does not permit pacing on new batches."
+        }
+      ],
+      "checked_behaviors": [
+        "Shared 20-minute source claim cadence remains unchanged.",
+        "Policy reserves every newly eligible story; runtime drains without a 10-item cap and yields between chunks.",
+        "Mongo shared transaction fence plus blocked subscription query serializes in-flight publications across instances.",
+        "Baseline, story identity, sent/uncertain tombstones and configuration revision checks remain in force.",
+        "Known rejection deadlines block the affected remaining batch; other subscriptions can progress.",
+        "Daily primary/fallback Bratislava scheduling remains unchanged.",
+        "Renderer emits one embed with suppressed notifications and no mentions for each continuous story.",
+        "Shutdown drains transport and persists conservative outcomes; unsent remainder resumes after restart.",
+        "Production changes are confined to news runtime, policy, Mongo and types; AI/media paths unchanged."
+      ],
+      "production_actions": "None. No Discord sends, production database access, application restart, package installs or sub-agents.",
+      "integrated_news_code_equivalence": "git diff 8ef7e9983a7bcacec9121f416961264b7802ec65 46a2f36 -- src/news tests/news produced no differences",
+      "remaining_blockers": [],
+      "approval_scope": "Checked immutable candidate 8ef7e9983a7bcacec9121f416961264b7802ec65; equivalent news source/test code at integrated 46a2f36. Local review approval, not production verification. Root owns integrated full check/format/build and any separately authorized external verification."
+    },
+    "legacyMigrationEvidence": {
+      "oldRevision": "5dc9abc",
+      "branches": ["reject18:21,oldclaim18:21", "reject18:40,oldclaim18:21"],
+      "identicalCollectionCount": 13,
+      "differences": [],
+      "identicalPublication": {
+        "status": "pending",
+        "attempts": 1,
+        "dueAt": "2026-09-14T18:40:00.000Z"
+      },
+      "newClaimAt18_22": null,
+      "newClaimAt18_40": {
+        "status": "claimed",
+        "attempts": 1,
+        "noncePreserved": true
+      }
+    },
+    "integratedChecks": {
+      "format": "passed; unrelated NEWS_ARCHITECTURE.html excluded through local ignore file",
+      "check": "1113 passed, 30 existing opt-in skipped; unchanged coverage gates",
+      "build": "passed",
+      "coveragePercent": {
+        "statements": 95.85,
+        "branches": 91.38,
+        "functions": 95.88,
+        "lines": 97.98
+      }
+    },
+    "deployment": {
+      "codeRevision": "46a2f36",
+      "host": "Existing local checkout under herdr",
+      "restartAtUtc": "2026-09-14T11:55:50Z",
+      "oldProcessExited": true,
+      "newProcessId": 63620,
+      "mongoConnected": true,
+      "discordConnected": true,
+      "batchDeliveryAcknowledgedAtUtc": ["2026-09-14T11:55:54.147Z", "2026-09-14T11:55:55.853Z"],
+      "batchMessageCount": 2,
+      "batchCompletionGapMs": 1706,
+      "distinctSentStoriesAfterRestart": 4,
+      "sourceSchedulePreservedNextAttemptAtUtc": "2026-09-14T12:08:03.279Z",
+      "scope": "Live production Discord acceptance and durable Mongo receipts for two separate eligible stories after restart; no duplicate receipts. Client rendering of this amended batch and daily delivery not independently inspected.",
+      "databaseManualChanges": "None for this upgrade; application migrated the unattempted pacing reservation automatically."
+    }
+  },
+  "liveContinuousEvidence": {
+    "at": "2026-09-14T11:27:58Z",
+    "scope": "Original revision: user screenshot and production Mongo sent receipt confirm one continuous embed, image and suppressed notifications. Both feeds configured through live commands.",
+    "completeDiscordAcceptance": false,
+    "deployment": "Existing local node dist/index.js process in herdr; daily delivery and full live acceptance not yet verified."
+  }
 }

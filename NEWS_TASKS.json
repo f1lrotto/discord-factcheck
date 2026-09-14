@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "specVersion": 1,
+  "specVersion": 2,
   "feature": "jolanda-news",
   "status": "locally_complete",
   "plan": "NEWS_IMPLEMENTATION_PLAN.md",
   "runbook": "NEWS_AGENT_RUNBOOK.md",
   "inspectedBaseRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370",
-  "acceptedIntegrationRevision": "0fede26",
+  "acceptedIntegrationRevision": "46a2f36",
   "orchestration": {
     "maximumConcurrentWriters": 2,
     "maximumRepairRoundsBeforeReplan": 2,
@@ -16,7 +16,7 @@
     "sharedCheckoutWriters": 1
   },
   "localImplementationStatus": "complete",
-  "liveVerificationStatus": "publishers_verified_from_developer_host",
+  "liveVerificationStatus": "continuous_batch_confirmed_on_local_deployment",
   "tasks": [
     {
       "id": "N00",
@@ -432,6 +432,40 @@
         "acceptedRevision": "5f422b729919b8119e7dd5c5084b8b2107ef28ec"
       },
       "reviewer": "/root/feature_evaluator"
+    },
+    {
+      "id": "N12",
+      "title": "Deliver every new continuous story in each collection batch",
+      "state": "accepted",
+      "dependsOn": ["N01", "N06", "N09a", "N10", "N11"],
+      "requirements": ["R01", "R05", "R06", "R08", "R09", "R10"],
+      "contract": "User correction on 2026-09-14: collection every 20 minutes; send all newly eligible stories together as separate embed messages, without per-story 20-minute pacing.",
+      "proposedOwnedPaths": [
+        "src/news/",
+        "tests/news/",
+        "NEWS_IMPLEMENTATION_PLAN.md",
+        "NEWS_OPERATIONS.md",
+        "NEWS_ACCEPTANCE.md",
+        "NEWS_VERIFICATION.json"
+      ],
+      "reviewMode": "independent",
+      "requiredChecks": ["pnpm format", "pnpm check", "pnpm build"],
+      "assignedAgent": "/root/batch_delivery_fix",
+      "baseRevision": "5dc9abc",
+      "candidateRevision": "8ef7e9983a7bcacec9121f416961264b7802ec65",
+      "acceptedRevision": "46a2f36",
+      "repairRounds": 0,
+      "evidence": [
+        "NEWS_VERIFICATION.json#batchDeliveryAmendment",
+        "NEWS_ACCEPTANCE.md",
+        ".news-work/N12/check.log",
+        ".news-work/N12/build.log",
+        ".news-work/N12/format.log"
+      ],
+      "blockingFindings": [],
+      "worktree": "/tmp/jolanda-batch-delivery-0914",
+      "reviewer": "/root/batch_delivery_reviewer",
+      "reviewDisposition": "Approved; legacy attempted-deadline ambiguity documented and independently proved. No unsafe retry-deadline rewrite."
     }
   ],
   "reconciliation": {

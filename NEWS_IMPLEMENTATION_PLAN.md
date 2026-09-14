@@ -1,6 +1,6 @@
 # Jolanda news: implementation plan
 
-Status: implemented; local feature acceptance passed. See
+Status: implemented; batch-delivery correction accepted and running locally. See
 [NEWS_TASKS.json](NEWS_TASKS.json) and [NEWS_ACCEPTANCE.md](NEWS_ACCEPTANCE.md)
 for release-packet and external verification status. Updated 14 September 2026.
 
@@ -16,14 +16,14 @@ the starting architecture, while the ledger and acceptance packet record the res
 ### Agreed behavior
 
 - Keep the existing repository, Node.js process, MongoDB, and Discord bot identity. Add news as a separate module alongside AI conversations and media reposting.
-- Collect **Denník N's important Minúta po minúte selection every 20 minutes**. Publish individual, readable embeds throughout the day. Approximately 15 important stories per day is an orientation, not an enforced quota or a requirement to manufacture content.
+- Collect **Denník N's important Minúta po minúte selection every 20 minutes**. After each collection, promptly send every newly eligible story, sequentially as its own readable embed message. The 20-minute interval applies to collection, not spacing between messages. Approximately 15 important stories per day is an orientation, not an enforced quota or a requirement to manufacture content.
 - Collect **Aktuality's own daily editorial roundup at 20:00**, with **one fallback at 21:00 if no fresh edition was collected at 20:00**. Do not poll Aktuality every 20 minutes.
 - Publish the roundup as **one Discord message**, with at most one notification opportunity. If neither collection finds a fresh edition, skip that day. Do not construct an alternative digest, use Denník N as a fallback, or resend yesterday's roundup.
 - Configure each destination using a native Discord channel selector under the existing lowercase command name:
   - `/jolanda continuous feed channel:#news`
   - `/jolanda daily feed channel:#daily-news`
 - Preserve title, source link, publication time, and useful available description, tags, and image metadata. Optional metadata may be absent without blocking publication.
-- Prevent repeated stories, bursty catch-up after downtime, and duplicate daily messages after restart or deployment overlap.
+- Prevent repeated stories, historical bootstrap floods, stale catch-up after downtime, and duplicate daily messages after restart or deployment overlap. A batch of newly eligible stories is intentional.
 
 ### Explicit implementation defaults
 
@@ -34,7 +34,7 @@ These resolve unspecified details for a first implementation. They are local des
 - **Supported destinations:** server text and announcement channels. No DMs, threads, forum channels, cross-server destinations, or automatic announcement crossposting in v1.
 - **Administration:** require Manage Server to set, disable, or inspect feed settings. Add `/jolanda continuous disable`, `/jolanda daily disable`, and `/jolanda continuous status` / `/jolanda daily status`. Include a concise feed summary in `/jolanda settings`; dedicated news status must work without an unrelated AI budget read.
 - **Notifications:** continuous posts use suppressed push notifications and no mentions. Daily posts use normal channel notification behavior, with an optional `notify-role` selector on the daily feed command for an explicit role ping. No automatic `@everyone` or `@here`. Validate the selected role and permissions; store its ID encrypted with the destination. Member notification settings still determine actual push delivery.
-- **Continuous pacing:** start with at most one new continuous message per destination per 20 minutes; queued stories expire after a two-hour catch-up window. Do not add a hard 15-story cutoff. Evaluate a multi-day fixture replay for excessive delay or dropped important stories before accepting this default; adjust pacing through an explicit policy change if needed.
+- **Continuous batch delivery (user correction, 14 September 2026):** send all newly eligible stories from each collection promptly, one embed message per story, respecting Discord rate limits without an artificial inter-story delay. This explicitly supersedes the original one-message-per-20-minutes default. Persist all eligible work; batches larger than an internal work chunk must continue promptly. Unsent work still expires after the two-hour recovery window. Keep genuine retry deadlines and sent/uncertain receipts across restart; obsolete pacing timestamps on never-attempted work must not delay delivery after upgrading. One-time compatibility exception: the old writer did not distinguish genuine retry deadlines from pacing-inflated deadlines on previously attempted work. Preserve those ambiguous saved deadlines until due; clearing them could violate Discord Retry-After. New batches have no pacing deadline. Do not add a hard story quota.
 - **No old-news bootstrap for continuous feeds:** activation establishes a subscription-specific baseline against the source snapshot. Enabling a second guild must not replay old continuous content merely because collection already runs for the first guild. Daily subscriptions use current-day edition eligibility, not this baseline; their first valid evening edition must not be discarded.
 - **Corrections:** repeated source IDs or minor revisions do not create new posts. Automatic editing of previously delivered embeds is deferred; this avoids introducing recoverable message-ID storage just for edits. Keep a content revision/hash so edits can be added later.
 - **Scope exclusions:** no generated summaries, LLM ranking, new OpenRouter tools, additional publishers, webhook management, external queue service, separate worker deployment, or agent-framework dependency.
@@ -46,7 +46,7 @@ These resolve unspecified details for a first implementation. They are local des
 - **R03:** one persistent destination per guild and feed, native channel commands, disable and status.
 - **R04:** selected-channel permissions, guild isolation, encrypted retrievable identifiers.
 - **R05:** source-attributed embeds with bounded optional metadata and deliberate mentions.
-- **R06:** durable deduplication, bounded replay, low-noise pacing, no bootstrap flood.
+- **R06:** durable deduplication, bounded replay, quiet complete-batch delivery, no bootstrap flood.
 - **R07:** source failures, parser changes, cache validators, and backoff handled distinctly.
 - **R08:** recoverable scheduling/outbox state and conservative ambiguous-send handling.
 - **R09:** lifecycle integration and failure isolation; existing AI and media behavior preserved.
@@ -58,7 +58,7 @@ The module accepts source adapters, a news store, a Discord publisher, a clock, 
 
 Proposed files are ownership boundaries, not a mandate to create a file for every concept:
 
-- `src/news/types.ts`, `policy.ts`: domain contracts, daily slots, freshness, pacing, and publication identity.
+- `src/news/types.ts`, `policy.ts`: domain contracts, daily slots, freshness, batch delivery, and publication identity.
 - `src/news/http.ts`, `sources/dennikn.ts`, `sources/aktuality.ts`: bounded retrieval and publisher-specific parsing.
 - `src/news/cipher.ts`, `mongo.ts`: retrievable subscriptions, source state, content, and the durable delivery queue.
 - `src/news/render.ts`, `discord.ts`: source-derived embed rendering and a narrow publisher.
@@ -91,7 +91,7 @@ Use source IDs for exact identity, preserving publication time separately from f
 
 For a continuous subscription with no usable source snapshot, the first successful snapshot establishes its baseline and does not publish historical contents. With a current snapshot, capture the activation watermark and admit subsequently eligible observations.
 
-Do not equate an HTTP polling interval with a requirement to send a message each interval. Empty intervals produce no messages. Pacing and receipt state survive restart. Deduplication is scoped to each feed subscription; a story appearing in the continuous channel does not remove it from Aktuality's independent editorial roundup.
+Do not equate an HTTP polling interval with a requirement to send a message each interval. Empty intervals produce no messages. Pending work, genuine retry deadlines and receipt state survive restart. A collection with multiple new eligible stories sends the whole batch without waiting for later collection intervals. Deduplication is scoped to each feed subscription; a story appearing in the continuous channel does not remove it from Aktuality's independent editorial roundup.
 
 ### Daily collection and fallback
 
@@ -182,7 +182,7 @@ Read the files listed above, local instructions, package scripts, and current gi
 
 **Dependencies:** N00. **Owned paths:** `src/news/types.ts`, `src/news/policy.ts`, `tests/news/policy.test.ts`. **Requirements:** R01, R02, R05, R06, R08.
 
-Define story-versus-edition results, subscription revisions, source outcomes, store/publisher interfaces, stable publication identity, and injectable time. Implement pure functions for local slots, fallback eligibility, freshness, activation baselines, pacing, replay deadlines, and publication selection. Keep exact module interfaces small enough for production adapters and test fakes.
+Define story-versus-edition results, subscription revisions, source outcomes, store/publisher interfaces, stable publication identity, and injectable time. Implement pure functions for local slots, fallback eligibility, freshness, activation baselines, batch admission, replay deadlines, and publication selection. Keep exact module interfaces small enough for production adapters and test fakes.
 
 **Acceptance:** winter/summer and both DST-transition days map to 20:00/21:00 local; 19:59 has no daily work; a saved edition suppresses fallback despite failed delivery; missing/stale editions permit exactly the fallback; after 22:00 no daily collection or send admission; safe daily retries expire at the cutoff; first and late daily activation use current-day eligibility rather than continuous baselines; daily identity survives channel changes; no artificial 15-story fill/cutoff; newly important older posts have explicit eligibility.
 
@@ -206,7 +206,7 @@ Parse the observed initial JSON, select important items, normalize stable IDs/ti
 
 **Acceptance:** blank title/bold fallback; missing images/tags; malformed timestamps; false importance; duplicate IDs; updated excerpts; delayed importance promotion; reordered snapshots; unchanged responses. Extra unrelated page state must not break parsing, while a missing required post structure must produce a parser failure.
 
-**Proof:** independent fixtures and a timestamped multi-day observation replay yielding expected important IDs with request count independent of subscription count. Report observed send delays and expired stories to evaluate the pacing/catch-up defaults; identify any synthetic inputs separately. Can run alongside N04 after the shared HTTP contract is accepted.
+**Proof:** independent fixtures and a timestamped multi-day observation replay yielding expected important IDs with request count independent of subscription count. Report observed send delays and expired stories to verify batch delays and the recovery window; identify any synthetic inputs separately. Can run alongside N04 after the shared HTTP contract is accepted.
 
 ### N04 — Aktuality editorial-edition adapter
 
@@ -232,7 +232,7 @@ Add subscription persistence and indexes through the existing Mongo client. Encr
 
 **Dependencies:** N01, N05. **Owned paths:** coordination/outbox parts of `src/news/mongo.ts`, associated integration tests and indexes. **Requirements:** R01, R02, R06, R07, R08.
 
-Persist source-wide next attempts, daily slots, successful editions, item observations, and publication reservations. Implement atomic ownership, repeatable planning, outbox claims, configuration checks, pacing reservation, terminal deduplication, and retention. Make the crash boundary before a Discord call explicit.
+Persist source-wide next attempts, daily slots, successful editions, item observations, and publication reservations. Implement atomic ownership, repeatable planning, outbox claims, configuration checks, batch publication reservation, terminal deduplication, and retention. Make the crash boundary before a Discord call explicit.
 
 **Acceptance:** two instances cannot own the same poll or publication; stale owners cannot commit; process failure at every claim/plan transition is recoverable; late source completion is fenced; daily fallback is collection-driven; cursor/item commit cannot lose publication; expired pre-send work is reclaimable; sending/uncertain work is not blindly retried; tombstone TTL never resurrects expired news; daily pending work expires at 22:00 rather than retrying the next morning; first/late daily activation and re-enable preserve the correct day slot; disable/reconfigure fences unsent work.
 
@@ -264,7 +264,7 @@ Add the two subcommand groups and native channel selectors, optional daily role,
 
 Wire collection, durable planning, and delivery into the current process. Start only after database initialization, gate sends on Discord readiness, poll only subscribed sources, prevent overlapping ticks, and use bounded per-source work. Integrate shutdown so no timers or detached work survive Discord/Mongo closure. Add a deployment kill switch and a dry-run/preview route that cannot create live delivery receipts or consume daily publication slots.
 
-**Acceptance:** idle installation performs no source requests; commands activate future collection; two channels do not double requests; startup at each daily boundary; restart preserves slots/pacing; one broken source leaves the other source and AI/media functional; shutdown during fetch, Mongo work, and send; repeated start/stop is safe; no new LLM calls; paused/deleted destinations do not generate failure spam.
+**Acceptance:** idle installation performs no source requests; commands activate future collection; two channels do not double requests; startup at each daily boundary; restart preserves slots, pending batches and retry deadlines; one broken source leaves the other source and AI/media functional; shutdown during fetch, Mongo work, and send; repeated start/stop is safe; no new LLM calls; paused/deleted destinations do not generate failure spam.
 
 **Proof:** fake-clock/runtime tests crossing real module interfaces; `pnpm build`; one full application-wiring test through channel configuration and planned delivery. On integration, re-review any earlier contract modified by this card.
 
@@ -281,7 +281,7 @@ A fresh evaluator works from this product contract, the final diff, and the runn
 3. Fresh 20:00 edition gives one daily message and no 21:00 scrape; absent 20:00 edition succeeds at 21:00; absent both yields zero messages.
 4. Discord fails after a successful 20:00 collection; retry/uncertain handling never creates a second edition or fallback scrape. Extend the outage past 22:00 and into the next morning: pending work expires and no late daily message is admitted.
 5. Channel/role changes and disable during queued work respect revision checks; disabling cannot retract a request Discord already accepted, and this race is documented accurately.
-6. Duplicate/updated source IDs and importance promotion produce the agreed behavior; continuous backlog is paced and bounded. Evaluate delays and expired important stories against timestamped publisher observations, not only synthetic traffic, and explicitly accept or revise the default pacing before release.
+6. Duplicate/updated source IDs and importance promotion produce the agreed behavior; every newly eligible story in a collected batch is sent promptly; recovery remains bounded. Evaluate delays and expired important stories against timestamped publisher observations, not only synthetic traffic, and verify no artificial delivery delay or batch-size truncation remains.
 7. At every DST/local-date boundary, daily identity and attempt times remain correct.
 8. Existing AI conversations, permissions, spending, command registration, media reposting, and shutdown continue to pass their checks.
 

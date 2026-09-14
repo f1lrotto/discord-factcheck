@@ -295,8 +295,10 @@ News uses the existing Jolanda bot and MongoDB, independently of AI and media. A
 ```
 
 Denník N's important Minúta selection is collected once every 20 minutes, shared across guilds.
-Continuous embeds suppress push notifications, never mention anyone, and are paced at one per
-destination per 20 minutes. Activation establishes a baseline; queued stories expire after two hours.
+After each collection, all newly eligible stories are sent promptly, one embed message per story,
+without a 20-minute gap between messages. Continuous embeds suppress push notifications and never
+mention anyone; delivery respects Discord rate limits. Activation establishes a baseline, and
+unsent stories expire after the two-hour recovery window.
 There is no daily quota. Aktuality's own daily edition is collected at **20:00 Europe/Bratislava**
 (CET/CEST), with one **21:00** fallback only if no fresh edition was collected. A missing edition is
 skipped; no replacement digest is generated. Daily delivery is one message and stops at 22:00.

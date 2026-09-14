@@ -27,7 +27,8 @@ has no sent or uncertain tombstone. Never clear delivery records to force a retr
 - All news dates and evening times use `Europe/Bratislava`, independently of `JOLANDA_TIME_ZONE`.
   Winter is CET, summer is CEST; the schedule follows both DST transitions.
 - Denník N collection is shared across guilds every 20 minutes. Empty intervals send nothing.
-  Delivery is at most one continuous message per destination per 20 minutes. Unsent work expires
+  Every newly eligible story from a collection is sent promptly as a separate quiet embed message,
+  sequentially and subject to Discord rate limits. There is no 20-minute gap between stories. Unsent work expires
   two hours after first observation as important; promotion eligibility is bounded to stories
   published within the preceding 24 hours. There is no minimum or maximum daily story quota.
 - Aktuality primary collection recovers within 20:00–21:00. Fallback recovers within 21:00–22:00
@@ -36,13 +37,17 @@ has no sent or uncertain tombstone. Never clear delivery records to force a retr
 - A collected edition suppresses fallback even if Discord is unavailable. Known rejections can
   retry the same publication within its deadline. Missing or stale editions produce no message.
   A weekly roundup never substitutes for the publisher's daily edition.
+- On upgrade from the original pacing policy, never-attempted continuous publications become
+  immediately eligible. Saved deadlines on attempted publications remain in force: the old writer
+  could mix pacing with a genuine retry deadline, so that ambiguous legacy state is conservatively
+  retained until due. New batches have no pacing delay. Sent and uncertain receipts are never cleared. No channel reconfiguration or database reset is required.
 - Continuous posts suppress push notifications. Daily posts use normal channel notifications and
   optionally one explicit role mention; members' notification settings still determine delivery.
   Announcement channels are not automatically crossposted.
 
-The captured publisher-time replay supports the initial pacing default, but is a limited simulation:
+The captured publisher-time replay is a limited simulation:
 50 captured stories across five publication dates, partial boundary days, and no historical promotion
-observations. It is not a guarantee that every important story will fit a future two-hour backlog.
+observations. Batch delivery removes the old artificial queue delay; source outages and Discord failures can still exhaust the two-hour recovery window.
 
 ## Read-only previews and network checks
 
@@ -62,8 +67,8 @@ classified as stale and must not be interpreted as eligible publications. Unexpe
 set a nonzero exit status. Missing/stale editions are valid source outcomes.
 
 The runtime Docker image includes the script. Run `node scripts/news-smoke.mjs --live` on the
-deployment host to verify that network separately. Developer-machine success does not establish
-Railway access. Do not run a second full bot process just to perform this check. Do not introduce
+deployment host to verify that network separately. Success on one machine does not establish
+access from a different future deployment host. The current bot runs locally under herdr. Do not run a second full bot process just to perform this check. Do not introduce
 cookies, proxies, or alternate feeds if a publisher blocks the host.
 
 ## Status and recovery
@@ -90,7 +95,7 @@ of collection; it does not imply delivery. No subscription and an empty source a
 
 The outbox's pending/claimed work can recover after a crash; an expired `sending` lease becomes
 uncertain. Mongo TTL cleanup is not an eligibility mechanism: deadlines are checked before sending.
-Restarts preserve collection slots, backoff, pacing, and terminal deduplication. There is no morning
+Restarts preserve collection slots, backoff, pending batches, genuine retry deadlines, and terminal deduplication. There is no morning
 delivery of the previous evening's pending daily edition.
 
 ## Secret maintenance
