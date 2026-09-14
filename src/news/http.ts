@@ -43,7 +43,7 @@ export const validateNewsUrl = (
         ? url.hostname === 'img.projektn.sk' && /^\/wp-static\/\d{4}\/\d{2}\/.+/.test(url.pathname)
         : url.hostname === 'img.aktuality.sk' && /^\/foto\/.+/.test(url.pathname)
       : source === 'dennikn'
-        ? ['dennikn.sk', 'www.dennikn.sk'].includes(url.hostname) &&
+        ? ['dennikn.sk', 'www.dennikn.sk', 'e.dennikn.sk'].includes(url.hostname) &&
           /^\/minuta\/(?:dolezite|\d+)\/?$/.test(url.pathname)
         : ['aktuality.sk', 'www.aktuality.sk'].includes(url.hostname) &&
           /^\/(?:spravy\/denny-vyber-sprav|clanok\/[a-z0-9]+\/[a-z0-9-]+)\/?$/i.test(url.pathname);

@@ -89,6 +89,7 @@ afterEach(() => vi.useRealTimers());
 describe('publisher URL boundaries', () => {
   it.each([
     [url, 'dennikn', 'page'],
+    ['https://e.dennikn.sk/minuta/5558475/', 'dennikn', 'page'],
     ['https://www.dennikn.sk/minuta/5559444/#section', 'dennikn', 'page'],
     ['https://www.aktuality.sk/spravy/denny-vyber-sprav/', 'aktuality', 'page'],
     ['https://aktuality.sk/clanok/hAUs7Al/denny-vyber/', 'aktuality', 'page'],
@@ -108,6 +109,7 @@ describe('publisher URL boundaries', () => {
     'https://user:secret@dennikn.sk/minuta/dolezite',
     'https://dennikn.sk.evil.test/minuta/dolezite',
     'https://evildennikn.sk/minuta/dolezite',
+    'https://e.dennikn.sk.evil.test/minuta/5558475/',
     'https://127.0.0.1/minuta/dolezite',
     'https://dennikn.sk/admin',
     'https://dennikn.sk/minuta/dolezite?redirect=private',
