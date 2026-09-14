@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "feature": "jolanda-news",
   "status": "in_progress",
-  "integratedRevision": "bd03bde",
+  "integratedRevision": "825334a",
   "localImplementationComplete": false,
   "liveDiscordVerified": false,
   "deployed": false,
@@ -357,6 +357,151 @@
           }
         ]
       }
+    },
+    {
+      "task": "N09a",
+      "acceptedRevision": "de86b49",
+      "candidateRevision": "87567edc6c7e88d2296baa6f53c0bca85d717b56",
+      "repairRounds": 2,
+      "review": {
+        "taskId": "N09a",
+        "reviewedRevision": "b11ca02ecbcbabfe6d60a1acd18bc48c21614368",
+        "baseRevision": "70f9521",
+        "previousReviewedRevision": "9067593a8370cbb4b4343079dbdb531a1ed34192",
+        "verdict": "approved_within_N09a_scope",
+        "acceptanceAuthority": "Independent review approval only; root owns integration gates and task acceptance.",
+        "scope": [
+          "src/news/index.ts",
+          "tests/news/runtime.test.ts",
+          "composition with accepted src/news/discord.ts and tests/news/discord.test.ts"
+        ],
+        "findings": [],
+        "dispositions": [
+          {
+            "finding": "N09a-F1",
+            "status": "fixed",
+            "evidence": "Independent production runtime/publisher/native WHATWG stream reproduction remains pending at shutdown while body.cancel cleanup is gated, and completes only after cleanup finishes. No extra request appears. Final receipt now correctly preserves safe rejected preflight result."
+          },
+          {
+            "finding": "N09a-F2",
+            "status": "fixed",
+            "evidence": "Lifecycle request revision is retained. Independent same-turn start/shutdown reproduction reports reads=0 at shutdown and 50ms later. Full runtime suite verifies start waiting during drainage is cancelled by later shutdown and subsequent legitimate restart works without surviving timers."
+          },
+          {
+            "finding": "N09a-F3",
+            "status": "fixed",
+            "evidence": "Send-only preserveResultOnAbort awaits and returns publisher result after cancellation race; unknown throws still map to uncertain after invocation. Original independent POST403 delayed-cleanup reproduction now captures both publisherResult and persisted result as destination-unavailable. Four new real-Mongo runtime tests cover production403 pause, production429 retryAt persistence, safe preflight retry and typed late sent receipt; all pass."
+          }
+        ],
+        "checks": [
+          {
+            "command": "pnpm exec vitest run tests/news/runtime.test.ts tests/news/discord.test.ts",
+            "exitCode": 0,
+            "testFilesPassed": 2,
+            "testsPassed": 95,
+            "durationSeconds": 27.07,
+            "revision": "b11ca02ecbcbabfe6d60a1acd18bc48c21614368"
+          },
+          {
+            "command": "node --import tsx <artifact>/review-rejection-combined.mjs",
+            "exitCode": 0,
+            "result": "Typed confirmed rejection survives runtime timeout after cooperative cleanup"
+          },
+          {
+            "command": "node --import tsx <artifact>/review-shutdown-combined.mjs",
+            "exitCode": 0,
+            "result": "Shutdown joins cleanup, then persists known preflight rejected outcome"
+          },
+          {
+            "command": "node --import tsx <artifact>/review-start-stop-combined.mjs",
+            "exitCode": 0,
+            "result": "No reads after same-turn later shutdown"
+          }
+        ],
+        "verified": [
+          "Frozen assembled HEAD equals supplied b11ca02ecbcbabfe6d60a1acd18bc48c21614368; tracked worktree clean before verification.",
+          "Complete repair diff examined: preserveResultOnAbort is enabled only for send. Collection retains original timeout/cancelled classification. Publisher result rejection still passes through cleanup finally and gets conservative mapping for unknown throws.",
+          "All 95 combined runtime/publisher tests pass, including 37 runtime tests with real local Mongo replica set and production module seams.",
+          "Source timeout versus cancellation, failed source isolation, readiness/deadline admission, uncertain send/failed receipt recovery, safe retry deadlines, confirmed403/429 classifications, close cancellation and cleanup, no-late-POST behavior and lifecycle invocation order remain covered by passing focused suite.",
+          "Independent original failure reproductions now demonstrate required behavior on assembled revision.",
+          "No candidate production/test edits, package installs, external network/Discord requests or deployments performed."
+        ],
+        "notVerified": [
+          "Reviewer did not rerun full assembled format/check/build; root must run final integration gates and record acceptance separately.",
+          "Actual external source/Discord behavior, native socket/DNS cleanup timing and deployment environment: fake HTTP responses and native local stream tests are automated evidence, not live verification.",
+          "N09b startup/configuration/command-to-runtime wiring and preview route, final feature acceptance, operational rollout and multi-day observations remain outside N09a review scope."
+        ]
+      }
+    },
+    {
+      "task": "N09b",
+      "acceptedRevision": "825334a",
+      "candidateRevision": "8b5b734cf2b63d3345fc761b861945569ee6d4d7",
+      "repairRounds": 0,
+      "review": {
+        "taskId": "N09b",
+        "reviewedRevision": "8b5b734cf2b63d3345fc761b861945569ee6d4d7",
+        "baseRevision": "de86b49d1043e42743d63f15c7b5d59482d02b57",
+        "worktree": "/tmp/jolanda-news-application",
+        "verdict": "approved",
+        "findings": [],
+        "scope": "Independent read-only application integration review against original NEWS_IMPLEMENTATION_PLAN.md R01-R09/N09 and frozen N09b task packet. Approval applies to this task revision; root alone accepts integration and N10 remains separate.",
+        "verified": [
+          "HEAD matches immutable candidate and tracked worktree remains clean; diff contains only the five assigned application/config/test files.",
+          "Production main initializes news indexes/storage through the existing shared Mongo client using DATA_PROTECTION_SECRET before constructing/starting runtime. Exact store/publisher object identity is asserted through actual application main.",
+          "The existing Discord bot constructs the news publisher with its same Client and token; command registration and AI/media implementation remain unchanged. Runtime and publisher both enforce readiness before send.",
+          "NEWS_ENABLED defaults true, rejects malformed values, and false reaches commands/status and runtime without removing persistent settings or legacy privacy. Runtime performs no source work when idle or disabled.",
+          "Application integration test invokes actual main, actual Discord event/command dispatch, real Mongo replica set/store, production source parser/coordinator/publisher, with only Gateway/HTTP/model boundaries and time substituted. It configures a selected channel, crosses 20:00, persists one sent daily tombstone and reopens the same DB with disabled news/status preserved. This is not a disconnected reimplementation.",
+          "Importing src/index.ts has no startup side effects; direct tsx source execution and built pnpm start execute main and fail safely on invalid configuration before network. Application test rebuilt production dist successfully.",
+          "Shutdown synchronously stops new Gateway admissions, drains news/AI/media with allSettled, then drains active handlers before Discord/Mongo closure. An AI shutdown rejection is propagated only after all three drains and handler drain; existing lifecycle deliberately keeps resources open when settlement fails.",
+          "Application SIGTERM during pending login cannot invoke news.start after shutdown; login failure drains news and removes signal listeners. Stalled production publisher Response cancellation prevents resource closure until cleanup and durable uncertain receipt finish.",
+          "Focused accepted runtime tests verify shared collection across competing instances, restart cadence/pacing/deduplication, daily fallback, source failure isolation, readiness, cancellation/Mongo drain, conservative send outcomes and repeated lifecycle operations.",
+          "Focused existing bot tests verify AI routing, independent Reel offering, existing command behavior/registration and handler drainage. Application news path asserts no model calls.",
+          "Accepted scripts/news-smoke.mjs has explicit mode gating and imports only source HTTP/adapters/render, never store or Discord delivery. Offline --fixtures completed with both source previews, no network/storage/Discord, and all three smoke mode-gate tests passed.",
+          "Inspected revision-bound implementation receipt plus full format/check/build logs: 1083 passed, 30 existing skips, coverage thresholds passed; no required check or dependency changes in candidate."
+        ],
+        "checks": [
+          {
+            "command": "pnpm exec vitest run tests/news/application.test.ts tests/news/runtime.test.ts tests/discord-bot.test.ts tests/lifecycle.test.ts tests/config.test.ts",
+            "exitCode": 0,
+            "result": "5 files, 82 tests passed; application test also runs pnpm build and source/built CLI child processes"
+          },
+          {
+            "command": "pnpm exec vitest run tests/news/smoke-gate.test.ts",
+            "exitCode": 0,
+            "result": "1 file, 3 tests passed"
+          },
+          {
+            "command": "node scripts/news-smoke.mjs --fixtures",
+            "exitCode": 0,
+            "result": "Offline source-attributed previews; stale daily sample explicitly marked, no publication effects"
+          },
+          {
+            "command": "pnpm exec prettier --check src/config.ts src/index.ts tests/config.test.ts tests/news/application.test.ts",
+            "exitCode": 0
+          },
+          {
+            "command": "git diff --check",
+            "exitCode": 0
+          },
+          {
+            "command": "git status --short; git rev-parse HEAD",
+            "exitCode": 0,
+            "result": "Clean; exact reviewed revision"
+          },
+          {
+            "command": "pnpm exec prettier --check .env.example src/config.ts src/index.ts tests/config.test.ts tests/news/application.test.ts",
+            "exitCode": 2,
+            "result": "Review command initially named unsupported dotenv input; Prettier cannot infer a parser for .env.example. Corrected supported-file command passed. This is a reviewer invocation issue, not a candidate defect."
+          }
+        ],
+        "notVerified": [
+          "No live Discord, publisher network fetch, deployment or external writes performed.",
+          "Full feature N10 acceptance, multi-day publisher-volume suitability and release/live verification remain separate.",
+          "Full 1083-test coverage check was inspected from frozen implementation artifacts rather than independently repeated; reviewer independently ran 85 focused tests and fixture preview.",
+          "Application fixture uses fake Gateway/HTTP boundaries and disabled media; it does not exercise an active AI inference and media download simultaneously with news shutdown. Existing unchanged lifecycle implementations and relevant focused bot/runtime tests were reviewed, and complete AI/media regression suite is evidenced by the implementation check log."
+        ]
+      }
     }
   ],
   "publisherReadOnlyCheck": {
@@ -432,5 +577,62 @@
     "Historical polling and importance timestamps in replay are simulated",
     "Live Discord requires an explicitly authorized test guild/channel",
     "Deployment-network check and deployment are pending"
-  ]
+  ],
+  "runtimeRepairFindings": [
+    {
+      "id": "N09a-F1",
+      "requirement": "R09",
+      "scenario": "Shutdown aborts production publisher while a native WHATWG Response stream is awaiting a read and its cooperative async cancel() needs additional time to complete.",
+      "observed": "Publisher bounded() races abort without joining its operation, and readJson discards reader.cancel() promises. Runtime joins publisher.publish(), but that promise already settled while body cleanup continues. Reproduction returned from runtime.shutdown() with cleanupStarted=true and cleanupFinished=false; cleanup finished only after a gate was released after shutdown. The runtime persisted uncertain, preserving conservative send handling.",
+      "expected": "Production publisher must join its active operation and response cancellation cleanup before its publish promise settles, allowing runtime.shutdown() to drain all publisher work before shared resource closure. Keep finite native transport deadlines and conservative send outcomes.",
+      "disposition": "fixed"
+    },
+    {
+      "id": "N09a-F2",
+      "requirement": "R09",
+      "scenario": "Call const starting = runtime.start(); const stopping = runtime.shutdown(); await starting; await stopping in one synchronous turn, then allow timers to run.",
+      "observed": "start() yields at await stopping when stopping is still null. shutdown() then aborts the lifetime, but the earlier start resumes and replaces that aborted controller with a fresh one, sets running=true and schedules the loop. With tickIntervalMs=10, the reproduction logged reads=0 when shutdown returned and reads=4 fifty milliseconds later. A timer and database work survive the later shutdown request.",
+      "expected": "Lifecycle operations must respect invocation order: a later shutdown cancels an earlier not-yet-started start; after that shutdown resolves no timers or reads may run unless a subsequent start was requested. Preserve the existing supported shutdown-then-start restart case.",
+      "disposition": "fixed"
+    },
+    {
+      "id": "N09a-F3",
+      "requirement": "R08",
+      "scenario": "Production publisher receives confirmed POST HTTP 403 but body.cancel() requires async cleanup. Runtime send deadline fires during that cleanup. Publisher then drains and returns destination-unavailable.",
+      "observed": "Runtime bounded() waits for pending in finally but discards its result because the abort promise already won. send() handles the thrown timeout as uncertain whenever invoked=true. Independent reproduction captures publisherResult={outcome:destination-unavailable} but finishSend receives {outcome:uncertain}. Destination is not paused; publication is instead held as an uncertain tombstone. The same result-discard path affects explicit rejected/retryAt outcomes, including confirmed 429 and safe preflight rejection.",
+      "expected": "After draining a publisher operation, preserve its explicit NewsPublishResult even if cancellation started first. A typed confirmed result establishes safe rejection/destination failure or acceptance. Only unresolved/throwing publisher outcomes after invocation should become uncertain. Preserve source timeout classification separately if adjusting shared bounded helper.",
+      "disposition": "fixed"
+    }
+  ],
+  "componentChecks": {
+    "revision": "de86b49",
+    "codeEquivalentReviewedRevision": "b11ca02ecbcbabfe6d60a1acd18bc48c21614368",
+    "pnpmCheck": {
+      "exitCode": 0,
+      "passed": 1077,
+      "skipped": 30
+    },
+    "pnpmBuild": {
+      "exitCode": 0
+    },
+    "integratedRuntimeCommands": {
+      "passed": 77,
+      "exitCode": 0
+    }
+  },
+  "applicationChecks": {
+    "revision": "825334a",
+    "pnpmCheck": {
+      "passed": 1083,
+      "skipped": 30,
+      "exitCode": 0
+    },
+    "pnpmBuild": {
+      "exitCode": 0
+    },
+    "integratedApplicationConfig": {
+      "passed": 13,
+      "exitCode": 0
+    }
+  }
 }

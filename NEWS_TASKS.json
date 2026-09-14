@@ -6,7 +6,7 @@
   "plan": "NEWS_IMPLEMENTATION_PLAN.md",
   "runbook": "NEWS_AGENT_RUNBOOK.md",
   "inspectedBaseRevision": "7f38348e632e5c219bfed95d7bbcc3b9fa0dc370",
-  "acceptedIntegrationRevision": "bd03bde",
+  "acceptedIntegrationRevision": "825334a",
   "orchestration": {
     "maximumConcurrentWriters": 2,
     "maximumRepairRoundsBeforeReplan": 2,
@@ -15,8 +15,8 @@
     "ledgerWriter": "orchestrator",
     "sharedCheckoutWriters": 1
   },
-  "localImplementationStatus": "in_progress",
-  "liveVerificationStatus": "not_started",
+  "localImplementationStatus": "implemented_pending_feature_acceptance",
+  "liveVerificationStatus": "publishers_verified_from_developer_host",
   "tasks": [
     {
       "id": "N00",
@@ -274,7 +274,7 @@
     {
       "id": "N09",
       "title": "News runtime and lifecycle integration",
-      "state": "implementing",
+      "state": "accepted",
       "dependsOn": ["N03", "N04", "N06", "N07", "N08"],
       "requirements": ["R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n09--news-runtime-and-lifecycle-integration",
@@ -288,38 +288,86 @@
       ],
       "reviewMode": "independent",
       "requiredChecks": ["pnpm format", "pnpm check", "pnpm build"],
-      "assignedAgent": null,
+      "assignedAgent": "/root",
       "worktree": null,
-      "baseRevision": null,
-      "candidateRevision": null,
-      "acceptedRevision": null,
-      "repairRounds": 0,
-      "evidence": [],
+      "baseRevision": "bf3971c",
+      "candidateRevision": "8b5b734cf2b63d3345fc761b861945569ee6d4d7",
+      "acceptedRevision": "825334a",
+      "repairRounds": 2,
+      "evidence": [
+        ".news-work/N09a/acceptance.json",
+        ".news-work/N09b/acceptance.json",
+        ".news-work/N09a/review-3.json",
+        ".news-work/N09b/review-1.json"
+      ],
       "blockingFindings": [],
       "subtasks": [
         {
           "id": "N09a",
           "title": "Runtime coordinator",
           "dependsOn": ["N03", "N04", "N06", "N07"],
-          "state": "implementing",
+          "state": "accepted",
           "assignedAgent": "/root/domain_implementer",
           "worktree": "/tmp/jolanda-news-runtime",
           "baseRevision": "bf3971c",
-          "ownedPaths": ["src/news/index.ts", "tests/news/runtime.test.ts"]
+          "ownedPaths": ["src/news/index.ts", "tests/news/runtime.test.ts"],
+          "candidateRevision": "87567edc6c7e88d2296baa6f53c0bca85d717b56",
+          "reviewer": "/root/runtime_reviewer",
+          "repairRounds": 2,
+          "combinedReviewRevision": "b11ca02ecbcbabfe6d60a1acd18bc48c21614368",
+          "reviewRevision": "b11ca02ecbcbabfe6d60a1acd18bc48c21614368",
+          "integratedRevision": "de86b49",
+          "acceptedRevision": "de86b49",
+          "evidence": [
+            ".news-work/N09a/implementation-repair-2.json",
+            ".news-work/N09a/review-3.json",
+            ".news-work/N09a/dispositions.json",
+            ".news-work/N09a/acceptance.json"
+          ]
         },
         {
           "id": "N09b",
           "title": "Application startup, config and full lifecycle wiring",
           "dependsOn": ["N08", "N09a"],
-          "state": "planned",
-          "owner": "/root/discord_implementer"
+          "state": "accepted",
+          "owner": "/root/discord_implementer",
+          "assignedAgent": "/root/discord_implementer",
+          "worktree": "/tmp/jolanda-news-application",
+          "baseRevision": "de86b49",
+          "candidateRevision": "8b5b734cf2b63d3345fc761b861945569ee6d4d7",
+          "reviewer": "/root/application_reviewer",
+          "acceptedRevision": "825334a",
+          "evidence": [
+            ".news-work/N09b/implementation.json",
+            ".news-work/N09b/review-1.json",
+            ".news-work/N09b/acceptance.json"
+          ]
+        },
+        {
+          "id": "N09-publisher-repair",
+          "title": "Drain underlying Discord request and body cleanup",
+          "state": "accepted",
+          "dependsOn": ["N07", "N08"],
+          "assignedAgent": "/root/discord_implementer",
+          "worktree": "/tmp/jolanda-news-publisher-drain",
+          "baseRevision": "70f9521",
+          "ownedPaths": ["src/news/discord.ts", "tests/news/discord.test.ts"],
+          "reviewer": "/root/runtime_reviewer",
+          "repairRounds": 1,
+          "candidateRevision": "2b0d4455a1d295c25788c4de3d85cf4d9c44540a",
+          "acceptedRevision": "3562c32",
+          "evidence": [
+            ".news-work/N09-publisher-repair/implementation.json",
+            ".news-work/N09a/review-2.json",
+            ".news-work/N09-publisher-repair/acceptance.json"
+          ]
         }
       ]
     },
     {
       "id": "N10",
       "title": "Independent feature acceptance and failure replay",
-      "state": "planned",
+      "state": "ready",
       "dependsOn": ["N09"],
       "requirements": ["R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10"],
       "contract": "NEWS_IMPLEMENTATION_PLAN.md#n10--independent-feature-acceptance-and-failure-replay",

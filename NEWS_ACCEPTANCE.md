@@ -92,12 +92,24 @@ ambiguous-send recovery, exponential backoff, and bounded source-body retention.
 N08 is accepted at `bd03bde`: native channel commands, independent status,
 permission gates, guild cleanup, and persistent configuration passed review.
 The integrated checkout passed format, check (1,030 passed; 30 existing live
-skips), and build. Runtime/startup work is still in progress.
+skips), and build.
+
+N09a is accepted at `de86b49`. Independent runtime review found and verified
+repairs for asynchronous publisher cleanup, same-turn start/shutdown ordering,
+and preservation of confirmed publisher results after cancellation. The reviewed
+assembly passed 1,077 tests with 30 existing skips and build; its code matches the
+integrated checkout, where 77 runtime/command tests passed.
+
+N09b application wiring is accepted at `825334a` after independent review.
+The exact-code candidate passed format, check (1,083 passed; 30 existing skips),
+and build. Thirteen entrypoint/configuration tests passed again after integration,
+including the real Mongo command-to-publication flow and process shutdown cases.
+Fresh whole-feature acceptance remains N10.
 
 The portable [NEWS_VERIFICATION.json](NEWS_VERIFICATION.json) preserves component
 reviews, publisher-check outcomes, and replay assumptions. Exact offline payloads
 are in [NEWS_PREVIEWS.json](NEWS_PREVIEWS.json); these are previews, not Discord
 delivery receipts.
 
-Implementation, feature acceptance, live Discord verification, and deployment are
-not complete. Detailed task evidence is recorded as work progresses.
+Feature acceptance, live Discord verification, and deployment are not complete.
+Detailed task evidence is recorded as work progresses.

@@ -1,10 +1,14 @@
 # Jolanda news: implementation plan
 
-Status: planned, not implemented. Updated 14 September 2026.
+Status: implementation in progress; see [NEWS_TASKS.json](NEWS_TASKS.json) and
+[NEWS_ACCEPTANCE.md](NEWS_ACCEPTANCE.md) for current acceptance evidence. Updated 14 September 2026.
 
 This is the implementation contract for two scheduled news feeds in the existing Jolanda bot. It supersedes the earlier architecture exploration wherever that document describes channel configuration or scheduling as undecided. Development will use the orchestrator–worker protocol in [NEWS_AGENT_RUNBOOK.md](NEWS_AGENT_RUNBOOK.md); [NEWS_TASKS.json](NEWS_TASKS.json) records task dependencies and execution status. The agent workflow is used to build the feature. It is not part of the running Discord bot.
 
-The inspected baseline is commit `7f38348e632e5c219bfed95d7bbcc3b9fa0dc370`. Revalidate it before implementation: source and library contracts may change. Initial, unverified scaffolding was removed when the user requested this plan; no news runtime or dependency change remains.
+The planning baseline was commit `7f38348e632e5c219bfed95d7bbcc3b9fa0dc370`.
+Initial, unverified scaffolding had been removed when this plan was written.
+Implementation re-inspected that baseline; the integration points below describe
+the starting architecture, while the ledger and acceptance packet record the resulting feature.
 
 ## 1. Product contract
 
