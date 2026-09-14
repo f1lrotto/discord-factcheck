@@ -38,6 +38,18 @@ const response = (data: unknown, status = 200, headers = {}) =>
     status,
     headers: { 'content-type': 'application/json', ...headers },
   });
+const abortablePending = (signal: AbortSignal) =>
+  new Promise<never>((_, reject) => {
+    signal.throwIfAborted();
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+  });
+const gate = () => {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
+};
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   cleanups.splice(0).forEach((close) => close());
@@ -339,15 +351,18 @@ describe('news publication reliability', () => {
     });
     const pending = f.publish();
     await vi.advanceTimersByTimeAsync(100);
-    expect(await pending).toEqual({ outcome: 'rejected' });
     expect(f.requests[0]!.signal!.aborted).toBe(true);
     resolve(response(f.channel));
+    expect(await pending).toEqual({ outcome: 'rejected' });
     await vi.advanceTimersByTimeAsync(100);
     expect(f.requests).toHaveLength(1);
   });
-  it('bounds validateDestination even for an uncooperative transport', async () => {
+  it('bounds validateDestination by aborting a cooperative transport', async () => {
     vi.useFakeTimers();
-    const f = fixture({ timeoutMs: 100, transport: () => new Promise(() => {}) });
+    const f = fixture({
+      timeoutMs: 100,
+      transport: async (_url, init) => abortablePending(init!.signal!),
+    });
     const pending = f.publisher.validateDestination(destination);
     await vi.advanceTimersByTimeAsync(100);
     expect(await pending).toBe(false);
@@ -360,7 +375,7 @@ describe('news publication reliability', () => {
     f.makeRequest.mockImplementation(async (url, init) => {
       if (init!.method !== 'POST') return normal(url, init);
       postSignal = init!.signal;
-      return new Promise(() => {});
+      return abortablePending(init!.signal!);
     });
     const pending = f.publish();
     await vi.advanceTimersByTimeAsync(100);
@@ -386,9 +401,9 @@ describe('news publication reliability', () => {
     expect(postCount).toBe(1);
     const second = f.publish();
     await vi.advanceTimersByTimeAsync(100);
+    resolveFirst(response({ id: '600', channel_id: channelId }));
     expect(await first).toEqual({ outcome: 'uncertain' });
     expect(await second).toEqual({ outcome: 'rejected' });
-    resolveFirst(response({ id: '600', channel_id: channelId }));
     await vi.advanceTimersByTimeAsync(0);
     expect(postCount).toBe(1);
   });
@@ -402,7 +417,7 @@ describe('news publication reliability', () => {
     f.makeRequest.mockImplementation(async (url, init) => {
       if (init!.method !== 'POST') return normal(url, init);
       started();
-      return new Promise(() => {});
+      return abortablePending(init!.signal!);
     });
     const pending = f.publish();
     await sending;
@@ -609,5 +624,191 @@ describe('news transport cooldown and shutdown regression N07-F1', () => {
     });
     expect(await f.publish()).toEqual({ outcome: 'uncertain' });
     expect(f.makeRequest).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('publisher cancellation joins cooperative response cleanup', () => {
+  it.each(['publish-preflight', 'publish-post', 'validate'] as const)(
+    'waits for delayed reader cleanup on %s before settling after timeout',
+    async (stage) => {
+      vi.useFakeTimers();
+      const f = fixture({ timeoutMs: 100 });
+      const normal = f.makeRequest.getMockImplementation()!;
+      const cleanup = gate();
+      let cleanupFinished = false;
+      const cancel = vi.fn(async () => {
+        await cleanup.promise;
+        cleanupFinished = true;
+      });
+      f.makeRequest.mockImplementation(async (url, init) =>
+        stage === 'publish-post' && init!.method !== 'POST'
+          ? normal(url, init)
+          : new Response(new ReadableStream({ cancel })),
+      );
+      let settled = false;
+      const pending = (
+        stage === 'validate' ? f.publisher.validateDestination(destination) : f.publish()
+      ).then((result) => {
+        settled = true;
+        return result;
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(cleanupFinished).toBe(false);
+      expect(settled).toBe(false);
+      cleanup.release();
+      expect(await pending).toEqual(
+        stage === 'validate'
+          ? false
+          : { outcome: stage === 'publish-post' ? 'uncertain' : 'rejected' },
+      );
+      expect(cleanupFinished).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(f.makeRequest.mock.calls.filter(([, init]) => init!.method === 'POST')).toHaveLength(
+        stage === 'publish-post' ? 1 : 0,
+      );
+    },
+  );
+  it.each(['publish', 'validate'] as const)(
+    'close aborts %s and its caller drains cleanup before teardown',
+    async (stage) => {
+      vi.useFakeTimers();
+      const f = fixture({ timeoutMs: 100 });
+      const cleanup = gate();
+      const cancel = vi.fn(async () => cleanup.promise);
+      f.makeRequest.mockImplementation(async () => new Response(new ReadableStream({ cancel })));
+      let settled = false;
+      const pending = (
+        stage === 'validate' ? f.publisher.validateDestination(destination) : f.publish()
+      ).then((result) => {
+        settled = true;
+        return result;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      f.publisher.close();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.publisher.ready()).toBe(false);
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+      cleanup.release();
+      expect(await pending).toEqual(stage === 'validate' ? false : { outcome: 'rejected' });
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+  it('waits for fetch cancellation cleanup before returning a safe preflight rejection', async () => {
+    const cleanup = gate();
+    const cancelling = gate();
+    const f = fixture({
+      transport: async (_url, init) => {
+        await new Promise<void>((resolve) =>
+          init!.signal!.addEventListener('abort', () => resolve(), { once: true }),
+        );
+        cancelling.release();
+        await cleanup.promise;
+        throw init!.signal!.reason;
+      },
+    });
+    const controller = new AbortController();
+    let settled = false;
+    const pending = f.publish(story, destination, controller.signal).then((result) => {
+      settled = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(f.makeRequest).toHaveBeenCalledOnce());
+    controller.abort();
+    await cancelling.promise;
+    expect(settled).toBe(false);
+    cleanup.release();
+    expect(await pending).toEqual({ outcome: 'rejected' });
+    expect(f.makeRequest).toHaveBeenCalledOnce();
+  });
+  it('joins cleanup for a response arriving after cancellation without admitting another request', async () => {
+    vi.useFakeTimers();
+    const f = fixture({ timeoutMs: 100 });
+    const cleanup = gate();
+    const responseGate = gate();
+    const cancel = vi.fn(async () => cleanup.promise);
+    f.makeRequest.mockImplementation(async () => {
+      await responseGate.promise;
+      return new Response(new ReadableStream({ cancel }));
+    });
+    let settled = false;
+    const pending = f.publish().then((result) => {
+      settled = true;
+      return result;
+    });
+    await vi.advanceTimersByTimeAsync(100);
+    responseGate.release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+    cleanup.release();
+    expect(await pending).toEqual({ outcome: 'rejected' });
+    expect(f.makeRequest).toHaveBeenCalledOnce();
+  });
+  it.each([403, 429])(
+    'waits for cleanup while retaining confirmed POST HTTP %s rejection',
+    async (status) => {
+      vi.useFakeTimers();
+      const f = fixture({ timeoutMs: 100 });
+      const normal = f.makeRequest.getMockImplementation()!;
+      const cleanup = gate();
+      const cancel = vi.fn(async () => cleanup.promise);
+      f.makeRequest.mockImplementation(async (url, init) =>
+        init!.method !== 'POST'
+          ? normal(url, init)
+          : new Response(new ReadableStream({ cancel }), {
+              status,
+              headers: { 'retry-after': '5' },
+            }),
+      );
+      let settled = false;
+      const pending = f.publish().then((result) => {
+        settled = true;
+        return result;
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+      cleanup.release();
+      expect(await pending).toEqual(
+        status === 403
+          ? { outcome: 'destination-unavailable' }
+          : { outcome: 'rejected', retryAt: new Date('2026-09-14T18:00:05Z') },
+      );
+      expect(vi.getTimerCount()).toBe(0);
+      expect(f.makeRequest.mock.calls.filter(([, init]) => init!.method === 'POST')).toHaveLength(
+        1,
+      );
+    },
+  );
+  it('waits for oversized-body cancellation and contains rejected cleanup without retrying', async () => {
+    const f = fixture();
+    const normal = f.makeRequest.getMockImplementation()!;
+    const cleanup = gate();
+    const cancel = vi.fn(async () => {
+      await cleanup.promise;
+      throw new Error('cleanup rejected');
+    });
+    f.makeRequest.mockImplementation(async (url, init) =>
+      init!.method !== 'POST'
+        ? normal(url, init)
+        : new Response(
+            new ReadableStream({
+              start: (controller) => controller.enqueue(new Uint8Array(1_048_577)),
+              cancel,
+            }),
+          ),
+    );
+    let settled = false;
+    const pending = f.publish().then((result) => {
+      settled = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
+    expect(settled).toBe(false);
+    cleanup.release();
+    expect(await pending).toEqual({ outcome: 'uncertain' });
+    expect(f.makeRequest.mock.calls.filter(([, init]) => init!.method === 'POST')).toHaveLength(1);
   });
 });

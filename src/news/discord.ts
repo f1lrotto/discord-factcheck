@@ -70,8 +70,8 @@ const permissionsIn = (
   return new PermissionsBitField(apply(apply(apply(base, everyone), groups), individual));
 };
 
-// The race bounds even a stalled transport. The same signal cancels the underlying REST request;
-// every continuation checks it before starting another operation, especially the POST.
+// Deadlines initiate cancellation; the operation must settle only after its cleanup has
+// completed. Racing it would let runtime shutdown return with a live request/body behind it.
 const bounded = async <T>(
   timeoutMs: number,
   signals: AbortSignal[],
@@ -80,19 +80,11 @@ const bounded = async <T>(
   const controller = new AbortController();
   const signal = AbortSignal.any([...signals, controller.signal]);
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let onAbort = () => {};
   try {
     signal.throwIfAborted();
-    return await Promise.race([
-      new Promise<never>((_, reject) => {
-        onAbort = () => reject(signal.reason);
-        signal.addEventListener('abort', onAbort, { once: true });
-      }),
-      operation(signal),
-    ]);
+    return await operation(signal);
   } finally {
     clearTimeout(timer);
-    signal.removeEventListener('abort', onAbort);
   }
 };
 
@@ -115,10 +107,13 @@ const rejection = (error: unknown, sending: boolean): NewsPublishResult => {
 const readJson = async (response: Response, signal: AbortSignal) => {
   const reader = response.body?.getReader();
   if (!reader) throw new Error('Missing Discord response body');
-  const cancel = () => {
-    void reader.cancel().catch(() => {});
+  let cancellation: Promise<void> | undefined;
+  // A second reader.cancel() can resolve before the first underlying cancellation finishes.
+  const cancel = () => (cancellation ??= reader.cancel().catch(() => {}));
+  const onAbort = () => {
+    cancel();
   };
-  signal.addEventListener('abort', cancel, { once: true });
+  signal.addEventListener('abort', onAbort, { once: true });
   try {
     signal.throwIfAborted();
     const chunks: Uint8Array[] = [];
@@ -133,8 +128,8 @@ const readJson = async (response: Response, signal: AbortSignal) => {
     }
     return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
   } finally {
-    signal.removeEventListener('abort', cancel);
-    cancel();
+    signal.removeEventListener('abort', onAbort);
+    await cancel();
   }
 };
 
@@ -173,7 +168,7 @@ const createTransport = (token: string, clock: NewsClock, makeRequest: typeof fe
         headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-      if (signal.aborted) void response.body?.cancel().catch(() => {});
+      if (signal.aborted) await response.body?.cancel().catch(() => {});
       signal.throwIfAborted();
       const receivedAt = clock().getTime();
       const hash = response.headers.get('x-ratelimit-bucket');
@@ -214,7 +209,7 @@ const createTransport = (token: string, clock: NewsClock, makeRequest: typeof fe
         throw { kind: 'rate-limited', retryAt };
       }
       if (!response.ok) {
-        void response.body?.cancel().catch(() => {});
+        await response.body?.cancel().catch(() => {});
         throw { kind: 'http', status: response.status };
       }
       return readJson(response, signal);
@@ -238,6 +233,8 @@ export const createNewsDiscordPublisher = ({
   token: string;
   timeoutMs?: number;
   clock?: NewsClock;
+  // Injected fetches must honor AbortSignal and settle after cancellation cleanup, as native
+  // fetch does. An adapter that never settles cannot provide both bounded work and drainage.
   makeRequest?: typeof fetch;
 }) => {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000)
@@ -345,6 +342,7 @@ export const createNewsDiscordPublisher = ({
   return {
     ...publisher,
     close: () => {
+      // Initiate cancellation; callers drain active publish/validate operations before teardown.
       lifetime.abort();
     },
   };
