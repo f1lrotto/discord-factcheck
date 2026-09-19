@@ -92,6 +92,7 @@ export const main = async () => {
     resolveLocale: async (guildId) => (await store.getSettings(guildId)).locale,
   });
   const discord = createDiscordBot({
+    releaseStore: store.releases!,
     briefingStore: store.briefing!,
     briefingMaximumCities: config.BRIEFING_MAX_CITIES,
     reminderStore: store.reminders!,

@@ -4,6 +4,8 @@ import {
   type BriefingCommandServices,
 } from './briefing/commands.js';
 import { handleReminderCommand } from './reminder-commands.js';
+import { releasesGroup, handleReleaseCommand } from './releases/commands.js';
+import type { ReleaseAnnouncements } from './releases/discord.js';
 import type { ReminderStore } from './reminders.js';
 import {
   MessageFlags,
@@ -126,6 +128,7 @@ export const createCommand = (maximumContextMessages: number) =>
     .addSubcommandGroup((group) => newsGroup(group, 'continuous'))
     .addSubcommandGroup((group) => newsGroup(group, 'daily'))
     .addSubcommandGroup(briefingGroup)
+    .addSubcommandGroup(releasesGroup)
     .addSubcommand((command) =>
       command
         .setName('remind')
@@ -264,6 +267,7 @@ export const createCommand = (maximumContextMessages: number) =>
     );
 
 export const createCommandHandler = (input: {
+  releases?: ReleaseAnnouncements;
   news?: NewsCommandServices;
   briefing?: BriefingCommandServices;
   reminderStore?: ReminderStore;
@@ -360,6 +364,11 @@ export const createCommandHandler = (input: {
     if (group === 'briefing') {
       if (input.briefing) await handleBriefingCommand(interaction, input.briefing, settings.locale);
       else await edit(copy.briefing.unavailable);
+      return;
+    }
+    if (group === 'releases') {
+      if (input.releases) await handleReleaseCommand(interaction, input.releases, settings.locale);
+      else await edit(copy.common.temporarilyUnavailable);
       return;
     }
     if (group) {

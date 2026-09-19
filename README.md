@@ -75,6 +75,31 @@ Example: `/jolanda ask question:Vysvetli mi tento vtip model:` then type `hermes
 profile. Any member can use this one-answer selection; Manage Server is required to persist a
 server default with `/jolanda model profile:`.
 
+## Release notes
+
+Members with **Manage Server** can configure a persistent, per-server release channel:
+
+- `/jolanda releases set channel:#updates` saves a text or announcement channel and posts the
+  current release if it has not already been announced on that server.
+- `/jolanda releases status` shows the setting.
+- `/jolanda releases disable` stops announcements and removes the saved destination.
+
+Command confirmations are private. Release notes are visible to everyone who can read the
+selected channel, without pings or crossposting. Jolanda needs View Channel and Send Messages
+there. Notes use the server's Slovak or English language setting and explain what changed,
+how to use it, and to restart Discord if the changes are not visible.
+
+Each new release is announced after startup command registration. Ordinary restarts, repeated
+configuration, channel changes, and rolling back to an older release do not repeat a previously
+attempted announcement. No channel is chosen automatically. Only the current release is posted;
+there is no historical backlog. A known Discord rejection can be retried on the next startup or
+`set` command; a timeout or crash after sending begins is not retried because delivery may
+already have happened. A failed announcement does not stop other guilds or the bot.
+
+Release authors update the increasing timestamp and both translations in `src/releases/current.ts`
+before building and restarting; see `AGENTS.md` for the release checklist. Release notes are
+authored text and do not call an AI model.
+
 ## Architecture
 
 - The Discord adapter owns bounded gateway admission, command authorization, reply detection,

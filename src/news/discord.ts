@@ -251,6 +251,7 @@ export const createNewsDiscordPublisher = ({
     destination: NewsDestination,
     signal: AbortSignal,
     onRejection?: (result: NewsPublishResult) => void,
+    requiredPermissions = required,
   ) => {
     if (!ready() || !destinationSchema.safeParse(destination).success) return false;
     const userId = client.user!.id;
@@ -276,7 +277,7 @@ export const createNewsDiscordPublisher = ({
     )
       return false;
     const permissions = permissionsIn(channel, roles, member);
-    if (!permissions.has(required)) return false;
+    if (!permissions.has(requiredPermissions)) return false;
     if (!destination.notifyRoleId) return true;
     const role = roles.find((role) => role.id === destination.notifyRoleId);
     return Boolean(
@@ -285,17 +286,21 @@ export const createNewsDiscordPublisher = ({
       (role.mentionable || permissions.has(PermissionFlagsBits.MentionEveryone)),
     );
   };
+  const validateDestination = async (
+    destination: NewsDestination,
+    requiredPermissions = required,
+  ) => {
+    try {
+      return await bounded(timeoutMs, [lifetime.signal], (signal) =>
+        validate(destination, signal, undefined, requiredPermissions),
+      );
+    } catch {
+      return false;
+    }
+  };
   const publisher: NewsPublisher = {
     ready,
-    validateDestination: async (destination) => {
-      try {
-        return await bounded(timeoutMs, [lifetime.signal], (signal) =>
-          validate(destination, signal),
-        );
-      } catch {
-        return false;
-      }
-    },
+    validateDestination,
     publish: async ({ content, ...call }) => {
       try {
         return await publishPayload({
@@ -316,11 +321,13 @@ export const createNewsDiscordPublisher = ({
     payload,
     nonce,
     signal: callerSignal,
+    requiredPermissions = required,
   }: {
     destination: NewsDestination;
     payload: RESTPostAPIChannelMessageJSONBody;
     nonce: string;
     signal: AbortSignal;
+    requiredPermissions?: bigint;
   }) => {
     let sending = false;
     let confirmedRejection: NewsPublishResult | undefined;
@@ -333,7 +340,7 @@ export const createNewsDiscordPublisher = ({
         [callerSignal, lifetime.signal],
         async (signal): Promise<NewsPublishResult> => {
           if (!ready() || !nonce) return { outcome: 'rejected' };
-          if (!(await validate(destination, signal, rememberRejection)))
+          if (!(await validate(destination, signal, rememberRejection, requiredPermissions)))
             return { outcome: 'destination-unavailable' };
           signal.throwIfAborted();
           if (!ready()) return { outcome: 'rejected' };
@@ -366,6 +373,7 @@ export const createNewsDiscordPublisher = ({
 
   return {
     ...publisher,
+    validateDestination,
     publishPayload,
     close: () => {
       // Initiate cancellation; callers drain active publish/validate operations before teardown.

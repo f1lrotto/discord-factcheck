@@ -52,6 +52,15 @@ const days = (count: number) =>
   plural(locale, count, { one: '{count} dni', few: '{count} dňoch', other: '{count} dňoch' });
 
 export const sk = {
+  releases: {
+    disabled: 'Prehľad zmien je vypnutý. Zapnete ho cez `/jolanda releases set channel:#novinky`.',
+    invalidChannel:
+      'Vyberte textový alebo oznamovací kanál na tomto serveri, ktorý Jolanda môže vidieť a posielať doň správy.',
+    configured: (channelId: string, failed: boolean) =>
+      `Prehľad zmien bude v <#${channelId}>. Nastavenie je uložené pre tento server. ${failed ? 'Doručenie aktuálneho oznámenia sa nepodarilo potvrdiť; skontrolujte oprávnenia Jolandy v kanáli.' : 'Každé vydanie sa oznámi iba raz na server.'}`,
+    status: (channelId: string) =>
+      `Prehľad zmien je zapnutý v <#${channelId}>. Každé nové vydanie sa oznámi raz, v jazyku servera.`,
+  },
   locale,
   languageName: 'Slovenčina',
 

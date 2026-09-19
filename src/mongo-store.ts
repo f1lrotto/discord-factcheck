@@ -1,4 +1,5 @@
 import { createMongoBriefing } from './briefing/mongo.js';
+import { createReleaseStore } from './releases/store.js';
 import { createMongoReminders } from './mongo-reminders.js';
 import { createMongoNews, type NewsMongoOptions } from './news/mongo.js';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
@@ -43,6 +44,7 @@ export const createMongoStore = (
   } = {},
 ): JolandaStore & {
   reels: ReelStore;
+  releases?: ReturnType<typeof createReleaseStore>;
   briefing?: ReturnType<typeof createMongoBriefing>;
   reminders?: ReturnType<typeof createMongoReminders>;
   news?: ReturnType<typeof createMongoNews>;
@@ -89,6 +91,7 @@ export const createMongoStore = (
     reels: createMongoReels(context),
     ...(input.secret
       ? {
+          releases: createReleaseStore(database, input.secret),
           reminders: createMongoReminders(context, { secret: input.secret }),
           briefing: createMongoBriefing(context, input.secret),
         }

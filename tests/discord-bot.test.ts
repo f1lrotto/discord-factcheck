@@ -136,6 +136,7 @@ const createMessage = (overrides: Record<string, unknown> = {}) => {
 };
 
 const createBot = (input: {
+  releaseStore?: Parameters<typeof createDiscordBot>[0]['releaseStore'];
   reels?: ReturnType<typeof createDiscordReels>;
   jolanda: Jolanda;
   store?: JolandaStore;
@@ -146,6 +147,7 @@ const createBot = (input: {
   const client = input.client ?? createClient();
   const store = input.store ?? createStore();
   const bot = createDiscordBot({
+    ...(input.releaseStore ? { releaseStore: input.releaseStore } : {}),
     ...(input.reels ? { reels: input.reels } : {}),
     client: client.client,
     token: 'discord-token',
@@ -218,6 +220,35 @@ const createInteraction = (input: {
 };
 
 describe('Discord adapter', () => {
+  it.each([false, true])(
+    'announces releases only after successful command registration (failure: %s)',
+    async (failed) => {
+      const client = createClient();
+      client.guilds.cache.set('guild', {
+        id: 'guild',
+        commands: { fetch: async () => new Collection() },
+      });
+      if (failed) client.commands.set.mockRejectedValue(new Error('registration failed'));
+      const get = vi.fn(async () => null);
+      const releaseStore = { get } as unknown as NonNullable<
+        Parameters<typeof createDiscordBot>[0]['releaseStore']
+      >;
+      const { bot } = createBot({
+        client,
+        releaseStore,
+        jolanda: { handleTurn: vi.fn(), shutdown: vi.fn() } as unknown as Jolanda,
+      });
+      client.emitter.emit(Events.ClientReady, client.client);
+      await bot.drain();
+      expect(get).toHaveBeenCalledTimes(failed ? 0 : 1);
+      if (!failed) {
+        expect(get).toHaveBeenCalledWith('guild');
+        expect(client.commands.set.mock.invocationCallOrder[0]).toBeLessThan(
+          get.mock.invocationCallOrder[0]!,
+        );
+      }
+    },
+  );
   it('answers model autocomplete with localized descriptions without running a turn', async () => {
     const handleTurn = vi.fn();
     const { client, bot } = createBot({

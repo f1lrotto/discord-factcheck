@@ -34,6 +34,15 @@ const days = (count: number) =>
   plural(locale, count, { one: '{count} day', other: '{count} days' });
 
 export const en = {
+  releases: {
+    disabled: 'Release notes are off. Use `/jolanda releases set channel:#updates` to enable them.',
+    invalidChannel:
+      'Choose a text or announcement channel in this server where Jolanda can view the channel and send messages.',
+    configured: (channelId: string, failed: boolean) =>
+      `Release notes will go to <#${channelId}>. This setting is saved for this server. ${failed ? 'The current announcement could not be confirmed; check Jolanda’s channel permissions.' : 'Each release is announced only once per server.'}`,
+    status: (channelId: string) =>
+      `Release notes are enabled in <#${channelId}>. Each new release is announced once, in the server’s language.`,
+  },
   locale,
   languageName: 'English',
 

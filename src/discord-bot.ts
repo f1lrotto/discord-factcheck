@@ -1,4 +1,6 @@
 import type { BriefingStore } from './briefing/types.js';
+import { createReleaseAnnouncements } from './releases/discord.js';
+import type { createReleaseStore } from './releases/store.js';
 import type { ReminderStore, ReminderPublisher } from './reminders.js';
 import { text } from './news/render.js';
 import { formatDateTime } from './i18n/format.js';
@@ -32,6 +34,7 @@ import { createNewsDiscordPublisher } from './news/discord.js';
 import type { NewsPublisher, NewsStore } from './news/types.js';
 
 export const createDiscordBot = (input: {
+  releaseStore?: ReturnType<typeof createReleaseStore>;
   newsStore?: NewsStore;
   briefingStore?: BriefingStore;
   briefingMaximumCities?: number;
@@ -69,7 +72,7 @@ export const createDiscordBot = (input: {
       rest: { timeout: discordOperationTimeoutMs },
     });
   const ownedNewsPublisher =
-    input.newsStore || input.briefingStore || input.reminderStore
+    input.newsStore || input.briefingStore || input.reminderStore || input.releaseStore
       ? createNewsDiscordPublisher({
           ...input.newsPublisherOptions,
           client,
@@ -78,8 +81,20 @@ export const createDiscordBot = (input: {
         })
       : undefined;
   const newsPublisher: NewsPublisher | undefined = ownedNewsPublisher;
+  const releases =
+    input.releaseStore && ownedNewsPublisher
+      ? createReleaseAnnouncements({
+          publisher: ownedNewsPublisher,
+          store: input.releaseStore,
+          resolveLocale: async (guildId) => (await input.store.getSettings(guildId)).locale,
+          logger: input.logger,
+          protectIdentifier: input.protectIdentifier,
+          isAccepting: () => accepting,
+        })
+      : undefined;
   const handleCommand = createCommandHandler({
     ...input,
+    ...(releases ? { releases } : {}),
     ...(input.briefingStore && ownedNewsPublisher
       ? {
           briefing: {
@@ -269,6 +284,12 @@ export const createDiscordBot = (input: {
             event: 'discord_connected',
             botUserKey: input.protectIdentifier(readyClient.user.id),
           });
+          if (releases) {
+            for (const guildId of readyClient.guilds.cache.keys()) {
+              if (!accepting) break;
+              await releases.announce(guildId);
+            }
+          }
         })
         .catch((error: unknown) => {
           input.logger.error({

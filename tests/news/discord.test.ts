@@ -120,6 +120,37 @@ const overwrite = (id: string, type: number, allow = 0n, deny = 0n) => ({
 });
 
 describe('news destination authorization', () => {
+  it.each([200, 403, 503])(
+    'sends plaintext releases without Embed Links or hidden retries (%s)',
+    async (status) => {
+      const f = fixture();
+      const requiredPermissions =
+        PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages;
+      f.roles[0]!.permissions = String(requiredPermissions);
+      expect(await f.publisher.validateDestination(destination)).toBe(false);
+      expect(await f.publisher.validateDestination(destination, requiredPermissions)).toBe(true);
+      const normal = f.makeRequest.getMockImplementation()!;
+      f.makeRequest.mockImplementation(async (url, init) =>
+        init?.method === 'POST' && status !== 200 ? response({}, status) : normal(url, init),
+      );
+      const result = await f.publisher.publishPayload({
+        destination,
+        nonce: 'release:2026-09-19T21:23:00Z',
+        payload: {
+          content: 'Release notes. Restart Discord if changes are missing.',
+          allowed_mentions: { parse: [] },
+        },
+        signal: new AbortController().signal,
+        requiredPermissions,
+      });
+      expect(result.outcome).toBe(
+        status === 200 ? 'sent' : status === 403 ? 'destination-unavailable' : 'uncertain',
+      );
+      expect(f.makeRequest.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(
+        1,
+      );
+    },
+  );
   it.each([ChannelType.GuildText, ChannelType.GuildAnnouncement])(
     're-fetches the selected channel, guild roles and bot member for channel type %s',
     async (type) => {

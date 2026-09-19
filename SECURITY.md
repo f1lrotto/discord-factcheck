@@ -5,6 +5,14 @@ small production service even when it is used by only one server.
 
 ## Security boundaries
 
+Release notes are opt-in per guild and configured only by members with Manage Server.
+`release_subscriptions` stores HMAC guild keys and authenticated-encrypted destinations in
+the separate `jolanda/releases/v1` namespace. Disabling erases routing identifiers; the delivery
+marker remains to prevent duplicate announcements. Startup delivery checks the destination guild,
+channel type, and bot View Channel/Send Messages permissions. Notes are authored release text,
+never model output, and suppress mentions and embeds. Atomic claims prevent duplicate sends
+across replicas; ambiguous sends are not retried. Only confirmed Discord rejections are retryable.
+
 - The servers where the Discord application is installed and its per-channel permissions define where
   Jolanda operates.
 - Only members with **Manage Server** can change the server's default model/reasoning profile or
