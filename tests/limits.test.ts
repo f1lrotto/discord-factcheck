@@ -32,7 +32,7 @@ describe('cost and concurrency limits', () => {
 
     expect(medium).toBeGreaterThan(100_000);
     expect(maximum).toBeGreaterThanOrEqual(medium);
-    expect(maximum).toBeLessThan(2_000_000);
+    expect(maximum).toBeLessThan(10_000_000);
 
     const configurations = Object.values(modelCatalog).flatMap((model) =>
       model.reasoningEfforts.map((reasoning) => ({ model, reasoning })),
@@ -63,8 +63,8 @@ describe('cost and concurrency limits', () => {
     expect(maximum).toBeGreaterThanOrEqual(Math.max(...totals));
     expect(maximum).toBe(
       costEnvelopeMicrodollars({
-        model: 'luna',
-        reasoning: 'max',
+        model: 'grok-4.3',
+        reasoning: 'high',
         maximumPromptCharacters: 32_000,
         imageCount: imageLimits.count,
       }),

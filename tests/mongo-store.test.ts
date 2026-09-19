@@ -54,7 +54,6 @@ describe('Mongo client policy', () => {
       {
         uri: 'mongodb://unused',
         databaseName: 'jolanda',
-        dailyLimitMicrodollars: 2_000_000,
         monthlyLimitMicrodollars: 10_000_000,
         promptsPerMinute: 3,
         transcriptTtlMs: 60_000,

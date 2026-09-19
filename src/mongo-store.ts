@@ -26,7 +26,6 @@ export const createMongoStore = (
   input: {
     uri: string;
     databaseName: string;
-    dailyLimitMicrodollars: number;
     monthlyLimitMicrodollars: number;
     promptsPerMinute: number;
     transcriptTtlMs: number;

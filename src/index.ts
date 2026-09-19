@@ -33,7 +33,6 @@ export const main = async () => {
   const store = createMongoStore({
     uri: config.MONGODB_URI,
     databaseName: config.MONGODB_DB_NAME,
-    dailyLimitMicrodollars: config.dailySpendLimitMicrodollars,
     monthlyLimitMicrodollars: config.monthlySpendLimitMicrodollars,
     promptsPerMinute: config.PROMPTS_PER_MINUTE,
     transcriptTtlMs: config.transcriptTtlMs,
@@ -106,7 +105,6 @@ export const main = async () => {
     maximumContextMessages: config.MAX_CONTEXT_MESSAGES,
     promptsPerMinute: config.PROMPTS_PER_MINUTE,
     transcriptTtlDays: config.TRANSCRIPT_TTL_DAYS,
-    dailyLimitMicrodollars: config.dailySpendLimitMicrodollars,
     monthlyLimitMicrodollars: config.monthlySpendLimitMicrodollars,
     protectIdentifier,
     jolanda,

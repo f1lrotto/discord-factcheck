@@ -35,11 +35,15 @@ describe('environment configuration', () => {
     ).toThrow('Expected a supported IANA time zone');
   });
 
-  it('derives a bounded cost envelope below the default daily limit', () => {
+  it('derives a bounded cost envelope below the default monthly limit', () => {
     const config = loadConfig(requiredEnvironment);
 
     expect(config.maximumCostEnvelopeMicrodollars).toBeGreaterThan(100_000);
-    expect(config.maximumCostEnvelopeMicrodollars).toBeLessThan(config.dailySpendLimitMicrodollars);
+    expect(config.maximumCostEnvelopeMicrodollars).toBeLessThan(
+      config.monthlySpendLimitMicrodollars,
+    );
+    expect(config).not.toHaveProperty('DAILY_SPEND_LIMIT_USD');
+    expect(config).not.toHaveProperty('dailySpendLimitMicrodollars');
     expect(config.MAX_CONCURRENT_TURNS).toBe(2);
   });
 
@@ -78,7 +82,7 @@ describe('environment configuration', () => {
   });
 
   it('rejects spend limits below one worst-case turn', () => {
-    expect(() => loadConfig({ ...requiredEnvironment, DAILY_SPEND_LIMIT_USD: '0.01' })).toThrow(
+    expect(() => loadConfig({ ...requiredEnvironment, MONTHLY_SPEND_LIMIT_USD: '0.01' })).toThrow(
       'maximum per-turn cost envelope',
     );
   });
@@ -86,8 +90,8 @@ describe('environment configuration', () => {
   it('rejects spend limits that cannot be represented as safe microdollar integers', () => {
     for (const unsafeLimit of ['1e308', '10000000000']) {
       expect(() =>
-        loadConfig({ ...requiredEnvironment, DAILY_SPEND_LIMIT_USD: unsafeLimit }),
-      ).toThrow('finite safe microdollar integers');
+        loadConfig({ ...requiredEnvironment, MONTHLY_SPEND_LIMIT_USD: unsafeLimit }),
+      ).toThrow('finite safe microdollar integer');
     }
   });
 });

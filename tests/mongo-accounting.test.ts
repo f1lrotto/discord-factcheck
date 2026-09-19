@@ -35,7 +35,6 @@ const accountingWithScan = (scan: () => Promise<void>) => {
     logger,
   } as unknown as MongoContext;
   const accounting = createMongoAccounting(context, {
-    dailyLimitMicrodollars: 2_000_000,
     monthlyLimitMicrodollars: 10_000_000,
     promptsPerMinute: 3,
     transcriptTtlMs: 60_000,

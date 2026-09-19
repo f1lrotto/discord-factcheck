@@ -65,7 +65,6 @@ export type UsageFacts = {
   sparkline: string;
   totalCost: string;
   dailyCost: string;
-  dailyLimit: string;
   monthlyCost: string;
   monthlyLimit: string;
   members: UsageMemberRow[];

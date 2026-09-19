@@ -32,7 +32,6 @@ export const sparkline = (values: readonly number[]) => {
 export const usageFacts = (input: {
   summary: UsageSummary;
   budget: BudgetSummary;
-  dailyLimitMicrodollars: number;
   monthlyLimitMicrodollars: number;
   knownMembers: ReadonlyMap<string, string>;
   othersLabel: string;
@@ -73,7 +72,6 @@ export const usageFacts = (input: {
     dailyCost: formatUsd(
       input.budget.dailyUsedMicrodollars + input.budget.dailyReservedMicrodollars,
     ),
-    dailyLimit: formatUsd(input.dailyLimitMicrodollars),
     monthlyCost: formatUsd(
       input.budget.monthlyUsedMicrodollars + input.budget.monthlyReservedMicrodollars,
     ),

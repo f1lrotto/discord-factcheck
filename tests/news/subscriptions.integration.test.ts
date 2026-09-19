@@ -51,7 +51,6 @@ describe('encrypted Mongo news subscriptions', () => {
     const store = createMongoStore({
       uri: replicaSet.getUri(),
       databaseName,
-      dailyLimitMicrodollars: 1_000_000,
       monthlyLimitMicrodollars: 10_000_000,
       promptsPerMinute: 3,
       transcriptTtlMs: 60_000,

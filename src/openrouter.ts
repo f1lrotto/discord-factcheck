@@ -49,6 +49,9 @@ const usageSchema = z
     completion_tokens_details: z
       .object({ reasoning_tokens: z.number().int().nonnegative().optional() })
       .nullish(),
+    server_tool_use_details: z
+      .object({ web_search_requests: z.number().int().nonnegative().optional() })
+      .nullish(),
     server_tool_use: z
       .object({ web_search_requests: z.number().int().nonnegative().optional() })
       .nullish(),
@@ -296,7 +299,10 @@ const toUsage = (usage: z.infer<typeof usageSchema>): Usage | undefined => {
     promptTokens: usage.prompt_tokens ?? usage.input_tokens ?? 0,
     completionTokens: usage.completion_tokens ?? usage.output_tokens ?? 0,
     reasoningTokens: usage.completion_tokens_details?.reasoning_tokens ?? 0,
-    webSearchRequests: usage.server_tool_use?.web_search_requests ?? 0,
+    webSearchRequests:
+      usage.server_tool_use_details?.web_search_requests ??
+      usage.server_tool_use?.web_search_requests ??
+      0,
   };
 };
 
@@ -311,11 +317,15 @@ const combineUsage = (left: Usage | undefined, right: Usage | undefined) => {
   } satisfies Usage;
 };
 
-const withToolContext = (messages: ChatMessage[]) => {
-  const context = `Trusted capability state:
+const withToolContext = (messages: ChatMessage[], supportsTools: boolean) => {
+  const context = supportsTools
+    ? `Trusted capability state:
 - Jolanda has direct read-only calculator, datetime, time-zone, public web-search, and public web-fetch tools on this generation.
 - Use the tools when they improve accuracy or freshness, and answer directly when they do not.
-- Never claim that Jolanda lacks any of these attached capabilities.`;
+- Never claim that Jolanda lacks any of these attached capabilities.`
+    : `Trusted capability state:
+- This model is chat-only: no web search, web fetch, calculator, or reminder tools are attached.
+- Do not claim to browse, verify current facts, or create reminders. Explain the limitation when relevant; suggest selecting a tool-capable model or using /jolanda remind for reminders.`;
   const systemIndex = messages.findIndex((message) => message.role === 'system');
   if (systemIndex < 0) return [{ role: 'system' as const, content: context }, ...messages];
   return messages.map((message, index) =>
@@ -461,7 +471,14 @@ export const createOpenRouter = (input: {
         body: JSON.stringify({
           model: model.openRouterId,
           messages: request.messages,
-          reasoning: { effort: request.reasoning, exclude: false },
+          ...(model.reasoningMode === 'none'
+            ? {}
+            : {
+                reasoning:
+                  model.reasoningMode === 'toggle'
+                    ? { enabled: request.reasoning !== 'none', exclude: false }
+                    : { effort: request.reasoning, exclude: false },
+              }),
           max_tokens: request.maximumCompletionTokens,
           stream: true,
           ...(request.tools.length
@@ -476,7 +493,8 @@ export const createOpenRouter = (input: {
             data_collection: 'deny',
             ...(model.supportsZdr ? { zdr: true } : {}),
             require_parameters: true,
-            sort: 'price',
+            // The lowest-price Mistral route repeatedly rate-limits; prefer its working EU route.
+            ...(model.id === 'mistral-small-4' ? { order: ['mistral/eu'] } : { sort: 'price' }),
             // OpenRouter currently rejects max_price when a server tool is present.
             ...(hasServerTools
               ? {}
@@ -835,7 +853,8 @@ export const createOpenRouter = (input: {
     const reportProgress = onProgress ?? (async (progress: ModelProgress) => void progress);
     const answerRequest = async (messages: ChatMessage[]) => {
       await reportProgress({ type: 'stage', stage: 'answering' });
-      const activeMessages = withToolContext(messages);
+      const model = getModel(request.model);
+      const activeMessages = withToolContext(messages, model.supportsTools);
       const citationUrls = new Set<string>();
       let sourceCitations: SourceCitation[] = [];
       let content = '';
@@ -857,7 +876,7 @@ export const createOpenRouter = (input: {
       // answer it was about to interrupt with a tool call it is no longer allowed to make.
       const finalTextOnlyRound = maximumFunctionToolRounds + 1;
       for (let round = 0; round <= finalTextOnlyRound; round += 1) {
-        const textOnly = round === finalTextOnlyRound;
+        const textOnly = !model.supportsTools || round === finalTextOnlyRound;
         const toolbox =
           round === 0
             ? initialToolbox
@@ -983,7 +1002,7 @@ export const createOpenRouter = (input: {
         sourceCitations,
         truncated: finalDiagnostics.finishReason === 'length',
         toolActivity: {
-          offered: initialToolbox.offered,
+          offered: model.supportsTools ? initialToolbox.offered : [],
           called,
           functionRounds: toolRoundDiagnostics.length,
         },

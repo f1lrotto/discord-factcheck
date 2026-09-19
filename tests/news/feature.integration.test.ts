@@ -151,7 +151,6 @@ describe('whole news journeys from native command configuration to durable deliv
         {
           uri: replicaSet.getUri(),
           databaseName,
-          dailyLimitMicrodollars: 1_000_000,
           monthlyLimitMicrodollars: 10_000_000,
           promptsPerMinute: 3,
           transcriptTtlMs: 60_000,

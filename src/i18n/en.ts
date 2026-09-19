@@ -339,7 +339,7 @@ export const en = {
         usageHeading(facts.windowDays),
         '',
         `Spend  ${facts.sparkline}  ${facts.totalCost} total`,
-        `Today ${facts.dailyCost} of ${facts.dailyLimit} · Month ${facts.monthlyCost} of ${facts.monthlyLimit}`,
+        `Today ${facts.dailyCost} · Month ${facts.monthlyCost} of ${facts.monthlyLimit}`,
         '',
         `**Per member (last ${facts.memberWindowDays} days)**`,
         ...(facts.members.length
@@ -377,8 +377,6 @@ export const en = {
     shutting_down: 'Jolanda is restarting. Please try again in a moment.',
     duplicate: '',
     rate_limited: `You can send at most ${promptsPerMinute} prompts in a rolling minute. Please wait a moment.`,
-    daily_budget:
-      'Jolanda has reached the server’s daily spending limit. Please try again tomorrow.',
     monthly_budget: 'Jolanda has reached the server’s monthly spending limit.',
   }),
 

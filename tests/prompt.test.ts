@@ -41,7 +41,7 @@ describe('prompt construction', () => {
 
   it('marks channel context as untrusted and instructs multilingual replies', () => {
     expect(systemPrompt).toContain('language of the latest user question');
-    expect(systemPrompt).toContain('Never claim that Jolanda lacks web-search capability');
+    expect(systemPrompt).toContain('never claim that Jolanda lacks web-search capability');
     expect(systemPrompt).toContain('untrusted data');
   });
 

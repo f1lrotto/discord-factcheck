@@ -8,7 +8,7 @@ the same conversation. She answers in the language the user writes in.
 
 - `@Jolanda What is happening today?` starts a conversation.
 - `/jolanda ask` lets any member enter a question and optionally choose a model/reasoning profile
-  from a dropdown for **that answer only**. Leave the model empty to use the server default.
+  from a searchable picker for **that answer only**. Leave the model empty to use the server default.
   Replies to the answer use the current server default again. Existing spending and rate limits
   apply; profiles without Zero Data Retention are labeled `[no ZDR]`. The answer is public in the
   channel with the question quoted above it and the actual model/reasoning profile shown alongside.
@@ -21,8 +21,8 @@ the same conversation. She answers in the language the user writes in.
   WebP, or GIF, each up to 8 MiB and 40 megapixels. GIFs use the first frame. An image-only mention
   asks for a description. Ambient channel history remains text-only; image links/embeds and videos
   are not treated as photo attachments.
-- GLM 5.3 Flash and Luna handle images directly. When DeepSeek is selected, image-bearing turns
-  use GLM 5.3 Flash and show an **Image model** note; the server setting remains unchanged.
+- GLM 5.3 Flash, Luna, Grok 4.3, Qwen3.8 Flash, and Mistral Small 4 handle images directly.
+  When a text-only model is selected, image-bearing turns use GLM 5.3 Flash and show an **Image model** note; the server setting remains unchanged.
 - Follow-ups retain the conversation text, including earlier descriptions, but not image data.
   To inspect a photo again, reattach it or tag Jolanda while replying to its original message.
 - Replying to any chunk of Jolanda's answer continues the conversation without another mention.
@@ -55,12 +55,25 @@ above. The optional model in `/jolanda ask` never changes saved settings or carr
 - `/jolanda settings` shows model, reasoning, context, and committed spend.
 - `/jolanda model` selects an atomic model/reasoning profile. Discord only offers reasoning efforts
   supported by that model and labels profiles without a Zero Data Retention route as `[no ZDR]`.
+  Both model pickers show a short Slovak or English description. Initially they show one default
+  profile per model; type a model name or reasoning effort (for example `grok high`) to see alternatives.
 - `/jolanda context-limit` controls how many preceding messages members may explicitly request,
   from `0` through `MAX_CONTEXT_MESSAGES` (default maximum `50`). It never changes the per-interaction
   default of zero, and explicit replies still work when the limit is zero.
 
 Defaults are GLM 5.3 Flash, high reasoning, zero ambient context, and an opt-in context limit of
 zero until a server administrator enables it.
+
+Available additions: Hermes 4 405B (fewer refusals),
+Venice Uncensored, Grok 4.3, Qwen3.8 Flash, and Mistral Small 4. Hermes and Venice
+are **chat only** on their current OpenRouter routes: no web research, calculator, or conversational
+reminder creation. `/jolanda remind` remains available independently. Hermes offers thinking off
+(`none`) or on (`high`); Venice offers `none` only. Image turns use the GLM fallback.
+Qwen and Luna are labeled `[no ZDR]`. All models retain Jolanda's system instructions.
+
+Example: `/jolanda ask question:Vysvetli mi tento vtip model:` then type `hermes` and select its
+profile. Any member can use this one-answer selection; Manage Server is required to persist a
+server default with `/jolanda model profile:`.
 
 ## Architecture
 
@@ -69,16 +82,16 @@ zero until a server administrator enables it.
 - The Jolanda core authorizes work before context reads, builds prompts, enforces ownership and
   concurrency, orchestrates inference, settles usage, and drains active turns on shutdown.
 - Exact greetings and acknowledgements are answered locally. Every model turn receives one immutable,
-  trusted clock snapshot in `JOLANDA_TIME_ZONE` (default `Europe/Bratislava`), OpenRouter's datetime
-  tool, local calculator and IANA time-zone conversion tools, and bounded public web-search and
-  web-fetch tools. The model decides which tools a question needs. Local function calls run through a
+  trusted clock snapshot in `JOLANDA_TIME_ZONE` (default `Europe/Bratislava`). Tool-capable models
+  also receive OpenRouter's datetime tool, local calculator and IANA time-zone conversion tools,
+  and bounded public web-search and web-fetch tools. The model decides which tools a question needs. Local function calls run through a
   bounded two-round loop and return structured results to the model; there is no research classifier
   or separate research generation.
 - MongoDB exposes transactional settings, conversation, locking, rate-limit, budget-reservation,
   settlement, and expired-lease recovery operations through a small store interface.
 
 Replies, explicitly requested context, history, and prior turns are labeled as untrusted data in the
-prompt. Because every model turn has direct web tools, that context can influence a model-generated
+prompt. On tool-capable models, that context can influence a model-generated
 public search query; members must not send secrets. Calculator and time-zone tools are deterministic
 and receive no network access. Progress and reasoning summaries are ephemeral
 rendering state: they are not written to transcripts or structured logs. Source-basis labels are
@@ -121,13 +134,16 @@ Set `JOLANDA_TIME_ZONE` to the deployment's default IANA time zone if it should 
 
 ## Limits and accounting
 
-The defaults enforce three accepted prompts per member in a rolling minute, `$2` total server spend
-per UTC day, `$10` per UTC month, two concurrent turns process-wide, one active turn per conversation,
+The defaults enforce three accepted prompts per member in a rolling minute, `$10` total server spend
+per UTC month, two concurrent turns process-wide, one active turn per conversation,
 at most five provider tool calls per request, two local function-call rounds, four local calls per
 round, three search results, two fetched pages, at most 20 active Discord adapter handlers, and
 bounded prompt/output/SSE sizes. Each OpenRouter request has ten minutes to produce its first
 non-empty stream chunk; after streaming starts, inference has no application-level deadline and is
 cancelled only by shutdown or an upstream caller.
+
+There is no server daily spending limit. Daily usage remains tracked; obsolete
+`DAILY_SPEND_LIMIT_USD` environment values are ignored. Monthly limits and the OpenRouter key cap remain.
 
 Before inference, Jolanda computes a conservative reservation from the chosen model, reasoning,
 prompt ceiling, completion ceiling across tool rounds, provider price ceilings, and search/fetch
@@ -195,7 +211,7 @@ OPENROUTER_LIVE_TEST_KEY=... pnpm test:release-live
 ```
 
 Use only a deliberately capped key. `pnpm test:live` remains a smaller compatibility smoke test;
-the release command additionally covers every reasoning effort, web search on each model,
+the release command additionally covers every reasoning effort, web search on each tool-capable model,
 English/Slovak prompt injection, and direct misuse refusals. Both paid commands fail before Vitest
 when the live-test key is absent; `pnpm check` never enables paid calls merely because a key exists
 in the environment.
@@ -356,8 +372,8 @@ errors, command replies and scheduled-message furniture use the guild language. 
 text is preserved. Discord does not offer a Slovak client locale, so slash descriptions use Slovak
 as their base and native English localizations.
 
-`/jolanda usage` requires **Manage Server**. It shows a 14-day UTC spend trend, today's/monthly
-committed budgets, and member totals for `TRANSCRIPT_TTL_DAYS` (7 days by default). Daily spend
+`/jolanda usage` requires **Manage Server**. It shows a 14-day UTC spend trend, today's spend and the monthly
+committed budget, and member totals for `TRANSCRIPT_TTL_DAYS` (7 days by default). Daily spend
 buckets last 120 days; request records last only the configured transcript retention. These windows
 are independent. Only cached Discord members are resolved; unresolved/overflow rows become
 “others”. No privileged member intent or model breakdown is used. Usage-missing turns are counted

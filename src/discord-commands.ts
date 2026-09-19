@@ -15,7 +15,7 @@ import {
   type SlashCommandSubcommandGroupBuilder,
 } from 'discord.js';
 import type { Logger } from 'pino';
-import { defaultGuildSettings, findModelProfile, getModel, modelProfiles } from './models.js';
+import { defaultGuildSettings, findModelProfile, getModel } from './models.js';
 import { formatUsd } from './money.js';
 import { usageTrendDays } from './limits.js';
 import { usageFacts } from './usage-report.js';
@@ -120,9 +120,7 @@ export const createCommand = (maximumContextMessages: number) =>
             .setDescriptionLocalizations(
               english('For this answer only; otherwise use the server default'),
             )
-            .addChoices(
-              ...modelProfiles().map((profile) => ({ name: profile.label, value: profile.id })),
-            ),
+            .setAutocomplete(true),
         ),
     )
     .addSubcommandGroup((group) => newsGroup(group, 'continuous'))
@@ -242,12 +240,7 @@ export const createCommand = (maximumContextMessages: number) =>
             .setDescription('Model a mieru uvažovania')
             .setDescriptionLocalizations(english('Model and reasoning effort'))
             .setRequired(true)
-            .addChoices(
-              ...modelProfiles().map((profile) => ({
-                name: profile.label,
-                value: profile.id,
-              })),
-            ),
+            .setAutocomplete(true),
         ),
     )
     .addSubcommand((command) =>
@@ -277,7 +270,6 @@ export const createCommandHandler = (input: {
   timeZone?: string;
   reelStore?: ReelStore;
   reelsEnabled?: boolean;
-  dailyLimitMicrodollars?: number;
   monthlyLimitMicrodollars?: number;
   transcriptTtlDays: number;
   maximumContextMessages: number;
@@ -451,7 +443,6 @@ export const createCommandHandler = (input: {
           usageFacts({
             summary,
             budget,
-            dailyLimitMicrodollars: input.dailyLimitMicrodollars ?? 0,
             monthlyLimitMicrodollars: input.monthlyLimitMicrodollars ?? 0,
             knownMembers,
             othersLabel: copy.usage.others,

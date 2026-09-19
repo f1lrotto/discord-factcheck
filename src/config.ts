@@ -40,7 +40,6 @@ const envSchema = z.object({
     .min(1000)
     .max(reelLimits.jobMs)
     .default(reelLimits.jobMs),
-  DAILY_SPEND_LIMIT_USD: z.coerce.number().positive().default(2),
   DATA_PROTECTION_SECRET: z.string().min(32),
   DISCORD_TOKEN: z.string().min(1),
   LOG_LEVEL: z.enum(['error', 'info']).default('info'),
@@ -108,16 +107,17 @@ export const loadConfig = (source: NodeJS.ProcessEnv = process.env) => {
     throw new Error('Production MONGODB_URI must enforce TLS');
   }
   const maximumCostEnvelope = maximumCostEnvelopeMicrodollars(values.MAX_PROMPT_CHARACTERS);
-  const dailyLimit = usdToMicrodollars(values.DAILY_SPEND_LIMIT_USD);
   const monthlyLimit = usdToMicrodollars(values.MONTHLY_SPEND_LIMIT_USD);
 
-  if (![dailyLimit, monthlyLimit].every((limit) => Number.isSafeInteger(limit) && limit > 0)) {
-    throw new Error('Configured spend limits must convert to finite safe microdollar integers');
+  if (!Number.isSafeInteger(monthlyLimit) || monthlyLimit <= 0) {
+    throw new Error(
+      'Configured monthly spend limit must convert to a finite safe microdollar integer',
+    );
   }
 
-  if (dailyLimit < maximumCostEnvelope || monthlyLimit < maximumCostEnvelope) {
+  if (monthlyLimit < maximumCostEnvelope) {
     throw new Error(
-      `Configured spend limits must each cover the maximum per-turn cost envelope of $${(
+      `Configured monthly spend limit must cover the maximum per-turn cost envelope of $${(
         maximumCostEnvelope / 1_000_000
       ).toFixed(4)}`,
     );
@@ -125,7 +125,6 @@ export const loadConfig = (source: NodeJS.ProcessEnv = process.env) => {
 
   return {
     ...values,
-    dailySpendLimitMicrodollars: dailyLimit,
     monthlySpendLimitMicrodollars: monthlyLimit,
     maximumCostEnvelopeMicrodollars: maximumCostEnvelope,
     transcriptTtlMs: values.TRANSCRIPT_TTL_DAYS * 24 * 60 * 60 * 1_000,

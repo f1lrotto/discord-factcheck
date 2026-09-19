@@ -66,7 +66,7 @@ messages outside the current Discord response, execute code, or access private s
    retained by their provider. OpenRouter account or guardrail ZDR settings are stricter and can
    still make those models unavailable.
 4. Create a dedicated OpenRouter key and set its provider-side monthly cap to `$10`. The application
-   separately enforces the `$2` UTC daily and `$10` UTC monthly server budgets.
+   separately enforces the `$10` UTC monthly server budget; daily spend is tracked without a daily cap.
 5. Keep Railway variables encrypted and do not put `.env`, database dumps, logs, or Discord exports
    in source control.
 6. Run one Railway replica. Lease-based recovery protects rolling overlap, but active-active gateway

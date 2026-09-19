@@ -380,7 +380,7 @@ export const sk = {
         usageHeading(facts.windowDays),
         '',
         `Výdavky  ${facts.sparkline}  ${facts.totalCost} celkom`,
-        `Dnes ${facts.dailyCost} z ${facts.dailyLimit} · Tento mesiac ${facts.monthlyCost} z ${facts.monthlyLimit}`,
+        `Dnes ${facts.dailyCost} · Tento mesiac ${facts.monthlyCost} z ${facts.monthlyLimit}`,
         '',
         `**Podľa členov (${recentDays(facts.memberWindowDays)})**`,
         ...(facts.members.length
@@ -422,7 +422,6 @@ export const sk = {
       shutting_down: 'Jolanda sa restartuje. Skús to prosím za chvíľu.',
       duplicate: '',
       rate_limited: `Za jednu minútu môžeš poslať najviac ${promptsPerMinute} otázok. Počkaj prosím chvíľu.`,
-      daily_budget: 'Jolanda dosiahla denný limit výdavkov servera. Skús to prosím zajtra.',
       monthly_budget: 'Jolanda dosiahla mesačný limit výdavkov servera.',
     }) satisfies Record<
       Exclude<TurnOutcome, { status: 'completed' } | { status: 'failed' }>['reason'],

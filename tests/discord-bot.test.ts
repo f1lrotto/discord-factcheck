@@ -15,7 +15,7 @@ import { createDiscordBot } from '../src/discord-bot.js';
 import { createCommand } from '../src/discord-commands.js';
 import type { Jolanda } from '../src/jolanda.js';
 import { messageLinkLookupsPerMinute } from '../src/limits.js';
-import type { GuildSettings } from '../src/models.js';
+import { modelChoices, type GuildSettings } from '../src/models.js';
 import type { JolandaStore } from '../src/types.js';
 
 const settings: GuildSettings = {
@@ -218,17 +218,52 @@ const createInteraction = (input: {
 };
 
 describe('Discord adapter', () => {
+  it('answers model autocomplete with localized descriptions without running a turn', async () => {
+    const handleTurn = vi.fn();
+    const { client, bot } = createBot({
+      jolanda: { handleTurn, shutdown: vi.fn() } as unknown as Jolanda,
+    });
+    const respond = vi.fn(async () => undefined);
+    const interaction = {
+      isAutocomplete: () => true,
+      commandName: 'jolanda',
+      guildId: 'guild',
+      locale: 'en-US',
+      options: { getFocused: () => ({ name: 'model', value: 'qwen' }) },
+      respond,
+    };
+    client.emitter.emit(Events.InteractionCreate, interaction);
+    await vi.waitFor(() => expect(respond).toHaveBeenCalledWith(modelChoices('qwen', 'en')));
+    client.emitter.emit(Events.InteractionCreate, {
+      ...interaction,
+      locale: 'cs',
+      options: { getFocused: () => ({ name: 'profile', value: '' }) },
+    });
+    await vi.waitFor(() => expect(respond).toHaveBeenLastCalledWith(modelChoices('', 'sk')));
+    client.emitter.emit(Events.InteractionCreate, {
+      ...interaction,
+      respond: vi.fn(async () => {
+        throw new Error('expired');
+      }),
+    });
+    await bot.drain();
+    for (const extra of [
+      { commandName: 'other' },
+      { guildId: null },
+      { options: { getFocused: () => ({ name: 'question', value: '' }) } },
+    ])
+      client.emitter.emit(Events.InteractionCreate, { ...interaction, ...extra });
+    expect(respond).toHaveBeenCalledTimes(2);
+    expect(handleTurn).not.toHaveBeenCalled();
+  });
   it('offers friendly model choices for one answer without requiring a selection', () => {
     const definition = createCommand(50).toJSON();
     const ask = definition.options?.find((option) => option.name === 'ask');
     const json = JSON.stringify(ask);
-    expect(json).toContain('GPT-5.6 Luna');
-    expect(json).toContain('GLM 5.3 Flash');
-    expect(json).toContain('[no ZDR]');
     expect(ask).toMatchObject({
       options: [
         { name: 'question', required: true },
-        { name: 'model', choices: expect.any(Array) },
+        { name: 'model', autocomplete: true },
       ],
     });
     expect(JSON.parse(json).options[1].required).not.toBe(true);
@@ -286,7 +321,7 @@ describe('Discord adapter', () => {
       jolanda: {
         handleTurn: vi.fn(async () => ({
           status: 'rejected' as const,
-          reason: 'daily_budget' as const,
+          reason: 'monthly_budget' as const,
         })),
         shutdown: vi.fn(),
       },
@@ -295,7 +330,7 @@ describe('Discord adapter', () => {
     await bot.drain();
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('daily spending limit'),
+        content: expect.stringContaining('monthly spending limit'),
         allowedMentions: { parse: [], repliedUser: false },
       }),
     );
@@ -933,7 +968,7 @@ describe('Discord adapter', () => {
   it('sends a safe rejection and ignores duplicate outcomes', async () => {
     const handleTurn = vi
       .fn<Jolanda['handleTurn']>()
-      .mockResolvedValueOnce({ status: 'rejected', reason: 'daily_budget' })
+      .mockResolvedValueOnce({ status: 'rejected', reason: 'monthly_budget' })
       .mockResolvedValueOnce({ status: 'rejected', reason: 'duplicate' });
     const jolanda = { handleTurn, shutdown: vi.fn(async () => undefined) } as Jolanda;
     const { client } = createBot({ jolanda });
@@ -946,7 +981,7 @@ describe('Discord adapter', () => {
       flags: MessageFlags.SuppressEmbeds,
       allowedMentions: { parse: [], repliedUser: false },
     });
-    expect(String(rejected.reply.mock.calls[0]?.[0].content)).toContain('daily spending');
+    expect(String(rejected.reply.mock.calls[0]?.[0].content)).toContain('monthly spending');
 
     client.emitter.emit(Events.MessageCreate, duplicate.message);
     await vi.waitFor(() => expect(handleTurn).toHaveBeenCalledTimes(2));
@@ -1163,24 +1198,9 @@ describe('Discord adapter', () => {
     expect(commands[0]?.contexts).toEqual([InteractionContextType.Guild]);
     const subcommands = commands[0]?.options ?? [];
     expect(subcommands.some(({ name }) => name === 'reasoning')).toBe(false);
-    expect(
-      subcommands
-        .find(({ name }) => name === 'model')
-        ?.options?.[0]?.choices?.map(({ value }) => value),
-    ).toEqual([
-      'luna:none',
-      'luna:low',
-      'luna:medium',
-      'luna:high',
-      'luna:xhigh',
-      'luna:max',
-      'deepseek-v4-flash:low',
-      'deepseek-v4-flash:high',
-      'deepseek-v4-flash:max',
-      'glm-5.3-flash:low',
-      'glm-5.3-flash:high',
-      'glm-5.3-flash:max',
-    ]);
+    expect(subcommands.find(({ name }) => name === 'model')?.options?.[0]).toMatchObject({
+      autocomplete: true,
+    });
     expect(client.destroy).toHaveBeenCalledOnce();
   });
 

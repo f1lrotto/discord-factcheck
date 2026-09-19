@@ -101,8 +101,7 @@ export type UsageSummary = {
 };
 
 export type AuthorizationResult =
-  | { ok: true }
-  | { ok: false; reason: 'duplicate' | 'rate_limited' | 'daily_budget' | 'monthly_budget' };
+  { ok: true } | { ok: false; reason: 'duplicate' | 'rate_limited' | 'monthly_budget' };
 
 export type TurnOutcome =
   | { status: 'completed'; conversationId: string }
@@ -123,7 +122,6 @@ export type TurnOutcome =
         | 'shutting_down'
         | 'duplicate'
         | 'rate_limited'
-        | 'daily_budget'
         | 'monthly_budget';
     }
   | { status: 'failed' };

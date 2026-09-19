@@ -149,6 +149,93 @@ describe('extractSseFrames', () => {
 });
 
 describe('OpenRouter adapter', () => {
+  it('reads current server-tool usage metadata and keeps the reported total cost', async () => {
+    const payload = sse({
+      content: 'Found a source.',
+      cost: 0.00796407,
+      webSearchRequests: 1,
+    }).replace('"server_tool_use":', '"server_tool_use_details":');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(payload)),
+    );
+    const result = await createTestOpenRouter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    }).run(
+      {
+        model: 'qwen3.8-flash',
+        reasoning: 'medium',
+        messages: [{ role: 'user', content: 'Search for the latest Node.js release.' }],
+      },
+      async () => undefined,
+    );
+    expect(result.usage).toMatchObject({ webSearchRequests: 1, costMicrodollars: 7965 });
+  });
+  it.each([
+    ['venice-uncensored', 'none', undefined],
+    ['hermes-4-405b', 'none', { enabled: false, exclude: false }],
+    ['hermes-4-405b', 'high', { enabled: true, exclude: false }],
+  ] as const)(
+    'runs %s/%s without unsupported tool or reasoning parameters',
+    async (model, reasoning, expectedReasoning) => {
+      const fetchMock = vi.fn(async () =>
+        response(sse({ content: 'A short answer.', cost: 0.001 })),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const router = createTestOpenRouter({ apiKey: 'test-key', logger: pino({ enabled: false }) });
+      const result = await router.run(
+        {
+          model,
+          reasoning,
+          allowReminders: true,
+          messages: [{ role: 'user', content: 'Tell me a story.' }],
+        },
+        async () => undefined,
+      );
+      const body = bodyAt(fetchMock, 0);
+      expect(body.tools).toBeUndefined();
+      expect(body.tool_choice).toBeUndefined();
+      expect(body.reasoning).toEqual(expectedReasoning);
+      expect(body.provider).toMatchObject({
+        zdr: true,
+        require_parameters: true,
+        data_collection: 'deny',
+        max_price: expect.any(Object),
+      });
+      expect(JSON.stringify(body.messages)).toContain('This model is chat-only');
+      expect(JSON.stringify(body.messages)).not.toContain('Jolanda has direct read-only');
+      expect(result.reminderDrafts).toBeUndefined();
+      expect(result.toolActivity?.offered).toEqual([]);
+      expect(result.content).toBe('A short answer.');
+      expect(fetchMock).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(['grok-4.3', 'qwen3.8-flash', 'mistral-small-4'] as const)(
+    'offers tools on %s with its supported reasoning',
+    async (model) => {
+      const fetchMock = vi.fn(async () => response(sse({ content: 'Hello.', cost: 0.001 })));
+      vi.stubGlobal('fetch', fetchMock);
+      await createTestOpenRouter({ apiKey: 'test-key', logger: pino({ enabled: false }) }).run(
+        { model, reasoning: 'none', messages: [{ role: 'user', content: 'Hello' }] },
+        async () => undefined,
+      );
+      const body = bodyAt(fetchMock, 0);
+      expect(body.tools).toEqual(
+        expect.arrayContaining([expect.objectContaining({ type: 'openrouter:web_search' })]),
+      );
+      expect(body.reasoning).toEqual({ effort: 'none', exclude: false });
+      expect(body.provider).toMatchObject({ data_collection: 'deny', require_parameters: true });
+      expect((body.provider as { zdr?: boolean }).zdr).toBe(
+        model === 'qwen3.8-flash' ? undefined : true,
+      );
+      expect(body.provider).toMatchObject(
+        model === 'mistral-small-4' ? { order: ['mistral/eu'] } : { sort: 'price' },
+      );
+      expect(body.provider).not.toHaveProperty('allow_fallbacks', false);
+    },
+  );
   it('lets every model generation decide whether to use the complete toolbox', async () => {
     const fetchMock = vi.fn(async () =>
       response(sse({ content: 'Bratislava is the capital of Slovakia.', cost: 0.001 })),

@@ -35,7 +35,6 @@ const facts = (overrides: Partial<Parameters<typeof usageFacts>[0]> = {}) =>
   usageFacts({
     summary: summary(),
     budget,
-    dailyLimitMicrodollars: 2_000_000,
     monthlyLimitMicrodollars: 10_000_000,
     knownMembers: new Map([
       ['hash-filip', 'Filip'],
@@ -69,7 +68,6 @@ describe('usage facts', () => {
     expect(value.memberWindowDays).toBe(7);
     expect(value.totalCost).toBe('$0.0050');
     expect(value.dailyCost).toBe('$0.0031');
-    expect(value.dailyLimit).toBe('$2.0000');
     expect(value.monthlyLimit).toBe('$10.0000');
     expect(value.sparkline).toBe('▃▁█');
   });
@@ -164,7 +162,6 @@ describe('/jolanda usage command', () => {
     const handler = createCommandHandler({
       transcriptTtlDays: 7,
       maximumContextMessages: 50,
-      dailyLimitMicrodollars: 2_000_000,
       monthlyLimitMicrodollars: 10_000_000,
       store: {
         getSettings: async () => ({

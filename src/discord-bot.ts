@@ -12,6 +12,7 @@ import {
 } from 'discord.js';
 import type { Logger } from 'pino';
 import { createCommand, createCommandHandler } from './discord-commands.js';
+import { modelChoices } from './models.js';
 import { createAskHandler } from './discord-ask.js';
 import { createMessageHandler } from './discord-messages.js';
 import { ephemeral, safeMentions, safeMessageFlags } from './discord-response.js';
@@ -49,7 +50,6 @@ export const createDiscordBot = (input: {
   maximumContextMessages: number;
   promptsPerMinute: number;
   transcriptTtlDays: number;
-  dailyLimitMicrodollars?: number;
   monthlyLimitMicrodollars?: number;
   protectIdentifier: (identifier: string) => string;
   jolanda: Jolanda;
@@ -165,7 +165,23 @@ export const createDiscordBot = (input: {
   };
 
   client.on(Events.InteractionCreate, (interaction) => {
-    if (!accepting || !interaction.isChatInputCommand()) return;
+    if (!accepting) return;
+    if (interaction.isAutocomplete?.()) {
+      if (interaction.commandName !== 'jolanda' || !interaction.guildId) return;
+      const focused = interaction.options.getFocused(true);
+      if (!['model', 'profile'].includes(focused.name)) return;
+      const locale = interaction.locale.startsWith('en') ? 'en' : 'sk';
+      admit(() =>
+        interaction.respond(modelChoices(String(focused.value), locale)).catch((error: unknown) => {
+          input.logger.warn({
+            event: 'discord_model_autocomplete_failed',
+            error: safeError(error),
+          });
+        }),
+      );
+      return;
+    }
+    if (!interaction.isChatInputCommand()) return;
     const handler =
       interaction.commandName === 'jolanda' && interaction.options.getSubcommand() === 'ask'
         ? handleAsk

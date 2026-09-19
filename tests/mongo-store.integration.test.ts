@@ -45,7 +45,6 @@ describe('Mongo store integration', () => {
 
   const createStore = async (
     overrides: Partial<{
-      dailyLimitMicrodollars: number;
       monthlyLimitMicrodollars: number;
       promptsPerMinute: number;
       instanceId: string;
@@ -56,7 +55,6 @@ describe('Mongo store integration', () => {
     const store = createMongoStore({
       uri,
       databaseName,
-      dailyLimitMicrodollars: 2_000_000,
       monthlyLimitMicrodollars: 10_000_000,
       promptsPerMinute: 3,
       transcriptTtlMs: 7 * 24 * 60 * 60 * 1_000,
@@ -188,8 +186,36 @@ describe('Mongo store integration', () => {
     ).resolves.toEqual({ ok: true });
   });
 
-  it('reserves concurrent worst-case costs without crossing the daily cap', async () => {
-    const store = await createStore({ dailyLimitMicrodollars: 400_000 });
+  it('allows daily usage above the former cap while enforcing the monthly cap', async () => {
+    const store = await createStore({ monthlyLimitMicrodollars: 3_000_000 });
+    for (const requestId of ['one', 'two', 'three']) {
+      await expect(
+        authorize(store, requestId, {
+          userId: requestId,
+          reservationMicrodollars: 1_000_000,
+        }),
+      ).resolves.toEqual({ ok: true });
+      await store.settleRequest({
+        requestId,
+        usage: usage(900_000),
+        status: 'completed',
+      });
+    }
+    await expect(
+      authorize(store, 'monthly-cap', {
+        userId: 'monthly-cap',
+        reservationMicrodollars: 400_000,
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'monthly_budget' });
+    const budget = await store.getBudgetSummary('raw-guild-id', new Date());
+    expect(budget.dailyUsedMicrodollars).toBe(2_700_000);
+    expect(budget.dailyReservedMicrodollars).toBe(0);
+    expect(budget.monthlyUsedMicrodollars).toBe(2_700_000);
+    expect(budget.monthlyReservedMicrodollars).toBe(0);
+  });
+
+  it('serializes concurrent reservations at the monthly cap', async () => {
+    const store = await createStore({ monthlyLimitMicrodollars: 400_000 });
     const results = await Promise.all(
       ['one', 'two', 'three'].map((requestId) =>
         authorize(store, requestId, { userId: requestId, reservationMicrodollars: 200_000 }),
@@ -197,9 +223,13 @@ describe('Mongo store integration', () => {
     );
 
     expect(results.filter((result) => result.ok)).toHaveLength(2);
-    expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, reason: 'daily_budget' }]);
-    const budget = await store.getBudgetSummary('raw-guild-id', new Date());
-    expect(budget.dailyReservedMicrodollars).toBe(400_000);
+    expect(results.filter((result) => !result.ok)).toEqual([
+      { ok: false, reason: 'monthly_budget' },
+    ]);
+    await expect(store.getBudgetSummary('raw-guild-id', new Date())).resolves.toMatchObject({
+      dailyReservedMicrodollars: 400_000,
+      monthlyReservedMicrodollars: 400_000,
+    });
   });
 
   it('charges reported successful usage and releases unreported reservations', async () => {
@@ -221,7 +251,7 @@ describe('Mongo store integration', () => {
   });
 
   it('releases failed inference exactly once and immediately allows another request', async () => {
-    const store = await createStore({ dailyLimitMicrodollars: 200_000 });
+    const store = await createStore();
     expect(await authorize(store, 'failed-inference')).toEqual({ ok: true });
     await Promise.all([
       store.failRequest('failed-inference', 'inference_failed'),
@@ -313,7 +343,6 @@ describe('Mongo store integration', () => {
 
   it('enforces monthly limits independently and releases failed pre-inference reservations', async () => {
     const store = await createStore({
-      dailyLimitMicrodollars: 2_000_000,
       monthlyLimitMicrodollars: 300_000,
     });
     await expect(authorize(store, 'first', { reservationMicrodollars: 200_000 })).resolves.toEqual({
@@ -533,7 +562,7 @@ describe('Mongo store integration', () => {
   });
 
   it('uses independent UTC budget buckets after a day boundary', async () => {
-    const store = await createStore({ dailyLimitMicrodollars: 200_000 });
+    const store = await createStore();
     const beforeMidnight = new Date('2026-08-25T23:59:59.000Z');
     const afterMidnight = new Date('2026-08-26T00:00:00.000Z');
 
@@ -547,7 +576,6 @@ describe('Mongo store integration', () => {
 
   it('uses independent UTC monthly budget buckets after a month boundary', async () => {
     const store = await createStore({
-      dailyLimitMicrodollars: 400_000,
       monthlyLimitMicrodollars: 200_000,
     });
 

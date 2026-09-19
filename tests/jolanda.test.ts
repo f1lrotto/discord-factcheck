@@ -502,7 +502,10 @@ describe('Jolanda core', () => {
       const run = vi.fn<ModelRunner['run']>().mockResolvedValue({ content: 'Answer', usage });
       if (status === 'failed') run.mockRejectedValueOnce(new Error('Provider unavailable'));
       if (status === 'rejected')
-        vi.mocked(store.authorizeTurn).mockResolvedValueOnce({ ok: false, reason: 'daily_budget' });
+        vi.mocked(store.authorizeTurn).mockResolvedValueOnce({
+          ok: false,
+          reason: 'monthly_budget',
+        });
       const core = createCore(store, { run });
       const sink = createSink();
       const outcome = await core.handleTurn(

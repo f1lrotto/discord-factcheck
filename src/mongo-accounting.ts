@@ -23,7 +23,6 @@ const isAuthorizationDenied = (value: unknown): value is ReturnType<typeof autho
 export const createMongoAccounting = (
   context: MongoContext,
   input: {
-    dailyLimitMicrodollars: number;
     monthlyLimitMicrodollars: number;
     promptsPerMinute: number;
     transcriptTtlMs: number;
@@ -271,20 +270,12 @@ export const createMongoAccounting = (
     reservationMicrodollars: number,
     session: ClientSession,
   ) => {
-    const dailyBucket = await context.collections.budgetBuckets.findOne(
-      { _id: ids.day },
-      { session },
-    );
     const monthlyBucket = await context.collections.budgetBuckets.findOne(
       { _id: ids.month },
       { session },
     );
-    const dailyCommitted =
-      (dailyBucket?.usedMicrodollars ?? 0) + (dailyBucket?.reservedMicrodollars ?? 0);
     const monthlyCommitted =
       (monthlyBucket?.usedMicrodollars ?? 0) + (monthlyBucket?.reservedMicrodollars ?? 0);
-    if (dailyCommitted + reservationMicrodollars > input.dailyLimitMicrodollars)
-      throw authorizationDenied('daily_budget');
     if (monthlyCommitted + reservationMicrodollars > input.monthlyLimitMicrodollars)
       throw authorizationDenied('monthly_budget');
     for (const bucketId of [ids.day, ids.month]) {
