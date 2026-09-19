@@ -98,6 +98,33 @@ export const createCommand = (maximumContextMessages: number) =>
     .setName('jolanda')
     .setDescription('Nastaviť Jolandu pre tento server')
     .setDescriptionLocalizations(english('Configure Jolanda for this server'))
+    .addSubcommand((command) =>
+      command
+        .setName('ask')
+        .setDescription('Položiť otázku s voliteľným modelom len pre túto odpoveď')
+        .setDescriptionLocalizations(
+          english('Ask a question with an optional model for this answer only'),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('question')
+            .setDescription('Čo chceš vedieť?')
+            .setDescriptionLocalizations(english('What would you like to know?'))
+            .setRequired(true)
+            .setMaxLength(4000),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('model')
+            .setDescription('Len pre túto odpoveď; inak predvolený model servera')
+            .setDescriptionLocalizations(
+              english('For this answer only; otherwise use the server default'),
+            )
+            .addChoices(
+              ...modelProfiles().map((profile) => ({ name: profile.label, value: profile.id })),
+            ),
+        ),
+    )
     .addSubcommandGroup((group) => newsGroup(group, 'continuous'))
     .addSubcommandGroup((group) => newsGroup(group, 'daily'))
     .addSubcommandGroup(briefingGroup)

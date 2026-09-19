@@ -12,6 +12,7 @@ import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
 import type { createDiscordReels } from '../src/discord-reels.js';
 import { createDiscordBot } from '../src/discord-bot.js';
+import { createCommand } from '../src/discord-commands.js';
 import type { Jolanda } from '../src/jolanda.js';
 import { messageLinkLookupsPerMinute } from '../src/limits.js';
 import type { GuildSettings } from '../src/models.js';
@@ -169,6 +170,7 @@ const createInteraction = (input: {
   subcommand: string;
   canManage?: boolean;
   stringValue?: string;
+  strings?: Record<string, string>;
   integerValue?: number;
   guildId?: string | null;
 }) => {
@@ -180,7 +182,7 @@ const createInteraction = (input: {
   });
   const editReply = vi.fn(async (options: Record<string, unknown>) => {
     void options;
-    return undefined;
+    return { id: 'interaction-reply' };
   });
   const deferReply = vi.fn(async () => {
     state.deferred = true;
@@ -204,7 +206,7 @@ const createInteraction = (input: {
       memberPermissions: { has: () => input.canManage ?? false },
       options: {
         getSubcommand: () => input.subcommand,
-        getString: () => input.stringValue,
+        getString: (name: string) => input.strings?.[name] ?? input.stringValue ?? null,
         getInteger: () => input.integerValue,
       },
       deferReply,
@@ -216,6 +218,89 @@ const createInteraction = (input: {
 };
 
 describe('Discord adapter', () => {
+  it('offers friendly model choices for one answer without requiring a selection', () => {
+    const definition = createCommand(50).toJSON();
+    const ask = definition.options?.find((option) => option.name === 'ask');
+    const json = JSON.stringify(ask);
+    expect(json).toContain('GPT-5.6 Luna');
+    expect(json).toContain('GLM 5.3 Flash');
+    expect(json).toContain('[no ZDR]');
+    expect(ask).toMatchObject({
+      options: [
+        { name: 'question', required: true },
+        { name: 'model', choices: expect.any(Array) },
+      ],
+    });
+    expect(JSON.parse(json).options[1].required).not.toBe(true);
+  });
+
+  it.each([undefined, 'luna:medium'])(
+    'lets ordinary members ask with model %s and stream a public reply',
+    async (model) => {
+      const source = createMessage();
+      const response = await source.message.reply('placeholder');
+      const interaction = createInteraction({
+        subcommand: 'ask',
+        strings: { question: 'Explain photosynthesis', ...(model ? { model } : {}) },
+      });
+      Object.assign(interaction.interaction, {
+        channelId: 'channel',
+        channel: source.message.channel,
+      });
+      interaction.editReply.mockImplementation(async () => response);
+      const handleTurn = vi.fn<Jolanda['handleTurn']>(async (_request, sink) => {
+        await sink.prepare();
+        const ids = await sink.finish('Photosynthesis converts light into chemical energy.');
+        expect(ids).toEqual(['bot-message', 'bot-chunk-1']);
+        return { status: 'completed', conversationId: 'conversation' };
+      });
+      const { client, store, bot } = createBot({ jolanda: { handleTurn, shutdown: vi.fn() } });
+      client.emitter.emit(Events.InteractionCreate, interaction.interaction);
+      await bot.drain();
+      expect(interaction.deferReply).toHaveBeenCalledWith();
+      expect(handleTurn).toHaveBeenCalledOnce();
+      const request = handleTurn.mock.calls[0]?.[0];
+      expect(request).toMatchObject({
+        question: 'Explain photosynthesis',
+        guildId: 'guild',
+        channelId: 'channel',
+        userId: 'user',
+      });
+      expect(request?.modelProfile).toBe(model);
+      expect(await request?.loadAmbientContext(10)).toEqual([]);
+      expect(source.edited.at(-1)?.content).toBe('**Question:**\n> Explain photosynthesis');
+      expect(source.sent.at(-1)?.content).toBe(
+        'Photosynthesis converts light into chemical energy.',
+      );
+      expect(store.updateSettings).not.toHaveBeenCalled();
+    },
+  );
+
+  it('edits the deferred ask reply when the core rejects a request', async () => {
+    const interaction = createInteraction({
+      subcommand: 'ask',
+      strings: { question: 'Explain photosynthesis' },
+    });
+    Object.assign(interaction.interaction, { channelId: 'channel', channel: null });
+    const { client, bot } = createBot({
+      jolanda: {
+        handleTurn: vi.fn(async () => ({
+          status: 'rejected' as const,
+          reason: 'daily_budget' as const,
+        })),
+        shutdown: vi.fn(),
+      },
+    });
+    client.emitter.emit(Events.InteractionCreate, interaction.interaction);
+    await bot.drain();
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('daily spending limit'),
+        allowedMentions: { parse: [], repliedUser: false },
+      }),
+    );
+  });
+
   it('passes only attachments from the tagged message and its explicit reply to the core', async () => {
     const photo = {
       url: 'https://cdn.discordapp.com/attachments/1/2/dog.png?hm=secret',

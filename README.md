@@ -7,6 +7,12 @@ the same conversation. She answers in the language the user writes in.
 ## Behavior and settings
 
 - `@Jolanda What is happening today?` starts a conversation.
+- `/jolanda ask` lets any member enter a question and optionally choose a model/reasoning profile
+  from a dropdown for **that answer only**. Leave the model empty to use the server default.
+  Replies to the answer use the current server default again. Existing spending and rate limits
+  apply; profiles without Zero Data Retention are labeled `[no ZDR]`. The answer is public in the
+  channel with the question quoted above it and the actual model/reasoning profile shown alongside.
+  Local greetings are labeled as replies without an AI model. This command does not read surrounding channel messages.
 - `@Jolanda +context Fact-check the discussion above` opts into the server-approved context window
   for that interaction only; `+context=10` requests a smaller explicit number.
 - Mentioning Jolanda in a reply includes that explicitly replied-to message.
@@ -41,11 +47,10 @@ the same conversation. She answers in the language the user writes in.
   code are allowed, while headings and other expansive document-style formatting are prohibited.
   A renderer-side clamp converts any model-generated Markdown heading into ordinary bold text.
 
-There are intentionally no user-specified per-message model or reasoning overrides. Apart from
-the image fallback above, every interaction inherits
-the server-scoped settings.
+Mentions and replies inherit the server's model/reasoning profile, subject to the image fallback
+above. The optional model in `/jolanda ask` never changes saved settings or carries over to a reply.
 
-`/jolanda privacy` is available to every member. The following commands require **Manage Server**:
+`/jolanda ask` and `/jolanda privacy` are available to every member. The following commands require **Manage Server**:
 
 - `/jolanda settings` shows model, reasoning, context, and committed spend.
 - `/jolanda model` selects an atomic model/reasoning profile. Discord only offers reasoning efforts

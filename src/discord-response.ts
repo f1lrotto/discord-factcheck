@@ -1,4 +1,10 @@
-import { MessageFlags, type InteractionReplyOptions, type Message } from 'discord.js';
+import {
+  MessageFlags,
+  escapeMarkdown,
+  type ChatInputCommandInteraction,
+  type InteractionReplyOptions,
+  type Message,
+} from 'discord.js';
 import type { Logger } from 'pino';
 import { clampDiscordMarkdown, splitDiscordChunks } from './discord-text.js';
 import {
@@ -7,6 +13,7 @@ import {
   streamUpdateIntervalMs,
 } from './limits.js';
 import { defaultLocale, messages, type Locale } from './i18n/index.js';
+import { getModel } from './models.js';
 import { safeError, sanitizeAssistantOutput } from './security.js';
 import type { FailureNotice, ResponseSink } from './types.js';
 
@@ -27,13 +34,24 @@ const failureMessage = (failure: FailureNotice, locale: Locale) =>
   });
 
 export const createResponseSink = (input: {
-  source: Message<true>;
+  source: Message<true> | ChatInputCommandInteraction;
   logger: Logger;
   protectIdentifier: (identifier: string) => string;
   locale?: Locale;
+  question?: string;
 }): ResponseSink => {
   const copy = messages(input.locale ?? defaultLocale);
-  const outputMessages: Message<true>[] = [];
+  const question = input.question
+    ? sanitizeAssistantOutput(escapeMarkdown(input.question.trim()))
+    : '';
+  const questionPrefix = question
+    ? `**${copy.answer.question}:**\n${question
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n')}\n\n`
+    : '';
+  let modelLabel = '';
+  const outputMessages: Message[] = [];
   const renderedChunks: string[] = [];
   // Chunks that already have a successor message are frozen, so a growing stream cannot
   // migrate an earlier boundary and cut a link or an emphasis run that already rendered.
@@ -56,17 +74,26 @@ export const createResponseSink = (input: {
   const prepareNow = async (signal?: AbortSignal) => {
     checkCancellation(signal);
     if (outputMessages.length) return;
-    const message = await input.source.reply({
+    const payload = {
       content: copy.progress.thinking,
       allowedMentions: safeMentions,
       flags: safeMessageFlags,
-    });
+    } as const;
+    const message =
+      'editReply' in input.source
+        ? await input.source.editReply(payload)
+        : await input.source.reply(payload);
     outputMessages.push(message);
     renderedChunks.push(copy.progress.thinking);
     checkCancellation(signal);
   };
 
-  const prepare = (signal?: AbortSignal) => serialize(() => prepareNow(signal));
+  const prepare: ResponseSink['prepare'] = (signal, profile) =>
+    serialize(() => {
+      if (question && profile !== undefined)
+        modelLabel = `**${copy.answer.model}:** ${profile ? `${getModel(profile.model).label} · ${profile.reasoning}` : copy.answer.noModel}`;
+      return prepareNow(signal);
+    });
 
   const synchronizeNow = async (
     content: string,
@@ -84,9 +111,14 @@ export const createResponseSink = (input: {
       discordMessageCharacters,
       maximumDiscordChunks - sealedChunks.length,
     );
-    const chunks = [...sealedChunks, ...tail.map((chunk) => chunk.text)];
+    const questionChunks = splitDiscordChunks(
+      questionPrefix + modelLabel,
+      discordMessageCharacters,
+      Infinity,
+    ).map((chunk) => chunk.text);
+    const chunks = [...questionChunks, ...sealedChunks, ...tail.map((chunk) => chunk.text)];
     if (!chunks.length) return;
-    if (!input.source.channel.isSendable()) throw new Error('Discord channel is not sendable');
+    if (!input.source.channel?.isSendable()) throw new Error('Discord channel is not sendable');
 
     for (const [index, chunk] of chunks.entries()) {
       checkCancellation(signal);

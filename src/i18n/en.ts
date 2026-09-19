@@ -62,6 +62,7 @@ export const en = {
         'News copies public publisher content into channels configured by server administrators. News uses no AI or model calls. News routing identifiers are encrypted separately; disabling a feed removes its routing, while copies already posted remain in Discord until removed with Discord moderation.',
         'Automatic reposting sends public post IDs to Instagram/Meta or TikTok anonymously. Media is downloaded temporarily and copied to Discord without AI analysis. Copies follow Discord retention; source deletion does not remove them. Admins can moderate copies.',
         'Your question, explicit replies, and conversation turns are processed by OpenRouter and a selected model provider.',
+        'Use /jolanda ask to choose a model for one answer from a dropdown. The server default stays unchanged. Zero Data Retention follows the chosen model; profiles marked [no ZDR] may retain prompts.',
         facts.supportsZdr
           ? `Zero Data Retention is **enforced** for ${facts.modelLabel}.`
           : `Zero Data Retention is **not available** for ${facts.modelLabel}; its provider may retain prompts under its policy.`,
@@ -359,6 +360,8 @@ export const en = {
 
   rejections: (promptsPerMinute, imageCount, replyLimit) => ({
     empty_question: 'Please include a question when you tag me or reply to me.',
+    invalid_model:
+      'That model profile is unavailable. Please choose a model from the /jolanda ask dropdown again.',
     image_limit: `Please send at most ${imageCount} images across your message and the message you reply to.`,
     image_too_large: 'Please use images up to 8 MiB each, or upload a smaller version.',
     image_unavailable:
@@ -393,6 +396,9 @@ export const en = {
   },
 
   answer: {
+    question: 'Question',
+    model: 'Model',
+    noModel: 'Local reply, no AI model',
     truncationNotice: '⚠️ *The model hit its output limit, so this answer is cut short.*',
     footerTruncation: '\n\n[…answer shortened to include response details]',
     imageModel: (label) => `\n\n👁️ **Image model:** ${label}`,

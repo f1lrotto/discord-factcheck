@@ -12,6 +12,7 @@ import {
 } from 'discord.js';
 import type { Logger } from 'pino';
 import { createCommand, createCommandHandler } from './discord-commands.js';
+import { createAskHandler } from './discord-ask.js';
 import { createMessageHandler } from './discord-messages.js';
 import { ephemeral, safeMentions, safeMessageFlags } from './discord-response.js';
 import type { Jolanda } from './jolanda.js';
@@ -106,6 +107,7 @@ export const createDiscordBot = (input: {
     client,
     operationTimeoutMs: input.adapterOperationTimeoutMs ?? discordOperationTimeoutMs,
   });
+  const handleAsk = createAskHandler(input);
   const handlerGate = createConcurrencyGate(
     input.maximumAdapterHandlers ?? maximumDiscordAdapterHandlers,
   );
@@ -142,7 +144,11 @@ export const createDiscordBot = (input: {
       error: safeError(error),
       interactionKey: input.protectIdentifier(interaction.id),
     });
-    const notice = messages(handleCommand.localeFor(interaction)).common.saveFailed;
+    const copy = messages(handleCommand.localeFor(interaction));
+    const notice =
+      interaction.options.getSubcommand() === 'ask'
+        ? copy.common.temporarilyUnavailable
+        : copy.common.saveFailed;
     const response = ephemeral(notice);
     try {
       if (interaction.deferred && !interaction.replied)
@@ -160,10 +166,12 @@ export const createDiscordBot = (input: {
 
   client.on(Events.InteractionCreate, (interaction) => {
     if (!accepting || !interaction.isChatInputCommand()) return;
+    const handler =
+      interaction.commandName === 'jolanda' && interaction.options.getSubcommand() === 'ask'
+        ? handleAsk
+        : handleCommand;
     admit(() =>
-      handleCommand(interaction).catch((error: unknown) =>
-        reportCommandFailure(interaction, error),
-      ),
+      handler(interaction).catch((error: unknown) => reportCommandFailure(interaction, error)),
     );
   });
   client.on(Events.MessageCreate, (message) => {

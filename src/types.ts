@@ -44,6 +44,7 @@ export type TurnRequest = {
   channelId: string;
   userId: string;
   question: string;
+  modelProfile?: string;
   images?: ImageAttachment[];
   ambientContext?: AmbientContextRequest;
   referencedMessage?: ReferencedMessage;
@@ -109,6 +110,7 @@ export type TurnOutcome =
       status: 'rejected';
       reason:
         | 'empty_question'
+        | 'invalid_model'
         | 'image_limit'
         | 'image_too_large'
         | 'image_unavailable'
@@ -127,7 +129,10 @@ export type TurnOutcome =
   | { status: 'failed' };
 
 export type ResponseSink = {
-  prepare: (signal?: AbortSignal) => Promise<void>;
+  prepare: (
+    signal?: AbortSignal,
+    profile?: Pick<GuildSettings, 'model' | 'reasoning'> | null,
+  ) => Promise<void>;
   update: (
     content: string,
     allowedSourceUrls?: readonly string[],

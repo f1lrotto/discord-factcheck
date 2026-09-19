@@ -24,7 +24,7 @@ import {
   sanitizeAssistantOutput,
   sanitizeStreamingAssistantOutput,
 } from './security.js';
-import { getModel, resolveImageModel, type GuildSettings } from './models.js';
+import { findModelProfile, getModel, resolveImageModel, type GuildSettings } from './models.js';
 import { messages, type Messages } from './i18n/index.js';
 import { createImageLoader, ImageInputError, validateImageAttachments } from './discord-images.js';
 import type {
@@ -287,6 +287,10 @@ export const createJolanda = (dependencies: {
     const question =
       request.question.trim() || (images.length ? 'Describe the attached images.' : '');
     if (!question) return { status: 'rejected', reason: 'empty_question' };
+    const profile =
+      request.modelProfile === undefined ? undefined : findModelProfile(request.modelProfile);
+    if (request.modelProfile !== undefined && !profile)
+      return { status: 'rejected', reason: 'invalid_model' };
     signal.throwIfAborted();
 
     const resolved = await resolveConversation(request);
@@ -320,7 +324,10 @@ export const createJolanda = (dependencies: {
       signal.throwIfAborted();
       const clock = createClockSnapshot(now(), dependencies.timeZone);
       validateImageAttachments(images);
-      const requestedSettings = await dependencies.store.getSettings(request.guildId);
+      const guildSettings = await dependencies.store.getSettings(request.guildId);
+      const requestedSettings = profile
+        ? { ...guildSettings, model: profile.model, reasoning: profile.reasoning }
+        : guildSettings;
       const settings = resolveImageModel(requestedSettings, images.length > 0);
       const copy = messages(settings.locale);
       modelContext = {
@@ -391,7 +398,13 @@ export const createJolanda = (dependencies: {
       });
 
       await waitForDiscordOperation(
-        (operationSignal) => sink.prepare(operationSignal),
+        (operationSignal) =>
+          sink.prepare(
+            operationSignal,
+            selectedPlan.route === 'local'
+              ? null
+              : { model: settings.model, reasoning: settings.reasoning },
+          ),
         signal,
         trackDiscordOperation,
       );

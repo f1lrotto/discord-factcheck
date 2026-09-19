@@ -80,6 +80,7 @@ export const sk = {
         'Novinky kopírujú verejné články bez AI do kanálov určených správcom. Smerovanie je šifrované a vypnutím sa odstráni. Odoslané kópie zostávajú do moderovania v Discorde.',
         'Automatické preposielanie anonymne posiela verejné ID príspevkov Instagramu/Meta alebo TikToku. Médiá sa dočasne stiahnu a skopírujú do Discordu bez AI analýzy. Kópie sa riadia uchovávaním Discordu; zmazanie zdroja ich neodstráni. Správcovia ich môžu moderovať.',
         'Tvoju otázku, výslovné odpovede a jednotlivé kroky konverzácie spracúva OpenRouter a vybraný poskytovateľ modelu.',
+        'Cez /jolanda ask si vyber model pre jednu odpoveď zo zoznamu. Predvolený model servera sa nezmení. Uchovávanie údajov závisí od vybraného modelu; profily označené [no ZDR] môžu prompty uchovávať.',
         facts.supportsZdr
           ? `Nulové uchovávanie údajov je pre model ${facts.modelLabel} **vynútené**.`
           : `Nulové uchovávanie údajov nie je pre model ${facts.modelLabel} dostupné; jeho poskytovateľ môže prompty uchovávať podľa vlastných pravidiel.`,
@@ -402,6 +403,8 @@ export const sk = {
   rejections: (promptsPerMinute: number, imageCount: number, replyLimit: number) =>
     ({
       empty_question: 'Pri označení alebo odpovedi mi prosím napíš aj otázku.',
+      invalid_model:
+        'Tento profil modelu nie je dostupný. Vyber si model znova zo zoznamu v /jolanda ask.',
       image_limit: `Pošli prosím najviac ${imageCount} obrázkov naprieč svojou správou a správou, na ktorú odpovedáš.`,
       image_too_large: 'Použi prosím obrázky do 8 MiB, prípadne nahraj menšiu verziu.',
       image_unavailable:
@@ -446,6 +449,9 @@ export const sk = {
   },
 
   answer: {
+    question: 'Otázka',
+    model: 'Model',
+    noModel: 'Lokálna odpoveď, bez AI modelu',
     truncationNotice: '⚠️ *Model narazil na limit výstupu, takže je táto odpoveď skrátená.*',
     footerTruncation: '\n\n[…odpoveď skrátená, aby sa zmestili údaje o odpovedi]',
     imageModel: (label: string) => `\n\n👁️ **Model pre obrázky:** ${label}`,

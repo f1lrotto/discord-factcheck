@@ -7,8 +7,10 @@ small production service even when it is used by only one server.
 
 - The servers where the Discord application is installed and its per-channel permissions define where
   Jolanda operates.
-- Only members with **Manage Server** can change the model/reasoning profile or ambient-context
-  limit. Other members may opt into context only within that server-controlled limit.
+- Only members with **Manage Server** can change the server's default model/reasoning profile or
+  ambient-context limit. Members may select a catalog profile for one answer through `/jolanda ask`;
+  the override is validated before admission, uses that model's spend envelope and retention policy,
+  and never changes saved settings. Context opt-in remains within the server-controlled limit.
 - Conversations are bound to the member who started them, their channel, and their guild.
 - Every model turn receives the same read-only calculator, clock, time-zone, public web-search, and
   public web-fetch tools. The model decides whether to use them; there is no request classifier or
@@ -27,7 +29,7 @@ small production service even when it is used by only one server.
   logged, and only inline image data is sent to OpenRouter. Textual descriptions and source markers
   remain in the conversation transcript. Image text is untrusted context and can influence public
   research just like message text. DeepSeek image turns use the ZDR-compatible GLM vision route;
-  Luna retains its existing provider retention policy.
+  Luna retains its existing provider retention policy, including when chosen for a single answer.
 - Model output cannot create mentions or embeds, is length-bounded, and has private, credentialed,
   query-bearing, and fragment-bearing links removed. Only exact URLs supplied by bounded public
   research are allowlisted as citations.

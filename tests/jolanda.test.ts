@@ -195,6 +195,10 @@ describe('Jolanda core', () => {
       model: 'glm-5.3-flash',
       reasoning: 'high',
     });
+    expect(sink.prepare).toHaveBeenCalledWith(expect.any(AbortSignal), {
+      model: 'glm-5.3-flash',
+      reasoning: 'high',
+    });
     expect(store.updateSettings).not.toHaveBeenCalled();
     expect(store.authorizeTurn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -320,6 +324,7 @@ describe('Jolanda core', () => {
       expect(outcome).toEqual({ status: 'completed', conversationId: 'conversation' });
       expect(modelRunner.run).not.toHaveBeenCalled();
       expect(loadAmbientContext).not.toHaveBeenCalled();
+      expect(sink.prepare).toHaveBeenCalledWith(expect.any(AbortSignal), null);
       expect(store.authorizeTurn).toHaveBeenCalledWith(
         expect.objectContaining({ reservationMicrodollars: 0 }),
       );
@@ -483,6 +488,89 @@ describe('Jolanda core', () => {
       expect.any(Function),
     );
   });
+
+  it.each(['completed', 'failed', 'rejected'] as const)(
+    'uses a selected profile once without persisting it after a %s turn',
+    async (status) => {
+      const store = createStore();
+      const saved = {
+        ...(await store.getSettings('guild')),
+        model: 'glm-5.3-flash' as const,
+        reasoning: 'high' as const,
+      };
+      vi.mocked(store.getSettings).mockResolvedValue(saved);
+      const run = vi.fn<ModelRunner['run']>().mockResolvedValue({ content: 'Answer', usage });
+      if (status === 'failed') run.mockRejectedValueOnce(new Error('Provider unavailable'));
+      if (status === 'rejected')
+        vi.mocked(store.authorizeTurn).mockResolvedValueOnce({ ok: false, reason: 'daily_budget' });
+      const core = createCore(store, { run });
+      const sink = createSink();
+      const outcome = await core.handleTurn(
+        { ...createRequest(async () => []), modelProfile: 'luna:medium' },
+        sink,
+      );
+      expect(outcome.status).toBe(status);
+      expect(store.authorizeTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reservationMicrodollars: costEnvelopeMicrodollars({
+            model: 'luna',
+            reasoning: 'medium',
+            maximumPromptCharacters: 32000,
+            imageCount: 0,
+          }),
+        }),
+      );
+      if (status === 'rejected') expect(run).not.toHaveBeenCalled();
+      else {
+        expect(run.mock.calls[0]?.[0]).toMatchObject({ model: 'luna', reasoning: 'medium' });
+        expect(sink.prepare).toHaveBeenCalledWith(expect.any(AbortSignal), {
+          model: 'luna',
+          reasoning: 'medium',
+        });
+      }
+
+      const now = new Date();
+      vi.mocked(store.findConversationByMessage).mockResolvedValue({
+        id: 'conversation',
+        ownerKey: 'protected:user',
+        replyCount: 1,
+        turns: [],
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: new Date(now.getTime() + 60000),
+      });
+      await core.handleTurn(
+        {
+          ...createRequest(async () => []),
+          id: 'next-request',
+          referencedMessage: { id: 'bot-message', content: 'Answer', isJolanda: true },
+        },
+        createSink(),
+      );
+      expect(run.mock.calls.at(-1)?.[0]).toMatchObject({
+        model: 'glm-5.3-flash',
+        reasoning: 'high',
+      });
+      expect(store.updateSettings).not.toHaveBeenCalled();
+      expect(saved).toMatchObject({ model: 'glm-5.3-flash', reasoning: 'high' });
+    },
+  );
+
+  it.each(['missing:high', 'deepseek-v4-flash:medium', ''])(
+    'rejects invalid override %j before admission',
+    async (modelProfile) => {
+      const store = createStore();
+      const run = vi.fn();
+      expect(
+        await createCore(store, { run }).handleTurn(
+          { ...createRequest(async () => []), modelProfile },
+          createSink(),
+        ),
+      ).toEqual({ status: 'rejected', reason: 'invalid_model' });
+      expect(store.authorizeTurn).not.toHaveBeenCalled();
+      expect(run).not.toHaveBeenCalled();
+    },
+  );
 
   it('renders safe ephemeral progress and replaces it with the final answer', async () => {
     const store = createStore();
