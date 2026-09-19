@@ -1,3 +1,4 @@
+import { downloadInstagramPhotos } from '../src/instagram-photos.js';
 import { downloadTikTokPhotos } from '../src/tiktok-photos.js';
 import { parseTikTokPosts } from '../src/tiktok-links.js';
 import { existsSync } from 'node:fs';
@@ -118,6 +119,7 @@ describe.skipIf(!ffmpegPath || !ffprobePath)('real Reel compression', () => {
                   })
               : runMediaProcess(input),
           downloadPhotos: downloadTikTokPhotos,
+          downloadInstagramPhotos,
           resolveTikTok: async (url) => parseTikTokPosts(url)[0]!,
           transfer: async ({ path }) => {
             await copyFile(source, path);

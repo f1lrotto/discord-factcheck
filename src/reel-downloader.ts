@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createMediaTransfer, createTikTokResolver, validateMediaUrl } from './media-http.js';
 import { tikTokGuestCookies } from './tiktok-request.js';
 import { downloadTikTokPhotos } from './tiktok-photos.js';
+import { downloadInstagramPhotos } from './instagram-photos.js';
 import { runMediaProcess } from './media-process.js';
 import { parseTikTokPosts } from './tiktok-links.js';
 import { parseInstagramReels } from './instagram-links.js';
@@ -150,6 +151,7 @@ export const createReelDownloader = (
     transfer: createMediaTransfer(),
     resolveTikTok: createTikTokResolver(),
     downloadPhotos: downloadTikTokPhotos,
+    downloadInstagramPhotos,
   },
 ) => {
   const root = input.scratchRoot ?? join(tmpdir(), 'jolanda-instagram-media');
@@ -250,8 +252,14 @@ export const createReelDownloader = (
         job.reel.platform === 'tiktok'
           ? await dependencies.resolveTikTok(job.reel.url, extractionSignal)
           : job.reel;
-      if (extractionReel.shortcode.startsWith('tiktok:photo:')) {
-        const media = await dependencies.downloadPhotos({
+      const instagramPhotos =
+        extractionReel.platform === 'instagram' &&
+        new URL(extractionReel.url).pathname.startsWith('/p/');
+      if (instagramPhotos || extractionReel.shortcode.startsWith('tiktok:photo:')) {
+        const download = instagramPhotos
+          ? dependencies.downloadInstagramPhotos
+          : dependencies.downloadPhotos;
+        const media = await download({
           reel: extractionReel,
           cwd,
           maximumBytes: job.maximumBytes,

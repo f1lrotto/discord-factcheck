@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createMediaLookup,
+  createInstagramPageFetcher,
   createTikTokResolver,
   createTikTokPageFetcher,
   createMediaTransfer,
@@ -53,6 +54,10 @@ const fixture = async (handler: RequestListener) => {
   return {
     transfer,
     input,
+    fetchInstagram: createInstagramPageFetcher({
+      request: fakeRequest,
+      lookup: createMediaLookup(),
+    }),
     fetchPage: createTikTokPageFetcher({ request: fakeRequest, lookup: createMediaLookup() }),
     resolve: createTikTokResolver({ request: fakeRequest, lookup: createMediaLookup() }),
   };
@@ -343,5 +348,59 @@ describe('TikTok photo pages and guest media requests', () => {
     expect(() => validateMediaUrl(`https://${host}/video`)).toThrow();
     expect(() => validateMediaUrl(`https://${host}.evil.test/video`, 'tiktok')).toThrow();
     expect(() => validateMediaUrl('https://eviltiktok.com/video', 'tiktok')).toThrow();
+  });
+});
+
+describe('Instagram public embed requests', () => {
+  const post = 'https://www.instagram.com/p/DdTfQ2SjrBf/';
+  it('requests only the canonical embed with no account cookies', async () => {
+    const s = await fixture((req, res) => {
+      expect(req.url).toBe('/p/DdTfQ2SjrBf/embed/captioned/');
+      expect(req.headers.cookie).toBeUndefined();
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<html>metadata</html>');
+    });
+    expect(await s.fetchInstagram(post, s.input.signal)).toBe('<html>metadata</html>');
+    await expect(s.fetchInstagram('https://evil.test/p/id/', s.input.signal)).rejects.toThrow(
+      'photos_unavailable',
+    );
+    await expect(s.fetchInstagram(post + '?tracking=1', s.input.signal)).rejects.toThrow(
+      'photos_unavailable',
+    );
+    await expect(
+      s.fetchInstagram('https://www.instagram.com/reel/id/', s.input.signal),
+    ).rejects.toThrow('photos_unavailable');
+  });
+  it.each([
+    'redirect',
+    'rate_limit',
+    'login',
+    'mime',
+    'encoding',
+    'declared_size',
+    'streamed_size',
+  ])('rejects %s responses without following redirects', async (mode) => {
+    let requests = 0;
+    const s = await fixture((_req, res) => {
+      requests++;
+      res.writeHead(
+        mode === 'redirect' ? 302 : mode === 'rate_limit' ? 429 : mode === 'login' ? 403 : 200,
+        {
+          'content-type': mode === 'mime' ? 'application/json' : 'text/html',
+          ...(mode === 'encoding' ? { 'content-encoding': 'gzip' } : {}),
+          ...(mode === 'declared_size' ? { 'content-length': String(2 * 1024 * 1024 + 1) } : {}),
+          ...(mode === 'redirect' ? { location: 'https://evil.test/login' } : {}),
+        },
+      );
+      res.end(mode === 'streamed_size' ? 'x'.repeat(2 * 1024 * 1024 + 1) : 'unavailable');
+    });
+    await expect(s.fetchInstagram(post, s.input.signal)).rejects.toThrow(
+      mode === 'rate_limit' ? 'rate_limited' : 'photos_unavailable',
+    );
+    expect(requests).toBe(1);
+  });
+  it('cancels a stalled embed request', async () => {
+    const s = await fixture(() => undefined);
+    await expect(s.fetchInstagram(post, AbortSignal.timeout(20))).rejects.toThrow();
   });
 });

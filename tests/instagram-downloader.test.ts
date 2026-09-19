@@ -1,3 +1,4 @@
+import { downloadInstagramPhotos } from '../src/instagram-photos.js';
 import { downloadTikTokPhotos } from '../src/tiktok-photos.js';
 import { mkdtemp, writeFile, readdir, mkdir, utimes, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -45,9 +46,10 @@ const setup = async () => {
   });
   const resolveTikTok = vi.fn(async (url: string) => parseTikTokPosts(url)[0]!);
   const downloadPhotos = vi.fn(downloadTikTokPhotos);
+  const instagramPhotos = vi.fn(downloadInstagramPhotos);
   const downloader = createReelDownloader(
     { ytDlpPath: '/yt-dlp', ffprobePath: '/ffprobe', ffmpegPath: '/ffmpeg', scratchRoot: root },
-    { run, transfer, resolveTikTok, downloadPhotos },
+    { run, transfer, resolveTikTok, downloadPhotos, downloadInstagramPhotos: instagramPhotos },
   );
   const job = {
     reel: {
@@ -58,7 +60,7 @@ const setup = async () => {
     signal: new AbortController().signal,
     maximumBytes: 100,
   };
-  return { root, run, transfer, downloader, job, resolveTikTok, downloadPhotos };
+  return { root, run, transfer, downloader, job, resolveTikTok, downloadPhotos, instagramPhotos };
 };
 describe('format selection and inspection', () => {
   it('selects best progressive compatible candidate under the hard known size cap', () => {
@@ -511,4 +513,43 @@ describe('photo jobs in the shared media lifetime', () => {
       cookie: 'tt_chain_token=guest==',
     });
   });
+});
+
+describe('Instagram carousels through the shared downloader', () => {
+  it.each(['success', 'consumer_failure', 'download_failure'])(
+    'routes /p/ to photos and owns temporary files through %s',
+    async (mode) => {
+      const s = await setup();
+      await s.downloader.initialize();
+      const reel = {
+        platform: 'instagram' as const,
+        shortcode: 'carousel',
+        url: 'https://www.instagram.com/p/carousel/',
+      };
+      s.instagramPhotos.mockImplementation(async ({ cwd }) => {
+        const path = join(cwd, 'original');
+        await writeFile(path, 'photo');
+        if (mode === 'download_failure') throw new ReelError('photos_unavailable');
+        return {
+          kind: 'photos',
+          bytes: 5,
+          files: [{ path, name: 'instagram-photo-01.jpg' }],
+          url: reel.url,
+        };
+      });
+      const consume = vi.fn(async () => {
+        if (mode === 'consumer_failure') throw new Error('upload');
+        return 'sent';
+      });
+      const result = s.downloader.withDownloadedReel({ ...s.job, reel }, consume);
+      if (mode === 'success') expect(await result).toBe('sent');
+      else await expect(result).rejects.toThrow();
+      expect(s.instagramPhotos).toHaveBeenCalledOnce();
+      expect(s.downloadPhotos).not.toHaveBeenCalled();
+      expect(s.run.mock.calls.some(([call]) => call.args.includes('--dump-single-json'))).toBe(
+        false,
+      );
+      expect(await readdir(s.root)).toEqual([]);
+    },
+  );
 });

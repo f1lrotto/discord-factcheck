@@ -38,7 +38,6 @@ describe('Instagram links', () => {
     'https://instagram.com/reel/a%2Fb',
     'https://instagram.com/reel/ä',
     'https://instagram.com/share/id',
-    'https://instagram.com/p/id',
     'https://instagram.com/x/../reel/id',
     'https://instagram.com/reel/' + 'a'.repeat(65),
     'https://instagram.com/reel/abc\\def',
@@ -52,4 +51,19 @@ describe('Instagram links', () => {
     ).toHaveLength(4);
     expect(parseInstagramReels(`https://instagram.com/reel/${'a'.repeat(64)}`)).toHaveLength(1);
   });
+});
+
+it('recognizes the entire Instagram carousel and strips slide/tracking parameters', () => {
+  expect(
+    parseInstagramReels('https://www.instagram.com/p/DdTfQ2SjrBf/?img_index=5&stkn=secret'),
+  ).toEqual([
+    {
+      platform: 'instagram',
+      shortcode: 'DdTfQ2SjrBf',
+      url: 'https://www.instagram.com/p/DdTfQ2SjrBf/',
+    },
+  ]);
+  expect(
+    parseInstagramReels('https://instagram.com/p/id https://m.instagram.com/p/id/?img_index=2'),
+  ).toHaveLength(1);
 });

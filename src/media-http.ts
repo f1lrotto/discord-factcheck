@@ -8,6 +8,7 @@ import { finished, pipeline } from 'node:stream/promises';
 import ipaddr from 'ipaddr.js';
 import type { TikTokMediaRequest } from './tiktok-request.js';
 import { parseTikTokPosts } from './tiktok-links.js';
+import { parseInstagramReels } from './instagram-links.js';
 import { reelLimits } from './reel-limits.js';
 import { ReelError, type ReelPlatform } from './reel-types.js';
 
@@ -223,6 +224,47 @@ export const createTikTokResolver =
       url = new URL(response.headers.location, link.url).href;
     }
     throw new ReelError('unsupported_media');
+  };
+
+// Fetch only the canonical public embed, with no cookies or redirects to login/other hosts.
+export const createInstagramPageFetcher =
+  (dependencies = { request, lookup: createMediaLookup() }) =>
+  async (value: string, signal: AbortSignal) => {
+    const post = parseInstagramReels(value)[0];
+    if (!post || post.url !== value || !new URL(value).pathname.startsWith('/p/'))
+      throw new ReelError('photos_unavailable');
+    const response = await new Promise<IncomingMessage>((resolve, reject) => {
+      const req = dependencies.request(
+        new URL(`${post.url}embed/captioned/`),
+        {
+          agent: false,
+          lookup: dependencies.lookup,
+          signal,
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Encoding': 'identity' },
+        },
+        resolve,
+      );
+      req.on('error', reject);
+      req.end();
+    });
+    response.on('error', () => undefined);
+    if (
+      response.statusCode !== 200 ||
+      !response.headers['content-type']?.toLowerCase().startsWith('text/html') ||
+      !['identity', undefined].includes(response.headers['content-encoding']) ||
+      Number(response.headers['content-length']) > reelLimits.pageBytes
+    ) {
+      await discardResponse(response);
+      throw new ReelError(response.statusCode === 429 ? 'rate_limited' : 'photos_unavailable');
+    }
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    for await (const chunk of response) {
+      bytes += chunk.length;
+      if (bytes > reelLimits.pageBytes) throw new ReelError('photos_unavailable');
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks).toString('utf8');
   };
 
 // Photo data is present on the /video/ rendering of the same public TikTok post.
