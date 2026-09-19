@@ -1,8 +1,12 @@
-import type { LookupAddress, LookupAllOptions } from 'node:dns';
-import { lookup } from 'node:dns/promises';
 import type { ClientRequest, IncomingMessage } from 'node:http';
 import { request, type RequestOptions } from 'node:https';
-import ipaddr from 'ipaddr.js';
+import {
+  readBoundedBody,
+  createGuardedLookup,
+  malformedRequest,
+  publicUnicastAddress,
+  retryAfterDate,
+} from '../net/https.js';
 import type { NewsCacheValidators, NewsSourceId, NewsSourceResult } from './types.js';
 
 export type NewsHttpFailure = Extract<
@@ -23,7 +27,7 @@ export type NewsHttp = (input: {
   validators?: NewsCacheValidators;
 }) => Promise<NewsHttpResult>;
 
-const invalid = () => new Error('malformed');
+const invalid = malformedRequest;
 
 // Shared by adapters/rendering. Images are validated metadata, never fetched here.
 export const validateNewsUrl = (
@@ -62,29 +66,9 @@ export const validateNewsUrl = (
   return url;
 };
 
-export const publicNewsAddress = (address: string) =>
-  ipaddr.isValid(address) && ipaddr.parse(address).range() === 'unicast';
-
-// Resolve inside the socket lookup, returning exactly the checked answers. There is no
-// separate preflight lookup for an attacker to rebind between validation and connection.
-export const createNewsLookup =
-  (
-    resolve: (hostname: string, options: LookupAllOptions) => Promise<LookupAddress[]> = lookup,
-  ): NonNullable<RequestOptions['lookup']> =>
-  (hostname, options, callback) => {
-    void resolve(hostname, { all: true, verbatim: true }).then(
-      (addresses) => {
-        const first = addresses.find(({ family }) => !options.family || family === options.family);
-        if (!first || addresses.some(({ address }) => !publicNewsAddress(address))) {
-          callback(invalid(), '', 4);
-          return;
-        }
-        if (options.all) callback(null, addresses);
-        else callback(null, first.address, first.family);
-      },
-      () => callback(new Error('unavailable'), '', 4),
-    );
-  };
+// Retained names: the news adapters and their tests are the original callers of these guards.
+export const publicNewsAddress = publicUnicastAddress;
+export const createNewsLookup = createGuardedLookup;
 
 const headerValue = (value: string | undefined) =>
   value && value.length <= 1024 && /^[\x20-\x7e]+$/.test(value) ? value : undefined;
@@ -95,13 +79,8 @@ const validatorsFrom = (values: NewsCacheValidators) => {
 };
 
 const retryAfter = (value: string | undefined, now: Date) => {
-  if (!value || value.length > 128) return {};
-  const milliseconds = /^\d+$/.test(value.trim())
-    ? now.getTime() + Number(value.trim()) * 1000
-    : Date.parse(value);
-  return Number.isFinite(milliseconds) && milliseconds > now.getTime() && milliseconds <= 8.64e15
-    ? { retryAt: new Date(milliseconds) }
-    : {};
+  const retryAt = retryAfterDate(value, now);
+  return retryAt ? { retryAt } : {};
 };
 
 export const createNewsHttp = (
@@ -210,35 +189,14 @@ export const createNewsHttp = (
           return { outcome: 'unchanged', validators: { ...conditional, ...validators } };
         }
         if (status !== 200) return { outcome: 'unavailable' };
-        const [mime, ...parameters] = (response.headers['content-type'] ?? '')
-          .toLowerCase()
-          .split(';');
-        const length = response.headers['content-length'];
-        if (
-          !['text/html', 'application/xhtml+xml'].includes(mime!.trim()) ||
-          parameters.some(
-            (parameter) =>
-              /^\s*charset\s*=/.test(parameter) &&
-              !/^\s*charset\s*=\s*"?(?:utf-8|utf8|us-ascii)"?\s*$/.test(parameter),
-          ) ||
-          ![undefined, 'identity'].includes(response.headers['content-encoding']) ||
-          (length !== undefined && (!/^\d+$/.test(length) || Number(length) > maximumBytes))
-        )
-          throw invalid();
-        let bytes = 0;
-        const chunks: Buffer[] = [];
-        for await (const chunk of response) {
-          signal.throwIfAborted();
-          bytes += chunk.length;
-          if (bytes > maximumBytes) throw invalid();
-          chunks.push(chunk);
-        }
-        if (!response.complete || (length !== undefined && bytes !== Number(length)))
-          return { outcome: 'unavailable' };
-        if (!bytes) throw invalid();
+        const body = await readBoundedBody(response, signal, maximumBytes, [
+          'text/html',
+          'application/xhtml+xml',
+        ]);
+        if (!body) return { outcome: 'unavailable' };
         let html: string;
         try {
-          html = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+          html = new TextDecoder('utf-8', { fatal: true }).decode(body);
         } catch {
           throw invalid();
         }
