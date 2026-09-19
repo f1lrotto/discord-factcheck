@@ -1,0 +1,3697 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>News inside Jolanda — architecture exploration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f3eb;
+        --surface: #fffdf8;
+        --border: #d9ddd2;
+        --text: #25332f;
+        --text-dim: #5d6c65;
+        --accent: #286858;
+        --accent-dim: #e6eee5;
+        --daily: #956022;
+        --daily-dim: #f6ebd6;
+        --existing: #5b6577;
+        --existing-dim: #e9edf2;
+        --risk: #954e43;
+        --risk-dim: #f5e7e2;
+        --body: 'DM Sans', 'Helvetica Neue', sans-serif;
+        --mono: 'IBM Plex Mono', monospace;
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #19241f;
+        --surface: #202c26;
+        --border: #3b4c40;
+        --text: #f0f0e3;
+        --text-dim: #b4c2b7;
+        --accent: #a2ceb1;
+        --accent-dim: #2c4334;
+        --daily: #e8c284;
+        --daily-dim: #433725;
+        --existing: #b6c4dc;
+        --existing-dim: #2f3b4b;
+        --risk: #edb2a4;
+        --risk-dim: #4a322d;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        background-image: radial-gradient(ellipse at 70% 0%, var(--accent-dim), transparent 55%);
+        color: var(--text);
+        font: 15px/1.65 var(--body);
+        overflow-wrap: break-word;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 3px;
+      }
+      button,
+      summary,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+      :focus-visible {
+        outline: 3px solid var(--daily);
+        outline-offset: 4px;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        color: var(--text);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 5px;
+        padding: 7px 13px;
+      }
+      button:hover {
+        background: var(--accent-dim);
+      }
+      .wrap {
+        max-width: 1390px;
+        margin: 0 auto;
+        padding: 35px 35px 70px;
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: 45px;
+      }
+      .toc {
+        position: sticky;
+        top: 30px;
+        align-self: start;
+        max-height: calc(100vh - 60px);
+        overflow: auto;
+        padding-top: 12px;
+      }
+      .toc-label,
+      .eyebrow,
+      .card > .label,
+      .number {
+        font: 11px/1.6 var(--mono);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+      .toc-label {
+        padding-bottom: 17px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 12px;
+      }
+      .toc a {
+        display: block;
+        padding: 8px 9px;
+        margin-bottom: 4px;
+        border-left: 2px solid transparent;
+        text-decoration: none;
+        color: var(--text-dim);
+        font-size: 13px;
+      }
+      .toc a.active {
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-dim);
+      }
+      .toc button {
+        margin-top: 22px;
+        font-size: 12px;
+      }
+      main,
+      .grid > *,
+      .split > * {
+        min-width: 0;
+      }
+      header {
+        padding: 25px 0 38px;
+        border-bottom: 1px solid var(--border);
+      }
+      h1,
+      h2 {
+        font-family: 'Instrument Serif', Georgia, serif;
+        font-weight: 400;
+        line-height: 1.05;
+        letter-spacing: -0.7px;
+      }
+      h1 {
+        font-size: clamp(48px, 6vw, 82px);
+        max-width: 800px;
+        margin: 17px 0 24px;
+      }
+      h2 {
+        font-size: 39px;
+        margin: 9px 0 24px;
+      }
+      h3 {
+        font-size: 18px;
+        line-height: 1.35;
+        margin: 5px 0 12px;
+      }
+      p {
+        margin: 0 0 15px;
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.5;
+        max-width: 830px;
+      }
+      .muted,
+      small {
+        color: var(--text-dim);
+      }
+      .meta {
+        font: 11px/1.7 var(--mono);
+        color: var(--text-dim);
+        margin-top: 24px;
+      }
+      section {
+        padding: 42px 0 8px;
+        scroll-margin-top: 35px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .card {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 8px;
+        padding: 21px;
+      }
+      .card p:last-child,
+      .callout p:last-child {
+        margin-bottom: 0;
+      }
+      .card .label {
+        margin-bottom: 10px;
+        display: block;
+      }
+      .card.live {
+        border-top: 3px solid var(--accent);
+      }
+      .card.daily {
+        border-top: 3px solid var(--daily);
+      }
+      .card.existing {
+        border-top: 3px solid var(--existing);
+      }
+      .callout {
+        border-left: 3px solid var(--accent);
+        padding: 18px 23px;
+        margin: 23px 0;
+        background: var(--accent-dim);
+      }
+      .callout.risk {
+        border-color: var(--risk);
+        background: var(--risk-dim);
+      }
+      .callout.daily {
+        border-color: var(--daily);
+        background: var(--daily-dim);
+      }
+      code {
+        font: 0.83em/1.6 var(--mono);
+        background: var(--accent-dim);
+        border-radius: 3px;
+        padding: 2px 5px;
+        overflow-wrap: anywhere;
+      }
+      pre {
+        white-space: pre-wrap;
+        background: var(--accent-dim);
+        border: 1px solid var(--border);
+        padding: 20px;
+        border-radius: 6px;
+      }
+      pre code {
+        padding: 0;
+        background: transparent;
+        font-size: 12px;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin-bottom: 8px;
+      }
+      .table-scroll {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        background: var(--surface);
+        font-size: 13px;
+        min-width: 660px;
+      }
+      caption {
+        text-align: left;
+        padding: 16px 20px;
+        font-weight: 600;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 17px 19px;
+        border-top: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        background: var(--accent-dim);
+        font-size: 12px;
+      }
+      tbody tr:nth-child(even) {
+        background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+      }
+      tr.recommended {
+        box-shadow: inset 3px 0 var(--accent);
+      }
+      td:first-child {
+        width: 24%;
+      }
+      .badge {
+        display: inline-block;
+        border-radius: 3px;
+        background: var(--accent-dim);
+        color: var(--accent);
+        font: 10px var(--mono);
+        padding: 5px 7px;
+        margin-bottom: 7px;
+      }
+      details {
+        padding: 18px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      summary {
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      details[open] summary {
+        margin-bottom: 17px;
+      }
+      .files {
+        display: grid;
+        grid-template-columns: minmax(190px, 0.8fr) 1.6fr;
+        gap: 12px 22px;
+        margin: 20px 0;
+        font-size: 13px;
+      }
+      .files dt {
+        font-family: var(--mono);
+      }
+      .files dd {
+        margin: 0;
+        color: var(--text-dim);
+      }
+      .mermaid-wrap {
+        position: relative;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 52px 20px 23px;
+        overflow: auto;
+        margin: 24px 0;
+      }
+      .mermaid {
+        margin: 0;
+        border: none;
+        background: transparent;
+        padding: 0;
+        transform-origin: top left;
+      }
+      .mermaid svg {
+        display: block;
+        margin: auto;
+        max-width: 100%;
+        height: auto;
+      }
+      .mermaid .nodeLabel {
+        color: var(--text) !important;
+        font-family: var(--body) !important;
+      }
+      .mermaid .edgeLabel {
+        color: var(--text-dim) !important;
+        background-color: var(--surface) !important;
+        font-family: var(--body) !important;
+      }
+      .mermaid .edgeLabel p {
+        background-color: var(--surface) !important;
+        color: var(--text-dim) !important;
+      }
+      .mermaid .edgeLabel rect,
+      .mermaid .labelBkg {
+        fill: var(--surface) !important;
+      }
+      .mermaid .node rect,
+      .mermaid .node polygon,
+      .mermaid .node circle,
+      .mermaid .node path {
+        fill: var(--accent-dim) !important;
+        stroke: var(--accent) !important;
+      }
+      .mermaid .cluster rect {
+        fill: var(--surface) !important;
+        stroke: var(--border) !important;
+      }
+      .mermaid .flowchart-link {
+        stroke: var(--text-dim) !important;
+      }
+      .mermaid marker path {
+        fill: var(--text-dim) !important;
+        stroke: var(--text-dim) !important;
+      }
+      .mermaid .cluster-label text,
+      .mermaid text {
+        fill: var(--text) !important;
+      }
+      .zoom-controls {
+        position: absolute;
+        top: 9px;
+        right: 10px;
+        display: flex;
+        gap: 5px;
+      }
+      .zoom-controls button {
+        font: 13px var(--mono);
+        padding: 5px 10px;
+      }
+      .mermaid-wrap.is-zoomed {
+        cursor: grab;
+      }
+      .mermaid-wrap.is-panning {
+        cursor: grabbing;
+        user-select: none;
+      }
+      .diagram-note {
+        font-size: 12px;
+        color: var(--text-dim);
+      }
+      .foot {
+        border-top: 1px solid var(--border);
+        margin-top: 38px;
+        padding-top: 20px;
+        font-size: 12px;
+      }
+      header,
+      section {
+        animation: enter 0.4s ease-out both;
+      }
+      @keyframes enter {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @media (max-width: 1050px) {
+        .wrap {
+          display: block;
+          padding: 0 24px 45px;
+        }
+        .toc {
+          top: 0;
+          z-index: 20;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 9px 0;
+          background: var(--bg);
+          border-bottom: 1px solid var(--border);
+          max-height: none;
+        }
+        .toc-label {
+          display: none;
+        }
+        .toc a {
+          flex-shrink: 0;
+          white-space: nowrap;
+          margin: 0;
+          padding: 6px 9px;
+          font-size: 12px;
+        }
+        .toc button {
+          flex-shrink: 0;
+          margin: 0 8px;
+          padding: 4px 8px;
+        }
+        section {
+          scroll-margin-top: 65px;
+        }
+      }
+      @media (max-width: 700px) {
+        .wrap {
+          padding-inline: 17px;
+        }
+        .grid,
+        .split {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 52px;
+        }
+        h2 {
+          font-size: 34px;
+        }
+        .lead {
+          font-size: 18px;
+        }
+        .files {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+        .files dd {
+          margin-bottom: 12px;
+        }
+        .mermaid-wrap {
+          padding-inline: 10px;
+        }
+        .mermaid {
+          min-width: 650px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+      @media print {
+        .toc,
+        .zoom-controls {
+          display: none;
+        }
+        .wrap {
+          display: block;
+          padding: 0;
+        }
+        .card,
+        tr {
+          break-inside: avoid;
+        }
+        section {
+          padding-top: 25px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav class="toc" aria-label="Architecture sections">
+        <div class="toc-label">Jolanda / design note</div>
+        <a href="#decision" class="active">01 · Recommendation</a>
+        <a href="#today">02 · Current codebase</a>
+        <a href="#options">03 · Deployment options</a>
+        <a href="#modules">04 · Proposed modules</a>
+        <a href="#delivery">05 · Reliable delivery</a>
+        <a href="#impact">06 · Change &amp; validation</a>
+        <button id="theme-toggle" type="button" aria-label="Toggle light and dark theme">
+          Change theme
+        </button>
+      </nav>
+      <main>
+        <header id="decision">
+          <div class="eyebrow">Architecture exploration · 14 September 2026</div>
+          <h1>Two news channels.<br />One Jolanda.</h1>
+          <p>
+            <a href="NEWS_IMPLEMENTATION_PLAN.md">Implementation plan and task contracts</a> ·
+            <a href="NEWS_AGENT_RUNBOOK.md">Agent execution runbook</a>
+          </p>
+          <p class="lead">
+            Keep the repository and Discord identity. Add news as an independent module alongside AI
+            conversations and media reposting, with durable collection and delivery state.
+          </p>
+          <p class="muted">
+            Start in the existing process for this small workload. The same design can move into a
+            separate news worker if independent uptime or heavier retrieval becomes necessary.
+          </p>
+          <div class="split">
+            <div class="card live">
+              <span class="label">Channel A · Denník N</span>
+              <h3>Important stories through the day</h3>
+              <p>
+                Collect the editorial importance selection every 20 minutes. Post individual embeds
+                for new, eligible stories, with pacing and duplicate control. Collection frequency
+                does not dictate message frequency.
+              </p>
+            </div>
+            <div class="card daily">
+              <span class="label">Channel B · Aktuality</span>
+              <h3>One daily edition</h3>
+              <p>
+                Collect Aktuality’s own roundup at 20:00 in Europe/Bratislava, with a 21:00 fallback
+                only when no fresh edition was collected. Send one compact message. Use several
+                short embeds or one structured embed, with a single notification opportunity.
+              </p>
+            </div>
+          </div>
+          <p class="meta">
+            Grounded in working tree at 7f38348 · 44 TypeScript source files / ~7.3k lines ·
+            Exploration only; no news runtime implemented.
+          </p>
+        </header>
+
+        <section id="today">
+          <div class="number">02 / Current codebase</div>
+          <h2>A small application with two feature paths</h2>
+          <p>
+            This is one Node.js / TypeScript package, built with pnpm and deployed as a long-running
+            worker. <a href="src/index.ts">src/index.ts</a> constructs dependencies explicitly. The
+            checked-in Dockerfile starts <code>dist/index.js</code>; the deployment documentation
+            specifies one Railway replica. Live deployment settings were not inspected.
+          </p>
+          <div class="mermaid-wrap" aria-label="Current application architecture">
+            <div class="zoom-controls">
+              <button type="button" data-factor="1.2" aria-label="Zoom in">+</button
+              ><button type="button" data-factor="0.8" aria-label="Zoom out">−</button
+              ><button type="button" data-reset aria-label="Reset zoom">Reset</button>
+            </div>
+            <div class="mermaid">
+              <svg
+                id="mermaid-1789344607188"
+                width="100%"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                class="flowchart"
+                style="max-width: 1349.140625px"
+                viewBox="0 0 1349.140625 535.3768310546875"
+                role="graphics-document document"
+                aria-roledescription="flowchart-v2"
+              >
+                <style>
+                  #mermaid-1789344607188 {
+                    font-family:
+                      DM Sans,
+                      sans-serif;
+                    font-size: 15px;
+                    fill: #25332f;
+                  }
+                  @keyframes edge-animation-frame {
+                    from {
+                      stroke-dashoffset: 0;
+                    }
+                  }
+                  @keyframes dash {
+                    to {
+                      stroke-dashoffset: 0;
+                    }
+                  }
+                  #mermaid-1789344607188 .edge-animation-slow {
+                    stroke-dasharray: 9, 5 !important;
+                    stroke-dashoffset: 900;
+                    animation: dash 50s linear infinite;
+                    stroke-linecap: round;
+                  }
+                  #mermaid-1789344607188 .edge-animation-fast {
+                    stroke-dasharray: 9, 5 !important;
+                    stroke-dashoffset: 900;
+                    animation: dash 20s linear infinite;
+                    stroke-linecap: round;
+                  }
+                  #mermaid-1789344607188 .error-icon {
+                    fill: #f6ebd6;
+                  }
+                  #mermaid-1789344607188 .error-text {
+                    fill: #091429;
+                    stroke: #091429;
+                  }
+                  #mermaid-1789344607188 .edge-thickness-normal {
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607188 .edge-thickness-thick {
+                    stroke-width: 3.5px;
+                  }
+                  #mermaid-1789344607188 .edge-pattern-solid {
+                    stroke-dasharray: 0;
+                  }
+                  #mermaid-1789344607188 .edge-thickness-invisible {
+                    stroke-width: 0;
+                    fill: none;
+                  }
+                  #mermaid-1789344607188 .edge-pattern-dashed {
+                    stroke-dasharray: 3;
+                  }
+                  #mermaid-1789344607188 .edge-pattern-dotted {
+                    stroke-dasharray: 2;
+                  }
+                  #mermaid-1789344607188 .marker {
+                    fill: #5d6c65;
+                    stroke: #5d6c65;
+                  }
+                  #mermaid-1789344607188 .marker.cross {
+                    stroke: #5d6c65;
+                  }
+                  #mermaid-1789344607188 svg {
+                    font-family:
+                      DM Sans,
+                      sans-serif;
+                    font-size: 15px;
+                  }
+                  #mermaid-1789344607188 p {
+                    margin: 0;
+                  }
+                  #mermaid-1789344607188 .label {
+                    font-family:
+                      DM Sans,
+                      sans-serif;
+                    color: #25332f;
+                  }
+                  #mermaid-1789344607188 .cluster-label text {
+                    fill: #091429;
+                  }
+                  #mermaid-1789344607188 .cluster-label span {
+                    color: #091429;
+                  }
+                  #mermaid-1789344607188 .cluster-label span p {
+                    background-color: transparent;
+                  }
+                  #mermaid-1789344607188 .label text,
+                  #mermaid-1789344607188 span {
+                    fill: #25332f;
+                    color: #25332f;
+                  }
+                  #mermaid-1789344607188 .node rect,
+                  #mermaid-1789344607188 .node circle,
+                  #mermaid-1789344607188 .node ellipse,
+                  #mermaid-1789344607188 .node polygon,
+                  #mermaid-1789344607188 .node path {
+                    fill: #e6eee5;
+                    stroke: #286858;
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607188 .rough-node .label text,
+                  #mermaid-1789344607188 .node .label text,
+                  #mermaid-1789344607188 .image-shape .label,
+                  #mermaid-1789344607188 .icon-shape .label {
+                    text-anchor: middle;
+                  }
+                  #mermaid-1789344607188 .node .katex path {
+                    fill: #000;
+                    stroke: #000;
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607188 .rough-node .label,
+                  #mermaid-1789344607188 .node .label,
+                  #mermaid-1789344607188 .image-shape .label,
+                  #mermaid-1789344607188 .icon-shape .label {
+                    text-align: center;
+                  }
+                  #mermaid-1789344607188 .node.clickable {
+                    cursor: pointer;
+                  }
+                  #mermaid-1789344607188 .root .anchor path {
+                    fill: #5d6c65 !important;
+                    stroke-width: 0;
+                    stroke: #5d6c65;
+                  }
+                  #mermaid-1789344607188 .arrowheadPath {
+                    fill: #0b0b0b;
+                  }
+                  #mermaid-1789344607188 .edgePaths .path {
+                    stroke: #5d6c65;
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607188 .flowchart-link {
+                    stroke: #5d6c65;
+                    fill: none;
+                  }
+                  #mermaid-1789344607188 .edgeLabel {
+                    background-color: #fffdf8;
+                    text-align: center;
+                  }
+                  #mermaid-1789344607188 .edgeLabel p {
+                    background-color: #fffdf8;
+                  }
+                  #mermaid-1789344607188 .edgeLabel rect {
+                    opacity: 0.5;
+                    background-color: #fffdf8;
+                    fill: #fffdf8;
+                  }
+                  #mermaid-1789344607188 .labelBkg {
+                    background-color: rgba(255, 253, 248, 0.5);
+                  }
+                  #mermaid-1789344607188 .cluster rect {
+                    fill: #f6ebd6;
+                    stroke: hsl(39.375, 24%, 80.1960784314%);
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607188 .cluster text {
+                    fill: #091429;
+                  }
+                  #mermaid-1789344607188 .cluster span {
+                    color: #091429;
+                  }
+                  #mermaid-1789344607188 .node .collapsed-indicator {
+                    fill: hsl(39.375, 24%, 80.1960784314%);
+                    stroke: none;
+                    opacity: 0.6;
+                  }
+                  #mermaid-1789344607188 .node .collapsed-separator {
+                    stroke: hsl(39.375, 24%, 80.1960784314%);
+                    stroke-width: 0.75px;
+                  }
+                  #mermaid-1789344607188 div.mermaidTooltip {
+                    position: absolute;
+                    text-align: center;
+                    max-width: 200px;
+                    padding: 2px;
+                    font-family:
+                      DM Sans,
+                      sans-serif;
+                    font-size: 12px;
+                    background: #f6ebd6;
+                    border: 1px solid hsl(39.375, 24%, 80.1960784314%);
+                    border-radius: 2px;
+                    pointer-events: none;
+                    z-index: 100;
+                  }
+                  #mermaid-1789344607188 .flowchartTitleText {
+                    text-anchor: middle;
+                    font-size: 18px;
+                    fill: #25332f;
+                  }
+                  #mermaid-1789344607188 rect.text {
+                    fill: none;
+                    stroke-width: 0;
+                  }
+                  #mermaid-1789344607188 .icon-shape,
+                  #mermaid-1789344607188 .image-shape {
+                    background-color: #fffdf8;
+                    text-align: center;
+                  }
+                  #mermaid-1789344607188 .icon-shape p,
+                  #mermaid-1789344607188 .image-shape p {
+                    background-color: #fffdf8;
+                    padding: 2px;
+                  }
+                  #mermaid-1789344607188 .icon-shape .label rect,
+                  #mermaid-1789344607188 .image-shape .label rect {
+                    opacity: 0.5;
+                    background-color: #fffdf8;
+                    fill: #fffdf8;
+                  }
+                  #mermaid-1789344607188 .label-icon {
+                    display: inline-block;
+                    height: 1em;
+                    overflow: visible;
+                    vertical-align: -0.125em;
+                  }
+                  #mermaid-1789344607188 .node .label-icon path {
+                    fill: currentColor;
+                    stroke: revert;
+                    stroke-width: revert;
+                  }
+                  #mermaid-1789344607188 .node .neo-node {
+                    stroke: #286858;
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].node rect,
+                  #mermaid-1789344607188 [data-look='neo'].cluster rect,
+                  #mermaid-1789344607188 [data-look='neo'].node polygon {
+                    stroke: url(#mermaid-1789344607188-gradient);
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].swimlane.cluster rect {
+                    filter: none;
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].node path {
+                    stroke: url(#mermaid-1789344607188-gradient);
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].node .outer-path {
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].node .neo-line path {
+                    stroke: #286858;
+                    filter: none;
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].node circle {
+                    stroke: url(#mermaid-1789344607188-gradient);
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].node circle .state-start {
+                    fill: #000000;
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].icon-shape .icon {
+                    fill: url(#mermaid-1789344607188-gradient);
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607188 [data-look='neo'].icon-shape .icon-neo path {
+                    stroke: url(#mermaid-1789344607188-gradient);
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607188 :root {
+                    --mermaid-font-family: 'trebuchet ms', verdana, arial, sans-serif;
+                  }
+                </style>
+                <g>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-pointEnd"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="5"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="8"
+                    markerHeight="8"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 0 0 L 10 5 L 0 10 z"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-pointStart"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="4.5"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="8"
+                    markerHeight="8"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 0 5 L 10 10 L 10 0 z"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-pointEnd-margin"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 11.5 14"
+                    refX="11.5"
+                    refY="7"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="10.5"
+                    markerHeight="14"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 0 0 L 11.5 7 L 0 14 z"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 0; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-pointStart-margin"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 11.5 14"
+                    refX="1"
+                    refY="7"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11.5"
+                    markerHeight="14"
+                    orient="auto"
+                  >
+                    <polygon
+                      points="0,7 11.5,14 11.5,0"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 0; stroke-dasharray: 1, 0"
+                    ></polygon>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-circleEnd"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="11"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    ></circle>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-circleStart"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="-1"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    ></circle>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-circleEnd-margin"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refY="5"
+                    refX="12.25"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="14"
+                    markerHeight="14"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 0; stroke-dasharray: 1, 0"
+                    ></circle>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-circleStart-margin"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="-2"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="14"
+                    markerHeight="14"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 0; stroke-dasharray: 1, 0"
+                    ></circle>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-crossEnd"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 11 11"
+                    refX="12"
+                    refY="5.2"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 l 9,9 M 10,1 l -9,9"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-crossStart"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 11 11"
+                    refX="-1"
+                    refY="5.2"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 l 9,9 M 10,1 l -9,9"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-crossEnd-margin"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 15 15"
+                    refX="17.7"
+                    refY="7.5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="12"
+                    markerHeight="12"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 L 14,14 M 1,14 L 14,1"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2.5"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607188_flowchart-v2-crossStart-margin"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 15 15"
+                    refX="-3.5"
+                    refY="7.5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="12"
+                    markerHeight="12"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 L 14,14 M 1,14 L 14,1"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2.5; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <g class="root">
+                    <g class="clusters"></g>
+                    <g class="edgePaths">
+                      <path
+                        d="M654.855,83L654.855,86.333C654.855,89.667,654.855,96.333,654.855,102.333C654.855,108.333,654.855,113.667,654.855,116.333L654.855,119"
+                        id="mermaid-1789344607188-L_MAIN_GW_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_MAIN_GW_0"
+                        data-points="W3sieCI6NjU0Ljg1NTQ2ODc1LCJ5Ijo4M30seyJ4Ijo2NTQuODU1NDY4NzUsInkiOjEwM30seyJ4Ijo2NTQuODU1NDY4NzUsInkiOjEyM31d"
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M524.855,180.039L482.76,186.366C440.665,192.693,356.475,205.346,314.38,214.34C272.285,223.333,272.285,228.667,272.285,231.333L272.285,234"
+                        id="mermaid-1789344607188-L_GW_CHAT_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_GW_CHAT_0"
+                        data-points="W3sieCI6NTI0Ljg1NTQ2ODc1LCJ5IjoxODAuMDM4ODkxOTUyMDUxM30seyJ4IjoyNzIuMjg1MTU2MjUsInkiOjIxOH0seyJ4IjoyNzIuMjg1MTU2MjUsInkiOjIzOH1d"
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M272.285,290.5L272.285,293.833C272.285,297.167,272.285,303.833,272.285,309.833C272.285,315.833,272.285,321.167,272.285,323.833L272.285,326.5"
+                        id="mermaid-1789344607188-L_CHAT_AI_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_CHAT_AI_0"
+                        data-points="W3sieCI6MjcyLjI4NTE1NjI1LCJ5IjoyOTAuNX0seyJ4IjoyNzIuMjg1MTU2MjUsInkiOjMxMC41fSx7IngiOjI3Mi4yODUxNTYyNSwieSI6MzMwLjV9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M184.708,405.5L176.923,408.833C169.139,412.167,153.569,418.833,145.785,425.406C138,431.979,138,438.459,138,441.699L138,444.938"
+                        id="mermaid-1789344607188-L_AI_OR_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_AI_OR_0"
+                        data-points="W3sieCI6MTg0LjcwNzg4MDQzNDc4MjYyLCJ5Ijo0MDUuNX0seyJ4IjoxMzgsInkiOjQyNS41fSx7IngiOjEzOCwieSI6NDQ4LjkzODQxMTcxMjY0NjV9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M784.855,188.362L807.903,193.302C830.951,198.241,877.046,208.121,900.093,220.769C923.141,233.417,923.141,248.833,923.141,264.25C923.141,279.667,923.141,295.083,923.141,307.333C923.141,319.583,923.141,328.667,923.141,333.208L923.141,337.75"
+                        id="mermaid-1789344607188-L_GW_REELS_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_GW_REELS_0"
+                        data-points="W3sieCI6Nzg0Ljg1NTQ2ODc1LCJ5IjoxODguMzYyMTQ1MjgwMzU0MX0seyJ4Ijo5MjMuMTQwNjI1LCJ5IjoyMTh9LHsieCI6OTIzLjE0MDYyNSwieSI6MjY0LjI1fSx7IngiOjkyMy4xNDA2MjUsInkiOjMxMC41fSx7IngiOjkyMy4xNDA2MjUsInkiOjM0MS43NX1d"
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M923.141,394.25L923.141,399.458C923.141,404.667,923.141,415.083,923.141,423.531C923.141,431.979,923.141,438.459,923.141,441.699L923.141,444.938"
+                        id="mermaid-1789344607188-L_REELS_DL_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_REELS_DL_0"
+                        data-points="W3sieCI6OTIzLjE0MDYyNSwieSI6Mzk0LjI1fSx7IngiOjkyMy4xNDA2MjUsInkiOjQyNS41fSx7IngiOjkyMy4xNDA2MjUsInkiOjQ0OC45Mzg0MTE3MTI2NDY1fV0="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M272.285,405.5L272.285,408.833C272.285,412.167,272.285,418.833,277.995,426.269C283.705,433.704,295.125,441.908,300.835,446.01L306.545,450.112"
+                        id="mermaid-1789344607188-L_AI_MONGO_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_AI_MONGO_0"
+                        data-points="W3sieCI6MjcyLjI4NTE1NjI1LCJ5Ijo0MDUuNX0seyJ4IjoyNzIuMjg1MTU2MjUsInkiOjQyNS41fSx7IngiOjMwOS43OTM1Njk0MjkxNjQ4LCJ5Ijo0NTIuNDQ1NDAzNjA4NDExMX1d"
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M794.234,385.552L745.338,392.21C696.441,398.868,598.648,412.184,544.042,422.944C489.436,433.704,478.016,441.908,472.306,446.01L466.596,450.112"
+                        id="mermaid-1789344607188-L_REELS_MONGO_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_REELS_MONGO_0"
+                        data-points="W3sieCI6Nzk0LjIzNDM3NSwieSI6Mzg1LjU1MjM3OTYzMDkxNDR9LHsieCI6NTAwLjg1NTQ2ODc1LCJ5Ijo0MjUuNX0seyJ4Ijo0NjMuMzQ3MDU1NTcwODM1MiwieSI6NDUyLjQ0NTQwMzYwODQxMTF9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M402.285,388.6L441.094,394.75C479.904,400.9,557.522,413.2,596.331,422.59C635.141,431.979,635.141,438.459,635.141,441.699L635.141,444.938"
+                        id="mermaid-1789344607188-L_AI_SINK_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_AI_SINK_0"
+                        data-points="W3sieCI6NDAyLjI4NTE1NjI1LCJ5IjozODguNjAwNDg4NzQ0ODczfSx7IngiOjYzNS4xNDA2MjUsInkiOjQyNS41fSx7IngiOjYzNS4xNDA2MjUsInkiOjQ0OC45Mzg0MTE3MTI2NDY1fV0="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M1052.047,393.736L1078.563,399.03C1105.078,404.324,1158.109,414.912,1184.625,423.446C1211.141,431.979,1211.141,438.459,1211.141,441.699L1211.141,444.938"
+                        id="mermaid-1789344607188-L_REELS_REST_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_REELS_REST_0"
+                        data-points="W3sieCI6MTA1Mi4wNDY4NzUsInkiOjM5My43MzY0OTA4ODU0MTY3fSx7IngiOjEyMTEuMTQwNjI1LCJ5Ijo0MjUuNX0seyJ4IjoxMjExLjE0MDYyNSwieSI6NDQ4LjkzODQxMTcxMjY0NjV9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607188_flowchart-v2-pointEnd)"
+                      ></path>
+                    </g>
+                    <g class="edgeLabels">
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_MAIN_GW_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_GW_CHAT_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_CHAT_AI_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_AI_OR_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_GW_REELS_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_REELS_DL_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_AI_MONGO_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_REELS_MONGO_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_AI_SINK_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_REELS_REST_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                    </g>
+                    <g class="nodes">
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-MAIN-0"
+                        data-look="classic"
+                        transform="translate(654.85546875, 45.5)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"><p>index.ts · startup and shutdown</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-GW-1"
+                        data-look="classic"
+                        transform="translate(654.85546875, 160.5)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>discord-bot.ts · Gateway and commands</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-CHAT-3"
+                        data-look="classic"
+                        transform="translate(272.28515625, 264.25)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-103.203125"
+                          y="-26.25"
+                          width="206.40625"
+                          height="52.5"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-73.203125, -11.25)">
+                          <rect></rect>
+                          <foreignObject width="146.40625" height="22.5"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="nodeLabel"><p>discord-messages.ts</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-AI-5"
+                        data-look="classic"
+                        transform="translate(272.28515625, 368)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>jolanda.ts · conversations and spending</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-OR-7"
+                        data-look="classic"
+                        transform="translate(138, 486.4384117126465)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>openrouter.ts · inference and web tools</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-REELS-9"
+                        data-look="classic"
+                        transform="translate(923.140625, 368)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-128.90625"
+                          y="-26.25"
+                          width="257.8125"
+                          height="52.5"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-98.90625, -11.25)">
+                          <rect></rect>
+                          <foreignObject width="197.8125" height="22.5"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="nodeLabel"><p>discord-reels.ts · media jobs</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-DL-11"
+                        data-look="classic"
+                        transform="translate(923.140625, 486.4384117126465)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"><p>Downloaders · yt-dlp and FFmpeg</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-MONGO-13"
+                        data-look="classic"
+                        transform="translate(386.5703125, 486.4384117126465)"
+                      >
+                        <path
+                          d="M0,14.792272750472106 a90.5703125,14.792272750472106 0,0,0 181.140625,0 a90.5703125,14.792272750472106 0,0,0 -181.140625,0 l0,52.29227275047211 a90.5703125,14.792272750472106 0,0,0 181.140625,0 l0,-52.29227275047211"
+                          class="basic label-container outer-path"
+                          style=""
+                          transform="translate(-90.5703125, -40.93840912570816)"
+                        ></path>
+                        <g class="label" style="" transform="translate(-83.0703125, -1.25)">
+                          <rect></rect>
+                          <foreignObject width="166.140625" height="22.5"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="nodeLabel"><p>MongoDB · feature state</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-SINK-17"
+                        data-look="classic"
+                        transform="translate(635.140625, 486.4384117126465)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>ResponseSink · streamed text replies</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607188-flowchart-REST-19"
+                        data-look="classic"
+                        transform="translate(1211.140625, 486.4384117126465)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>Media REST transport · same bot identity</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+                <defs>
+                  <filter id="mermaid-1789344607188-drop-shadow" height="130%" width="130%">
+                    <feDropShadow
+                      dx="4"
+                      dy="4"
+                      stdDeviation="0"
+                      flood-opacity="0.06"
+                      flood-color="#000000"
+                    ></feDropShadow>
+                  </filter>
+                </defs>
+                <defs>
+                  <filter id="mermaid-1789344607188-drop-shadow-small" height="150%" width="150%">
+                    <feDropShadow
+                      dx="2"
+                      dy="2"
+                      stdDeviation="0"
+                      flood-opacity="0.06"
+                      flood-color="#000000"
+                    ></feDropShadow>
+                  </filter>
+                </defs>
+                <linearGradient
+                  id="mermaid-1789344607188-gradient"
+                  gradientUnits="objectBoundingBox"
+                  x1="0%"
+                  y1="0%"
+                  x2="100%"
+                  y2="0%"
+                >
+                  <stop offset="0%" stop-color="#286858" stop-opacity="1"></stop>
+                  <stop
+                    offset="100%"
+                    stop-color="hsl(42.8571428571, 60%, 88.6274509804%)"
+                    stop-opacity="1"
+                  ></stop>
+                </linearGradient>
+              </svg>
+            </div>
+          </div>
+          <p class="diagram-note">
+            Both feature paths share the process and database infrastructure. Media already has its
+            own work limits, persistence interface, and Discord transport.
+          </p>
+          <div class="grid">
+            <div class="card existing">
+              <span class="label">AI conversations</span>
+              <h3>Reactive, paid work</h3>
+              <p>
+                <code>jolanda.ts</code> coordinates authorization, conversation ownership, model
+                calls, budgets, streamed responses, and shutdown. Public web tools belong to model
+                turns.
+              </p>
+            </div>
+            <div class="card existing">
+              <span class="label">Media reposting</span>
+              <h3>A useful precedent</h3>
+              <p>
+                <code>discord-reels.ts</code> handles Instagram / TikTok independently of AI.
+                <code>ReelStore</code> and <code>ReelDiscordTransport</code> separate persistence
+                and delivery concerns.
+              </p>
+            </div>
+            <div class="card existing">
+              <span class="label">Shared foundation</span>
+              <h3>Already available</h3>
+              <p>
+                Zod configuration, MongoDB, Pino logging, time-zone helpers, admin commands, bounded
+                work, and graceful shutdown. Budget recovery has a timer; news scheduling and an
+                outbox do not exist.
+              </p>
+            </div>
+          </div>
+          <div class="callout">
+            <p>
+              <strong>Reuse the foundation and design patterns.</strong> News should not call
+              <code>jolanda.handleTurn()</code>, use AI spending reservations, or pretend to be a
+              user message. Publisher-selected news can run without any model calls.
+            </p>
+          </div>
+        </section>
+
+        <section id="options">
+          <div class="number">03 / Deployment options</div>
+          <h2>Repository, process, and identity are separate choices</h2>
+          <p>
+            A separate Discord bot gives a different account and permission scope. A separate
+            process provides runtime isolation. A separate repository provides independent ownership
+            and releases. None of these requires the other two.
+          </p>
+          <div class="table-scroll">
+            <table>
+              <caption>
+                Four ways to place the same collection and delivery logic
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Option</th>
+                  <th scope="col">Placement</th>
+                  <th scope="col">Tradeoff</th>
+                  <th scope="col">When to choose it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="recommended">
+                  <td>
+                    <span class="badge">RECOMMENDED START</span><br /><strong
+                      >A. News module in Jolanda</strong
+                    >
+                  </td>
+                  <td>
+                    One repo, one process, same bot. News owns collection, scheduling, and delivery.
+                  </td>
+                  <td>
+                    Smallest operational cost. Process failure, deployment, and resource pressure
+                    affect all features.
+                  </td>
+                  <td>
+                    Two sources, ordinary HTTP, low daily volume. Separate deadlines and bounded
+                    tasks keep expected failures local.
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>B. Separate news worker</strong></td>
+                  <td>
+                    One repo, two processes. News collects and sends through REST using the same bot
+                    token, or channel webhooks.
+                  </td>
+                  <td>
+                    Independent restarts and resource limits. Another deployment; shared-token rate
+                    limits still apply.
+                  </td>
+                  <td>
+                    News must survive chat/media outages, or collection needs heavier browser work.
+                    No second Gateway login or command registration.
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>C. Collector worker + bot publisher</strong></td>
+                  <td>
+                    A worker writes normalized items into MongoDB. The existing bot plans and sends
+                    messages.
+                  </td>
+                  <td>
+                    Scraping is isolated; news delivery still depends on bot uptime. Adds a
+                    producer/consumer contract.
+                  </td>
+                  <td>
+                    Several consumers need the same collected content, or centralized Discord
+                    delivery matters.
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>D. Independent news application</strong></td>
+                  <td>
+                    Separate deployment, optionally separate repo and Discord account. Webhooks can
+                    avoid a bot account entirely.
+                  </td>
+                  <td>
+                    Independent permissions and releases, but duplicated configuration, persistence,
+                    monitoring, and maintenance.
+                  </td>
+                  <td>
+                    News becomes a separately owned product. Two channels alone do not justify it.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Bot REST versus channel webhooks</summary>
+            <p>
+              <strong>Same bot REST:</strong> preserves Jolanda’s identity and command integration,
+              and supports deterministic message nonces. In option A, inject the existing client’s
+              REST capability into a dedicated news publisher so it can share request coordination.
+              In option B, a REST-only worker can use the same token without opening a Gateway
+              session; coordinate rate-limit failures across workers.
+            </p>
+            <p>
+              <strong>Channel webhooks:</strong> useful for a standalone worker with a news-specific
+              name and channel-scoped credentials. They add webhook lifecycle/secret management and
+              have different retry/idempotency behavior. Both approaches support embeds. A webhook
+              is a delivery adapter, not a scraping solution.
+            </p>
+            <p>
+              <strong>Existing transport:</strong> the media transport deliberately disables
+              automatic retries and rejects rate-limit waits. Its interface requires an incoming
+              Discord message to reply to. Reuse its finite-request approach; do not make scheduled
+              news fabricate a source message.
+            </p>
+          </details>
+          <details>
+            <summary>What extracting a worker would actually change</summary>
+            <p>
+              Add a <code>news-main.ts</code> entry point and news-specific environment validation.
+              The current <code>loadConfig()</code> requires an OpenRouter key and validates AI
+              budgets; a standalone news process should not need them. Reuse Mongo connection
+              helpers without starting AI accounting recovery. Use separate collection permissions
+              where appropriate.
+            </p>
+            <p>
+              The current image includes Python, yt-dlp, and FFmpeg. A news-only image can omit
+              them. Keep one owner for global command registration:
+              <code>discord-bot.ts</code> replaces the application command list at readiness, so
+              running a second copy is not a clean worker split.
+            </p>
+          </details>
+        </section>
+
+        <section id="modules">
+          <div class="number">04 / Proposed modules</div>
+          <h2>Collection produces content. Policy decides delivery.</h2>
+          <p>
+            The source adapters understand publisher formats. The news module understands freshness,
+            selection, scheduling, and receipts. The Discord adapter understands channels, embeds,
+            permissions, and notification settings.
+          </p>
+          <div class="mermaid-wrap" aria-label="Proposed collection and delivery architecture">
+            <div class="zoom-controls">
+              <button type="button" data-factor="1.2" aria-label="Zoom in">+</button
+              ><button type="button" data-factor="0.8" aria-label="Zoom out">−</button
+              ><button type="button" data-reset aria-label="Reset zoom">Reset</button>
+            </div>
+            <div class="mermaid">
+              <svg
+                id="mermaid-1789344607226"
+                width="100%"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                class="flowchart"
+                style="max-width: 862px"
+                viewBox="0 0 862 823.3529663085938"
+                role="graphics-document document"
+                aria-roledescription="flowchart-v2"
+              >
+                <style>
+                  #mermaid-1789344607226 {
+                    font-family:
+                      DM Sans,
+                      sans-serif;
+                    font-size: 15px;
+                    fill: #25332f;
+                  }
+                  @keyframes edge-animation-frame {
+                    from {
+                      stroke-dashoffset: 0;
+                    }
+                  }
+                  @keyframes dash {
+                    to {
+                      stroke-dashoffset: 0;
+                    }
+                  }
+                  #mermaid-1789344607226 .edge-animation-slow {
+                    stroke-dasharray: 9, 5 !important;
+                    stroke-dashoffset: 900;
+                    animation: dash 50s linear infinite;
+                    stroke-linecap: round;
+                  }
+                  #mermaid-1789344607226 .edge-animation-fast {
+                    stroke-dasharray: 9, 5 !important;
+                    stroke-dashoffset: 900;
+                    animation: dash 20s linear infinite;
+                    stroke-linecap: round;
+                  }
+                  #mermaid-1789344607226 .error-icon {
+                    fill: #f6ebd6;
+                  }
+                  #mermaid-1789344607226 .error-text {
+                    fill: #091429;
+                    stroke: #091429;
+                  }
+                  #mermaid-1789344607226 .edge-thickness-normal {
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607226 .edge-thickness-thick {
+                    stroke-width: 3.5px;
+                  }
+                  #mermaid-1789344607226 .edge-pattern-solid {
+                    stroke-dasharray: 0;
+                  }
+                  #mermaid-1789344607226 .edge-thickness-invisible {
+                    stroke-width: 0;
+                    fill: none;
+                  }
+                  #mermaid-1789344607226 .edge-pattern-dashed {
+                    stroke-dasharray: 3;
+                  }
+                  #mermaid-1789344607226 .edge-pattern-dotted {
+                    stroke-dasharray: 2;
+                  }
+                  #mermaid-1789344607226 .marker {
+                    fill: #5d6c65;
+                    stroke: #5d6c65;
+                  }
+                  #mermaid-1789344607226 .marker.cross {
+                    stroke: #5d6c65;
+                  }
+                  #mermaid-1789344607226 svg {
+                    font-family:
+                      DM Sans,
+                      sans-serif;
+                    font-size: 15px;
+                  }
+                  #mermaid-1789344607226 p {
+                    margin: 0;
+                  }
+                  #mermaid-1789344607226 .label {
+                    font-family:
+                      DM Sans,
+                      sans-serif;
+                    color: #25332f;
+                  }
+                  #mermaid-1789344607226 .cluster-label text {
+                    fill: #091429;
+                  }
+                  #mermaid-1789344607226 .cluster-label span {
+                    color: #091429;
+                  }
+                  #mermaid-1789344607226 .cluster-label span p {
+                    background-color: transparent;
+                  }
+                  #mermaid-1789344607226 .label text,
+                  #mermaid-1789344607226 span {
+                    fill: #25332f;
+                    color: #25332f;
+                  }
+                  #mermaid-1789344607226 .node rect,
+                  #mermaid-1789344607226 .node circle,
+                  #mermaid-1789344607226 .node ellipse,
+                  #mermaid-1789344607226 .node polygon,
+                  #mermaid-1789344607226 .node path {
+                    fill: #e6eee5;
+                    stroke: #286858;
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607226 .rough-node .label text,
+                  #mermaid-1789344607226 .node .label text,
+                  #mermaid-1789344607226 .image-shape .label,
+                  #mermaid-1789344607226 .icon-shape .label {
+                    text-anchor: middle;
+                  }
+                  #mermaid-1789344607226 .node .katex path {
+                    fill: #000;
+                    stroke: #000;
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607226 .rough-node .label,
+                  #mermaid-1789344607226 .node .label,
+                  #mermaid-1789344607226 .image-shape .label,
+                  #mermaid-1789344607226 .icon-shape .label {
+                    text-align: center;
+                  }
+                  #mermaid-1789344607226 .node.clickable {
+                    cursor: pointer;
+                  }
+                  #mermaid-1789344607226 .root .anchor path {
+                    fill: #5d6c65 !important;
+                    stroke-width: 0;
+                    stroke: #5d6c65;
+                  }
+                  #mermaid-1789344607226 .arrowheadPath {
+                    fill: #0b0b0b;
+                  }
+                  #mermaid-1789344607226 .edgePaths .path {
+                    stroke: #5d6c65;
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607226 .flowchart-link {
+                    stroke: #5d6c65;
+                    fill: none;
+                  }
+                  #mermaid-1789344607226 .edgeLabel {
+                    background-color: #fffdf8;
+                    text-align: center;
+                  }
+                  #mermaid-1789344607226 .edgeLabel p {
+                    background-color: #fffdf8;
+                  }
+                  #mermaid-1789344607226 .edgeLabel rect {
+                    opacity: 0.5;
+                    background-color: #fffdf8;
+                    fill: #fffdf8;
+                  }
+                  #mermaid-1789344607226 .labelBkg {
+                    background-color: rgba(255, 253, 248, 0.5);
+                  }
+                  #mermaid-1789344607226 .cluster rect {
+                    fill: #f6ebd6;
+                    stroke: hsl(39.375, 24%, 80.1960784314%);
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607226 .cluster text {
+                    fill: #091429;
+                  }
+                  #mermaid-1789344607226 .cluster span {
+                    color: #091429;
+                  }
+                  #mermaid-1789344607226 .node .collapsed-indicator {
+                    fill: hsl(39.375, 24%, 80.1960784314%);
+                    stroke: none;
+                    opacity: 0.6;
+                  }
+                  #mermaid-1789344607226 .node .collapsed-separator {
+                    stroke: hsl(39.375, 24%, 80.1960784314%);
+                    stroke-width: 0.75px;
+                  }
+                  #mermaid-1789344607226 div.mermaidTooltip {
+                    position: absolute;
+                    text-align: center;
+                    max-width: 200px;
+                    padding: 2px;
+                    font-family:
+                      DM Sans,
+                      sans-serif;
+                    font-size: 12px;
+                    background: #f6ebd6;
+                    border: 1px solid hsl(39.375, 24%, 80.1960784314%);
+                    border-radius: 2px;
+                    pointer-events: none;
+                    z-index: 100;
+                  }
+                  #mermaid-1789344607226 .flowchartTitleText {
+                    text-anchor: middle;
+                    font-size: 18px;
+                    fill: #25332f;
+                  }
+                  #mermaid-1789344607226 rect.text {
+                    fill: none;
+                    stroke-width: 0;
+                  }
+                  #mermaid-1789344607226 .icon-shape,
+                  #mermaid-1789344607226 .image-shape {
+                    background-color: #fffdf8;
+                    text-align: center;
+                  }
+                  #mermaid-1789344607226 .icon-shape p,
+                  #mermaid-1789344607226 .image-shape p {
+                    background-color: #fffdf8;
+                    padding: 2px;
+                  }
+                  #mermaid-1789344607226 .icon-shape .label rect,
+                  #mermaid-1789344607226 .image-shape .label rect {
+                    opacity: 0.5;
+                    background-color: #fffdf8;
+                    fill: #fffdf8;
+                  }
+                  #mermaid-1789344607226 .label-icon {
+                    display: inline-block;
+                    height: 1em;
+                    overflow: visible;
+                    vertical-align: -0.125em;
+                  }
+                  #mermaid-1789344607226 .node .label-icon path {
+                    fill: currentColor;
+                    stroke: revert;
+                    stroke-width: revert;
+                  }
+                  #mermaid-1789344607226 .node .neo-node {
+                    stroke: #286858;
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].node rect,
+                  #mermaid-1789344607226 [data-look='neo'].cluster rect,
+                  #mermaid-1789344607226 [data-look='neo'].node polygon {
+                    stroke: url(#mermaid-1789344607226-gradient);
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].swimlane.cluster rect {
+                    filter: none;
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].node path {
+                    stroke: url(#mermaid-1789344607226-gradient);
+                    stroke-width: 1px;
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].node .outer-path {
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].node .neo-line path {
+                    stroke: #286858;
+                    filter: none;
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].node circle {
+                    stroke: url(#mermaid-1789344607226-gradient);
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].node circle .state-start {
+                    fill: #000000;
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].icon-shape .icon {
+                    fill: url(#mermaid-1789344607226-gradient);
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607226 [data-look='neo'].icon-shape .icon-neo path {
+                    stroke: url(#mermaid-1789344607226-gradient);
+                    filter: drop-shadow(1px 2px 2px rgba(185, 185, 185, 1));
+                  }
+                  #mermaid-1789344607226 :root {
+                    --mermaid-font-family: 'trebuchet ms', verdana, arial, sans-serif;
+                  }
+                </style>
+                <g>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-pointEnd"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="5"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="8"
+                    markerHeight="8"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 0 0 L 10 5 L 0 10 z"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-pointStart"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="4.5"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="8"
+                    markerHeight="8"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 0 5 L 10 10 L 10 0 z"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-pointEnd-margin"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 11.5 14"
+                    refX="11.5"
+                    refY="7"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="10.5"
+                    markerHeight="14"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 0 0 L 11.5 7 L 0 14 z"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 0; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-pointStart-margin"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 11.5 14"
+                    refX="1"
+                    refY="7"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11.5"
+                    markerHeight="14"
+                    orient="auto"
+                  >
+                    <polygon
+                      points="0,7 11.5,14 11.5,0"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 0; stroke-dasharray: 1, 0"
+                    ></polygon>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-circleEnd"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="11"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    ></circle>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-circleStart"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="-1"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    ></circle>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-circleEnd-margin"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refY="5"
+                    refX="12.25"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="14"
+                    markerHeight="14"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 0; stroke-dasharray: 1, 0"
+                    ></circle>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-circleStart-margin"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="-2"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="14"
+                    markerHeight="14"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 0; stroke-dasharray: 1, 0"
+                    ></circle>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-crossEnd"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 11 11"
+                    refX="12"
+                    refY="5.2"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 l 9,9 M 10,1 l -9,9"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-crossStart"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 11 11"
+                    refX="-1"
+                    refY="5.2"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 l 9,9 M 10,1 l -9,9"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-crossEnd-margin"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 15 15"
+                    refX="17.7"
+                    refY="7.5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="12"
+                    markerHeight="12"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 L 14,14 M 1,14 L 14,1"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2.5"
+                    ></path>
+                  </marker>
+                  <marker
+                    id="mermaid-1789344607226_flowchart-v2-crossStart-margin"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 15 15"
+                    refX="-3.5"
+                    refY="7.5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="12"
+                    markerHeight="12"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 L 14,14 M 1,14 L 14,1"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2.5; stroke-dasharray: 1, 0"
+                    ></path>
+                  </marker>
+                  <g class="root">
+                    <g class="clusters"></g>
+                    <g class="edgePaths">
+                      <path
+                        d="M442.898,71.75L442.898,76.958C442.898,82.167,442.898,92.583,442.898,100.458C442.898,108.333,442.898,113.667,442.898,116.333L442.898,119"
+                        id="mermaid-1789344607226-L_N_NC_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_N_NC_0"
+                        data-points="W3sieCI6NDQyLjg5ODQzNzUsInkiOjcxLjc1fSx7IngiOjQ0Mi44OTg0Mzc1LCJ5IjoxMDN9LHsieCI6NDQyLjg5ODQzNzUsInkiOjEyM31d"
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M724,83L724,86.333C724,89.667,724,96.333,724,102.333C724,108.333,724,113.667,724,116.333L724,119"
+                        id="mermaid-1789344607226-L_A_AC_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_A_AC_0"
+                        data-points="W3sieCI6NzI0LCJ5Ijo4M30seyJ4Ijo3MjQsInkiOjEwM30seyJ4Ijo3MjQsInkiOjEyM31d"
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M442.898,175.5L442.898,178.833C442.898,182.167,442.898,188.833,467.297,199.145C491.695,209.456,540.491,223.412,564.889,230.39L589.287,237.368"
+                        id="mermaid-1789344607226-L_NC_ITEMS_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_NC_ITEMS_0"
+                        data-points="W3sieCI6NDQyLjg5ODQzNzUsInkiOjE3NS41fSx7IngiOjQ0Mi44OTg0Mzc1LCJ5IjoxOTUuNX0seyJ4Ijo1OTMuMTMyODEyNSwieSI6MjM4LjQ2NzczNDUzMDgyNTZ9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M724,175.5L724,178.833C724,182.167,724,188.833,723.143,194.897C722.286,200.961,720.572,206.422,719.715,209.153L718.858,211.883"
+                        id="mermaid-1789344607226-L_AC_ITEMS_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_AC_ITEMS_0"
+                        data-points="W3sieCI6NzI0LCJ5IjoxNzUuNX0seyJ4Ijo3MjQsInkiOjE5NS41fSx7IngiOjcxNy42NTk5NzUyNzQ2NDM4LCJ5IjoyMTUuNjk5NTY2MjUwNDk0NDZ9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M439.367,295.463L439.367,303.374C439.367,311.284,439.367,327.105,446.33,338.081C453.293,349.056,467.218,355.186,474.181,358.25L481.144,361.315"
+                        id="mermaid-1789344607226-L_CLOCK_POLICY_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_CLOCK_POLICY_0"
+                        data-points="W3sieCI6NDM5LjM2NzE4NzUsInkiOjI5NS40NjMyMzc3NjI0NTEyfSx7IngiOjQzOS4zNjcxODc1LCJ5IjozNDIuOTI2NDc1NTI0OTAyMzR9LHsieCI6NDg0LjgwNDY4NzUsInkiOjM2Mi45MjY0NzU1MjQ5MDIzNH1d"
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M700.633,322.926L700.633,326.26C700.633,329.593,700.633,336.26,693.67,342.658C686.707,349.056,672.782,355.186,665.819,358.25L658.856,361.315"
+                        id="mermaid-1789344607226-L_ITEMS_POLICY_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_ITEMS_POLICY_0"
+                        data-points="W3sieCI6NzAwLjYzMjgxMjUsInkiOjMyMi45MjY0NzU1MjQ5MDIzNH0seyJ4Ijo3MDAuNjMyODEyNSwieSI6MzQyLjkyNjQ3NTUyNDkwMjM0fSx7IngiOjY1NS4xOTUzMTI1LCJ5IjozNjIuOTI2NDc1NTI0OTAyMzR9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M570,437.926L570,441.26C570,444.593,570,451.26,570,457.26C570,463.26,570,468.593,570,471.26L570,473.926"
+                        id="mermaid-1789344607226-L_POLICY_OUTBOX_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_POLICY_OUTBOX_0"
+                        data-points="W3sieCI6NTcwLCJ5Ijo0MzcuOTI2NDc1NTI0OTAyMzR9LHsieCI6NTcwLCJ5Ijo0NTcuOTI2NDc1NTI0OTAyMzR9LHsieCI6NTcwLCJ5Ijo0NzcuOTI2NDc1NTI0OTAyMzR9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M465.07,572.98L458.559,578.376C452.047,583.771,439.023,594.562,432.512,602.624C426,610.686,426,616.02,426,618.686L426,621.353"
+                        id="mermaid-1789344607226-L_OUTBOX_SEND_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_OUTBOX_SEND_0"
+                        data-points="W3sieCI6NDY1LjA3MDMyMjg4MTIzMjEzLCJ5Ijo1NzIuOTgwNDM5MDAwMjA4N30seyJ4Ijo0MjYsInkiOjYwNS4zNTI5NTEwNDk4MDQ3fSx7IngiOjQyNiwieSI6NjI1LjM1Mjk1MTA0OTgwNDd9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M296,688.808L269.667,694.065C243.333,699.323,190.667,709.838,164.333,717.762C138,725.686,138,731.02,138,733.686L138,736.353"
+                        id="mermaid-1789344607226-L_SEND_LIVE_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_SEND_LIVE_0"
+                        data-points="W3sieCI6Mjk2LCJ5Ijo2ODguODA3ODEyMTYwOTE1OH0seyJ4IjoxMzgsInkiOjcyMC4zNTI5NTEwNDk4MDQ3fSx7IngiOjEzOCwieSI6NzQwLjM1Mjk1MTA0OTgwNDd9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M426,700.353L426,703.686C426,707.02,426,713.686,426,719.686C426,725.686,426,731.02,426,733.686L426,736.353"
+                        id="mermaid-1789344607226-L_SEND_DAILY_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_SEND_DAILY_0"
+                        data-points="W3sieCI6NDI2LCJ5Ijo3MDAuMzUyOTUxMDQ5ODA0N30seyJ4Ijo0MjYsInkiOjcyMC4zNTI5NTEwNDk4MDQ3fSx7IngiOjQyNiwieSI6NzQwLjM1Mjk1MTA0OTgwNDd9XQ=="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M526.435,700.353L535.362,703.686C544.29,707.02,562.145,713.686,578.228,720.09C594.311,726.494,608.622,732.635,615.777,735.705L622.933,738.776"
+                        id="mermaid-1789344607226-L_SEND_RECEIPT_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_SEND_RECEIPT_0"
+                        data-points="W3sieCI6NTI2LjQzNDc4MjYwODY5NTYsInkiOjcwMC4zNTI5NTEwNDk4MDQ3fSx7IngiOjU4MCwieSI6NzIwLjM1Mjk1MTA0OTgwNDd9LHsieCI6NjI2LjYwODY5NTY1MjE3MzksInkiOjc0MC4zNTI5NTEwNDk4MDQ3fV0="
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                      <path
+                        d="M720.522,740.353L721.101,737.02C721.681,733.686,722.841,727.02,723.42,714.103C724,701.186,724,682.02,724,662.853C724,643.686,724,624.52,716.766,609.014C709.532,593.509,695.063,581.665,687.829,575.742L680.595,569.82"
+                        id="mermaid-1789344607226-L_RECEIPT_OUTBOX_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        style=""
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_RECEIPT_OUTBOX_0"
+                        data-points="W3sieCI6NzIwLjUyMTczOTEzMDQzNDgsInkiOjc0MC4zNTI5NTEwNDk4MDQ3fSx7IngiOjcyNCwieSI6NzIwLjM1Mjk1MTA0OTgwNDd9LHsieCI6NzI0LCJ5Ijo2NjIuODUyOTUxMDQ5ODA0N30seyJ4Ijo3MjQsInkiOjYwNS4zNTI5NTEwNDk4MDQ3fSx7IngiOjY3Ny41LCJ5Ijo1NjcuMjg2NTU4OTc1MjM3M31d"
+                        data-look="classic"
+                        marker-end="url(#mermaid-1789344607226_flowchart-v2-pointEnd)"
+                      ></path>
+                    </g>
+                    <g class="edgeLabels">
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_N_NC_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_A_AC_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_NC_ITEMS_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_AC_ITEMS_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_CLOCK_POLICY_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_ITEMS_POLICY_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_POLICY_OUTBOX_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_OUTBOX_SEND_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_SEND_LIVE_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_SEND_DAILY_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_SEND_RECEIPT_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_RECEIPT_OUTBOX_0" transform="translate(0, 0)">
+                          <foreignObject width="0" height="0"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              class="labelBkg"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="edgeLabel"></span></div
+                          ></foreignObject>
+                        </g>
+                      </g>
+                    </g>
+                    <g class="nodes">
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-N-0"
+                        data-look="classic"
+                        transform="translate(442.8984375, 45.5)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-123.1015625"
+                          y="-26.25"
+                          width="246.203125"
+                          height="52.5"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-93.1015625, -11.25)">
+                          <rect></rect>
+                          <foreignObject width="186.203125" height="22.5"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="nodeLabel"><p>Denník N · important listing</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-NC-1"
+                        data-look="classic"
+                        transform="translate(442.8984375, 149.25)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-89.9375"
+                          y="-26.25"
+                          width="179.875"
+                          height="52.5"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-59.9375, -11.25)">
+                          <rect></rect>
+                          <foreignObject width="119.875" height="22.5"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="nodeLabel"><p>Denník N adapter</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-A-2"
+                        data-look="classic"
+                        transform="translate(724, 45.5)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>Aktuality · roundup listing and edition</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-AC-3"
+                        data-look="classic"
+                        transform="translate(724, 149.25)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-89.9375"
+                          y="-26.25"
+                          width="179.875"
+                          height="52.5"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-59.9375, -11.25)">
+                          <rect></rect>
+                          <foreignObject width="119.875" height="22.5"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="nodeLabel"><p>Aktuality adapter</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-ITEMS-5"
+                        data-look="classic"
+                        transform="translate(700.6328125, 269.2132377624512)"
+                      >
+                        <path
+                          d="M0,15.808823529411764 a107.5,15.808823529411764 0,0,0 215,0 a107.5,15.808823529411764 0,0,0 -215,0 l0,75.80882352941177 a107.5,15.808823529411764 0,0,0 215,0 l0,-75.80882352941177"
+                          class="basic label-container outer-path"
+                          style=""
+                          transform="translate(-107.5, -53.71323529411765)"
+                        ></path>
+                        <g class="label" style="" transform="translate(-100, -12.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>MongoDB · normalized items and source state</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-CLOCK-8"
+                        data-look="classic"
+                        transform="translate(439.3671875, 269.2132377624512)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-125.765625"
+                          y="-26.25"
+                          width="251.53125"
+                          height="52.5"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-95.765625, -11.25)">
+                          <rect></rect>
+                          <foreignObject width="191.53125" height="22.5"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table-cell;
+                                white-space: nowrap;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                              "
+                            >
+                              <span class="nodeLabel"><p>Clock · due work and leases</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-POLICY-9"
+                        data-look="classic"
+                        transform="translate(570, 400.42647552490234)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>News policy · two publication modes</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-OUTBOX-13"
+                        data-look="classic"
+                        transform="translate(570, 531.6397132873535)"
+                      >
+                        <path
+                          d="M0,15.808823529411764 a107.5,15.808823529411764 0,0,0 215,0 a107.5,15.808823529411764 0,0,0 -215,0 l0,75.80882352941177 a107.5,15.808823529411764 0,0,0 215,0 l0,-75.80882352941177"
+                          class="basic label-container outer-path"
+                          style=""
+                          transform="translate(-107.5, -53.71323529411765)"
+                        ></path>
+                        <g class="label" style="" transform="translate(-100, -12.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>MongoDB · planned delivery and receipt</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-SEND-15"
+                        data-look="classic"
+                        transform="translate(426, 662.8529510498047)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>Discord publisher · render and send</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-LIVE-17"
+                        data-look="classic"
+                        transform="translate(138, 777.8529510498047)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>Channel A · individual news embeds</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-DAILY-19"
+                        data-look="classic"
+                        transform="translate(426, 777.8529510498047)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"><p>Channel B · one daily message</p></span>
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="mermaid-1789344607226-flowchart-RECEIPT-21"
+                        data-look="classic"
+                        transform="translate(714, 777.8529510498047)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          style=""
+                          x="-130"
+                          y="-37.5"
+                          width="260"
+                          height="75"
+                        ></rect>
+                        <g class="label" style="" transform="translate(-100, -22.5)">
+                          <rect></rect>
+                          <foreignObject width="200" height="45"
+                            ><div
+                              xmlns="http://www.w3.org/1999/xhtml"
+                              style="
+                                display: table;
+                                white-space: break-spaces;
+                                line-height: 1.5;
+                                max-width: 200px;
+                                text-align: center;
+                                width: 200px;
+                              "
+                            >
+                              <span class="nodeLabel"
+                                ><p>Record accepted / retryable / uncertain</p></span
+                              >
+                            </div></foreignObject
+                          >
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+                <defs>
+                  <filter id="mermaid-1789344607226-drop-shadow" height="130%" width="130%">
+                    <feDropShadow
+                      dx="4"
+                      dy="4"
+                      stdDeviation="0"
+                      flood-opacity="0.06"
+                      flood-color="#000000"
+                    ></feDropShadow>
+                  </filter>
+                </defs>
+                <defs>
+                  <filter id="mermaid-1789344607226-drop-shadow-small" height="150%" width="150%">
+                    <feDropShadow
+                      dx="2"
+                      dy="2"
+                      stdDeviation="0"
+                      flood-opacity="0.06"
+                      flood-color="#000000"
+                    ></feDropShadow>
+                  </filter>
+                </defs>
+                <linearGradient
+                  id="mermaid-1789344607226-gradient"
+                  gradientUnits="objectBoundingBox"
+                  x1="0%"
+                  y1="0%"
+                  x2="100%"
+                  y2="0%"
+                >
+                  <stop offset="0%" stop-color="#286858" stop-opacity="1"></stop>
+                  <stop
+                    offset="100%"
+                    stop-color="hsl(42.8571428571, 60%, 88.6274509804%)"
+                    stop-opacity="1"
+                  ></stop>
+                </linearGradient>
+              </svg>
+            </div>
+          </div>
+          <div class="split">
+            <div class="card live">
+              <span class="label">Source adapter / Denník N</span>
+              <h3>Collect editorial importance</h3>
+              <p>
+                Retrieve the important listing’s initial structured data. Normalize stable IDs,
+                source links, publication dates, excerpts, tags, and image metadata. Preserve
+                first-seen and revision information; a post can become important after publication.
+              </p>
+              <p>
+                Check recent IDs again instead of advancing solely by publication timestamp. Do not
+                interpret all RSS items, or the RSS category “Hlavná”, as important news.
+              </p>
+              <p>
+                <small
+                  ><a href="https://dennikn.sk/minuta/dolezite">Inspected important listing</a> ·
+                  page data is undocumented and needs parser-change detection.</small
+                >
+              </p>
+            </div>
+            <div class="card daily">
+              <span class="label">Source adapter / Aktuality</span>
+              <h3>Collect a complete edition</h3>
+              <p>
+                Discover a fresh roundup on its category listing; fetch that edition once. Return
+                the edition ID/date and its selected story sections, with links where present. Do
+                not split the roundup into unrelated feed entries before policy runs.
+              </p>
+              <p>
+                The tested roundups had seven stories. No dedicated, correct roundup RSS was
+                verified. This is HTML retrieval, with a separate parser from Denník N.
+              </p>
+              <p>
+                <small
+                  ><a href="https://www.aktuality.sk/spravy/denny-vyber-sprav/"
+                    >Inspected roundup listing</a
+                  >
+                  · weekday editions and occasional weekend weekly selections.</small
+                >
+              </p>
+            </div>
+          </div>
+          <details open>
+            <summary>A small public interface; specialized internals</summary>
+            <pre><code>// Proposed shape, not implemented.
+createNews({
+  sources,     // two source adapters: stories and editions
+  store,       // NewsStore, separate from AI and ReelStore
+  publisher,   // Discord delivery adapter
+  channels,    // live and daily destinations
+  now,
+  logger,
+})
+// Lifecycle exposed to index.ts: start(), shutdown()
+
+// Internally:
+// source.poll(...) -> changed batch | unchanged | typed failure
+// planPublications(state, now) -> publication candidates
+// atomically reserve candidates before any Discord send</code></pre>
+            <p>
+              Keep normalization, eligibility, and digest formatting as pure functions. The source
+              result should distinguish short stories from an editorial edition. An unchanged
+              response, a valid empty feed, an access denial, and a broken parser must be different
+              outcomes.
+            </p>
+            <p>
+              A practical first layout is <code>src/news/</code> with <code>index.ts</code>,
+              <code>sources/dennikn.ts</code>, <code>sources/aktuality.ts</code>,
+              <code>policy.ts</code>, <code>store.ts</code>, <code>discord.ts</code>, and shared
+              news types. This contains the new feature without relocating the existing flat source
+              tree.
+            </p>
+          </details>
+          <div class="callout daily">
+            <p>
+              <strong>Two audiences, two independent schedules.</strong> The daily channel should
+              remain a useful complete roundup even if a story also appeared in the continuous
+              channel. Deduplicate within each channel; do not automatically remove daily stories
+              merely because they appeared in Channel A.
+            </p>
+          </div>
+        </section>
+
+        <section id="delivery">
+          <div class="number">05 / Reliable delivery</div>
+          <h2>The database remembers what the timer cannot</h2>
+          <p>
+            A timer wakes the module. MongoDB decides which work is due and which instance owns it.
+            That distinction protects against restarts, overlapping deployments, delayed editions,
+            and ambiguous network responses.
+          </p>
+          <div class="grid">
+            <div class="card">
+              <span class="label">news_sources</span>
+              <h3>Collection state</h3>
+              <p>
+                ETag / Last-Modified, next poll time, backoff, last successful parse, freshness, and
+                an expiring owner lease. Fetch once per source for all configured destinations.
+              </p>
+            </div>
+            <div class="card">
+              <span class="label">news_items</span>
+              <h3>Normalized content</h3>
+              <p>
+                Source + item ID, source publication time, first seen, last changed, content hash,
+                optional metadata, and edition membership. Keep a bounded recent history for
+                promotion and duplicate checks.
+              </p>
+            </div>
+            <div class="card">
+              <span class="label">news_deliveries</span>
+              <h3>Outbox and receipts</h3>
+              <p>
+                A durable record of the intended destination and frozen payload, due time,
+                owner/lease, attempts, outcome, and usable message reference where edits are
+                supported.
+              </p>
+            </div>
+          </div>
+          <ol>
+            <li>
+              <strong>Collect independently.</strong> Begin with bounded HTTP, source-specific
+              polling intervals, conditional requests, and backoff. A source failure must not stop
+              the other source or the AI/media paths. Never make Discord retry by scraping the
+              source again.
+            </li>
+            <li>
+              <strong>Plan by publication mode.</strong> Live mode selects new important stories,
+              groups near-duplicates, applies pacing and a soft daily budget. Daily mode selects one
+              fresh edition for a date in <code>Europe/Bratislava</code>. The confirmed collection
+              times are 20:00 and a conditional 21:00 fallback; skip the day if neither finds a
+              fresh edition.
+            </li>
+            <li>
+              <strong>Reserve atomically.</strong> Unique live key: destination + source + item ID.
+              Unique daily slot: destination + local calendar date, with the chosen edition ID
+              attached. Read-then-send checks alone are insufficient. Reservations and the state
+              they consume must be committed atomically, or recoverably through unique upserts.
+            </li>
+            <li>
+              <strong>Publish once, record the result.</strong> Claim a due outbox entry, check
+              owner/lease before sending, then record the receipt. Reclaim safe pre-send work after
+              expiry. Ownership tokens prevent a stale worker from committing transitions; they do
+              not make Discord part of the Mongo transaction.
+            </li>
+            <li>
+              <strong>Treat uncertain sends separately.</strong> Discord may accept a message just
+              before the process dies. Use a stable nonce for short-window retries, then reconcile
+              with a bounded channel-history check or hold as uncertain. Never blindly replay a
+              whole digest after an ambiguous send. Prefer a missed alert over a duplicate alert if
+              reconciliation cannot establish the result.
+            </li>
+            <li>
+              <strong>Recover without a flood.</strong> First installation establishes a baseline.
+              Restart recovery handles only a bounded fresh backlog. Expired delivery receipts must
+              not make old content eligible again. Keep tombstones longer than the allowed replay
+              window.
+            </li>
+          </ol>
+          <div class="split">
+            <div class="card live">
+              <span class="label">Continuous channel</span>
+              <h3>One story, one useful update</h3>
+              <p>
+                Use source IDs for exact duplicates and title/content fingerprints for obvious story
+                duplicates. Those fingerprints will not perfectly group every event. Automatic
+                editing of delivered messages is deferred in the implementation plan. Do not turn
+                minor revisions into new alerts.
+              </p>
+              <p>
+                Silence pushes by default if desired; cadence, quiet hours, sports filtering, and
+                the approximate 15-story budget remain channel policy.
+              </p>
+            </div>
+            <div class="card daily">
+              <span class="label">Daily channel</span>
+              <h3>One message, at most one ping</h3>
+              <p>
+                One message can hold up to ten embeds, with 6,000 aggregate embed-text characters.
+                Fit the entire edition within that budget; reduce individual summaries or use one
+                list embed rather than emitting a second message.
+              </p>
+              <p>
+                All section embeds must not share the same embed URL: Discord deduplicates them. Use
+                actual story links when available, or one roundup embed with sections. Missing
+                article images should not trigger seven extra fetches by default.
+              </p>
+            </div>
+          </div>
+          <div class="callout daily" id="daily-policy">
+            <p>
+              <strong>Confirmed daily publication policy:</strong> use Aktuality’s own fresh roundup
+              and skip days without an edition. Wait only within a bounded evening window when it is
+              late; do not substitute an automatically generated digest or replay yesterday’s
+              edition. This means at most one daily message, rather than a guaranteed message every
+              day.
+            </p>
+          </div>
+          <details>
+            <summary>Destination IDs and message edits need an explicit storage decision</summary>
+            <p>
+              The existing Mongo store persists Discord identifiers as HMACs. That works for
+              reactive lookups because an incoming event supplies the real IDs. A hash cannot
+              recover a channel to post to later, nor recover a message ID for an edit.
+            </p>
+            <p>
+              <strong>Confirmed initial setup:</strong> configure destinations through bot commands.
+              Persist encrypted, retrievable guild/channel references with HMAC lookup keys.
+              Automatic message edits are deferred; ambiguous sends remain uncertain unless their
+              outcome can be established.
+            </p>
+            <p>
+              <strong>Command-configured subscriptions:</strong> an enumerable subscription store
+              needs authenticated encryption, context binding, and a documented key lifecycle. Do
+              not copy <code>ReelStore.setEnabled()</code> and expect its hashed key to be an
+              enumerable address book. Configuration changes must cancel/replan pending deliveries
+              so old work does not leak into a newly selected channel.
+            </p>
+          </details>
+          <details>
+            <summary>Safety and shutdown belong inside the news module</summary>
+            <p>
+              Allow only the two publishers and their expected image hosts, validate redirects, cap
+              response bytes, and parse structured JSON without evaluating page scripts. Reuse
+              low-level address-validation ideas where appropriate; the current media HTTP module is
+              specialized for Instagram/TikTok.
+            </p>
+            <p>
+              Start collection after configuration/database initialization. Gate sends on
+              destination validation and Discord readiness. Stop timer admission on shutdown, abort
+              pending fetches, settle or mark sends uncertain, drain owned work, and only then close
+              Discord and MongoDB. Do not detach promises that survive shutdown.
+            </p>
+            <p>
+              Log source health, freshness, item counts, delivery outcomes, retries, and time since
+              the last successful edition. Never log webhook tokens or raw Discord identifiers. A
+              publisher outage should surface in admin diagnostics, not generate repeated
+              public-channel failure messages.
+            </p>
+          </details>
+          <p class="diagram-note">
+            Discord’s nonce deduplication covers only the past few minutes; it is not a permanent
+            exactly-once guarantee. Notification delivery also depends on member settings.
+            <a href="https://docs.discord.com/developers/resources/message"
+              >Discord message, embed, nonce, and notification contracts</a
+            >.
+          </p>
+        </section>
+
+        <section id="impact">
+          <div class="number">06 / Change &amp; validation</div>
+          <h2>Contained work, with a few deliberate integration points</h2>
+          <dl class="files">
+            <dt><a href="src/index.ts">src/index.ts</a></dt>
+            <dd>
+              Construct the news module and its adapters. Add its start/stop/drain work to the
+              existing lifecycle.
+            </dd>
+            <dt><a href="src/config.ts">src/config.ts</a></dt>
+            <dd>
+              Validate the deployment kill switch and dry-run mode. Destinations are configured
+              through commands and stored as encrypted routing references. Secrets remain deployment
+              configuration.
+            </dd>
+            <dt>
+              <a href="src/mongo-store.ts">src/mongo-store.ts</a> +
+              <a href="src/mongo-schema.ts">schema</a>
+            </dt>
+            <dd>
+              Add a separate <code>store.news</code> interface and news indexes. Share the Mongo
+              client; keep news receipts out of AI request/accounting collections.
+            </dd>
+            <dt><a href="src/discord-bot.ts">src/discord-bot.ts</a></dt>
+            <dd>
+              Expose/inject a narrow sending capability and readiness signal as needed. The current
+              returned interface exposes lifecycle methods only.
+            </dd>
+            <dt><a href="src/discord-commands.ts">src/discord-commands.ts</a></dt>
+            <dd>
+              Required admin commands select a channel for each feed: /jolanda continuous feed and
+              /jolanda daily feed. Add disable operations and feed status.
+            </dd>
+            <dt>src/news/ — proposed</dt>
+            <dd>
+              Own collection, normalized content, scheduling, outbox behavior, rendering, and
+              diagnostics. Most feature changes stay here.
+            </dd>
+            <dt><a href="src/discord-response.ts">src/discord-response.ts</a></dt>
+            <dd>
+              Keep the AI renderer’s embed suppression. News uses its own renderer with validated
+              source URLs; do not weaken AI output rules.
+            </dd>
+            <dt><a href="README.md">README.md</a> + <a href="SECURITY.md">SECURITY.md</a></dt>
+            <dd>
+              Document scheduled posting, destination retention, source attribution, new
+              permissions, receipts, and the chosen notification behavior.
+            </dd>
+          </dl>
+          <details>
+            <summary>How people replying to news interact with the existing AI</summary>
+            <p>
+              Incoming bot/webhook messages are ignored, so publishing news does not start an AI
+              loop. Ordinary replies continue AI conversations only when the referenced message
+              belongs to the conversation-link store. News receipts must stay separate.
+            </p>
+            <p>
+              An explicit mention while replying can start a new AI request, but current reference
+              extraction reads <code>message.content</code>, not embed text. If “ask Jolanda about
+              this news embed” becomes a feature, add a deliberate lookup of the normalized news
+              record. It is not automatically provided by sharing the bot identity.
+            </p>
+          </details>
+          <details open>
+            <summary>Implementation order and meaningful tests</summary>
+            <ol>
+              <li>
+                <strong>Collector preview:</strong> fixtures from both publisher formats, bounded
+                anonymous fetching, field normalization, fresh-edition detection, and no Discord
+                writes. Detect malformed pages separately from valid empty results.
+              </li>
+              <li>
+                <strong>Durable policies:</strong> Mongo uniqueness/lease tests, first-run baseline,
+                restart recovery, late importance promotion, duplicate events, and retention longer
+                than replay eligibility.
+              </li>
+              <li>
+                <strong>Delivery preview:</strong> render the exact live/daily payloads; verify
+                aggregate embed limits, valid source links, optional images, and explicit allowed
+                mentions.
+              </li>
+              <li>
+                <strong>Failure paths:</strong> 304/403/429, parser changes, missing/late editions,
+                DST and local midnight, permission loss, two overlapping workers, lease loss during
+                send, timeout after acceptance, and shutdown during fetch/send.
+              </li>
+              <li>
+                <strong>Controlled rollout:</strong> preview the proposed output over several days,
+                then enable the two chosen channels. Keep collection health and message volume
+                visible through admin status.
+              </li>
+            </ol>
+            <p>
+              <code>pnpm format</code> and <code>pnpm check</code> are the repository gates.
+              Production source availability and Discord delivery require a later explicit
+              operational test; passing unit tests does not verify publisher access from Railway.
+            </p>
+          </details>
+          <div class="callout">
+            <p>
+              <strong>Recommended first implementation:</strong> option A, direct HTTP for both
+              sources, a separate news module, Mongo-backed collection/delivery state, and the
+              existing bot identity. Move that module to option B when independent uptime becomes
+              worth another deployment. A second Discord account is a product/permissions choice,
+              not a prerequisite for reliable news.
+            </p>
+          </div>
+          <p class="foot">
+            This artifact describes inspected code and a proposed design. Source contracts were
+            investigated earlier in this conversation; implementation still needs durable parser
+            fixtures and deployment-network validation. No channels, webhooks, schedules, or
+            application behavior were changed.
+          </p>
+        </section>
+      </main>
+    </div>
+    <script>
+      const preferredTheme = window.matchMedia('(prefers-color-scheme: dark)');
+      document.documentElement.dataset.theme = preferredTheme.matches ? 'dark' : 'light';
+      document.querySelector('#theme-toggle').addEventListener('click', () => {
+        document.documentElement.dataset.theme =
+          document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      });
+      const links = [...document.querySelectorAll('.toc a')];
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries
+            .filter((entry) => entry.isIntersecting)
+            .forEach((entry) => {
+              links.forEach((link) =>
+                link.classList.toggle('active', link.hash === '#' + entry.target.id),
+              );
+            });
+        },
+        { rootMargin: '-10% 0px -70% 0px' },
+      );
+      document
+        .querySelectorAll('header[id], section[id]')
+        .forEach((section) => observer.observe(section));
+      document.querySelectorAll('.mermaid-wrap').forEach((wrap) => {
+        const target = wrap.querySelector('.mermaid');
+        let zoom = 1;
+        let drag;
+        const resize = (next) => {
+          zoom = Math.max(0.5, Math.min(4, next));
+          target.style.transform = 'scale(' + zoom + ')';
+          wrap.classList.toggle('is-zoomed', zoom > 1);
+        };
+        wrap
+          .querySelectorAll('[data-factor]')
+          .forEach((button) =>
+            button.addEventListener('click', () => resize(zoom * Number(button.dataset.factor))),
+          );
+        wrap.querySelector('[data-reset]').addEventListener('click', () => {
+          resize(1);
+          wrap.scrollTo(0, 0);
+        });
+        wrap.addEventListener(
+          'wheel',
+          (event) => {
+            if (!event.ctrlKey && !event.metaKey) return;
+            event.preventDefault();
+            resize(zoom * (event.deltaY < 0 ? 1.1 : 0.9));
+          },
+          { passive: false },
+        );
+        wrap.addEventListener('pointerdown', (event) => {
+          if (zoom <= 1 || event.target.closest('button')) return;
+          drag = { x: event.clientX, y: event.clientY, left: wrap.scrollLeft, top: wrap.scrollTop };
+          wrap.classList.add('is-panning');
+          wrap.setPointerCapture(event.pointerId);
+        });
+        wrap.addEventListener('pointermove', (event) => {
+          if (!drag) return;
+          wrap.scrollLeft = drag.left - event.clientX + drag.x;
+          wrap.scrollTop = drag.top - event.clientY + drag.y;
+        });
+        const stopDrag = () => {
+          drag = undefined;
+          wrap.classList.remove('is-panning');
+        };
+        wrap.addEventListener('pointerup', stopDrag);
+        wrap.addEventListener('pointercancel', stopDrag);
+      });
+    </script>
+    <!-- Diagrams were rendered with Mermaid and embedded as SVG for offline viewing. -->
+  </body>
+</html>
