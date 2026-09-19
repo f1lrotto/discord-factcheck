@@ -45,6 +45,19 @@ const input = (cache: NewsSourceCache = {}) => ({ now, signal, cache });
 
 // Mutated dates/markup below are synthetic; the original two captured editions stay unchanged.
 describe('Aktuality editorial selection and pure edition parsing', () => {
+  it('allows yesterday only for an explicit latest-edition collection, with a 48-hour bound', async () => {
+    for (const [hours, latest, outcome] of [
+      [24, false, 'stale'],
+      [24, true, 'edition'],
+      [72, true, 'stale'],
+    ] as const) {
+      const source = createAktualitySource(transport(ok(listing), ok(fresh, candidate)));
+      expect(
+        (await source.collect({ ...input(), now: new Date(+now + hours * 3600000), latest }))
+          .outcome,
+      ).toBe(outcome);
+    }
+  });
   it('skips the real weekly newest link and selects the first actual daily candidate', () => {
     expect(parseAktualityListing(listing)).toBe(candidate);
     expect(parseAktualityListing(weekly)).toBeNull();

@@ -62,6 +62,7 @@ const fixtureDaily = () => {
 };
 const fakeStore = () =>
   ({
+    queueManualEdition: vi.fn<NewsStore['queueManualEdition']>(),
     configure: vi.fn<NewsStore['configure']>(),
     disable: vi.fn<NewsStore['disable']>(),
     removeGuild: vi.fn<NewsStore['removeGuild']>(),
@@ -261,7 +262,7 @@ describe('news coordinator with real Mongo, source parsers and Discord publisher
       const state = await store.getSource('aktuality');
       if (kind)
         expect(state.daily?.attemptedSlots).toEqual([
-          JSON.stringify(['aktuality', '2026-09-14', kind]),
+          JSON.stringify(['aktuality', '2026-09-14', kind, ...(kind === 'fallback' ? [1] : [])]),
         ]);
       else expect(state.daily?.attemptedSlots ?? []).toEqual([]);
     },

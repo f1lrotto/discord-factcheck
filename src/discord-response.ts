@@ -6,6 +6,7 @@ import {
   maximumDiscordChunks,
   streamUpdateIntervalMs,
 } from './limits.js';
+import { defaultLocale, messages, type Locale } from './i18n/index.js';
 import { safeError, sanitizeAssistantOutput } from './security.js';
 import type { FailureNotice, ResponseSink } from './types.js';
 
@@ -18,34 +19,20 @@ export const ephemeral = (content: string): InteractionReplyOptions => ({
   allowedMentions: safeMentions,
 });
 
-const failureMessage = (failure: FailureNotice) => {
-  const stage = 'answer generation';
-  // A model that burns its whole token budget thinking is a budget problem, not a broken
-  // provider — say what actually happened so the fix is obvious.
-  if (failure.malformedReason === 'reasoning_budget_exhausted')
-    return `⚠️ The model used its entire token budget on reasoning and never produced an answer. Try a lower reasoning effort with \`/model\`, or ask again. Reference: \`${failure.reference.replace(/[^A-Za-z0-9_-]/gu, '').slice(0, 12) || 'UNKNOWN'}\`.`;
-  const reason = {
-    timeout: `${stage[0]?.toLocaleUpperCase('en-US')}${stage.slice(1)} timed out.`,
-    rate_limited: `OpenRouter rate-limited the ${stage}.`,
-    authentication: 'OpenRouter rejected the bot credentials.',
-    payment_required: 'OpenRouter rejected the request for billing reasons.',
-    request_rejected: `OpenRouter rejected the ${stage} request.`,
-    provider_unavailable: `No model provider was available for ${stage}.`,
-    provider_failure: `The model provider failed during ${stage}.`,
-    malformed_response: `OpenRouter returned an invalid response during ${stage}.`,
-    network_failure: `The connection to OpenRouter failed during ${stage}.`,
-    cancelled: 'The request was cancelled.',
-    unknown: 'I could not finish that response.',
-  }[failure.category];
-  const reference = failure.reference.replace(/[^A-Za-z0-9_-]/gu, '').slice(0, 12) || 'UNKNOWN';
-  return `⚠️ ${reason} Please try again. Reference: \`${reference}\`.`;
-};
+const failureMessage = (failure: FailureNotice, locale: Locale) =>
+  messages(locale).failures.notice({
+    category: failure.category,
+    ...(failure.malformedReason ? { malformedReason: failure.malformedReason } : {}),
+    reference: failure.reference.replace(/[^A-Za-z0-9_-]/gu, '').slice(0, 12) || 'UNKNOWN',
+  });
 
 export const createResponseSink = (input: {
   source: Message<true>;
   logger: Logger;
   protectIdentifier: (identifier: string) => string;
+  locale?: Locale;
 }): ResponseSink => {
+  const copy = messages(input.locale ?? defaultLocale);
   const outputMessages: Message<true>[] = [];
   const renderedChunks: string[] = [];
   // Chunks that already have a successor message are frozen, so a growing stream cannot
@@ -70,12 +57,12 @@ export const createResponseSink = (input: {
     checkCancellation(signal);
     if (outputMessages.length) return;
     const message = await input.source.reply({
-      content: 'Jolanda is thinking…',
+      content: copy.progress.thinking,
       allowedMentions: safeMentions,
       flags: safeMessageFlags,
     });
     outputMessages.push(message);
-    renderedChunks.push('Jolanda is thinking…');
+    renderedChunks.push(copy.progress.thinking);
     checkCancellation(signal);
   };
 
@@ -175,8 +162,8 @@ export const createResponseSink = (input: {
     signal?: AbortSignal,
   ) => {
     const notice = failure
-      ? failureMessage(failure)
-      : '⚠️ I could not finish that response. Please try again.';
+      ? failureMessage(failure, input.locale ?? defaultLocale)
+      : copy.failures.generic;
     try {
       await serialize(() =>
         synchronizeNow(

@@ -1,10 +1,13 @@
+import type { ReminderStore } from '../src/reminders.js';
 import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
 import { createJolanda } from '../src/jolanda.js';
+import { ImageInputError } from '../src/discord-images.js';
+import { costEnvelopeMicrodollars } from '../src/limits.js';
+import { imageLimits } from '../src/image-limits.js';
 import { discordOperationTimeoutMs, openRouterStreamStartTimeoutMs } from '../src/limits.js';
 import { ModelFailure } from '../src/model-failure.js';
 import type { GuildSettings } from '../src/models.js';
-import { formatUsd } from '../src/money.js';
 import type {
   JolandaStore,
   Conversation,
@@ -38,10 +41,18 @@ const createStore = (): JolandaStore => ({
         model: 'luna',
         reasoning: 'medium',
         contextLimitMessages: 0,
+        locale: 'en' as const,
         updatedAt: new Date(),
       }) satisfies GuildSettings,
   ),
   updateSettings: vi.fn(),
+  getUsageSummary: vi.fn(async () => ({
+    trendDays: 14,
+    memberWindowDays: 7,
+    trend: [],
+    members: [],
+    totalCostMicrodollars: 0,
+  })),
   getBudgetSummary: vi.fn(async () => ({
     dailyUsedMicrodollars: 0,
     dailyReservedMicrodollars: 0,
@@ -79,6 +90,8 @@ const createCore = (
   maximumConcurrentTurns = 2,
   logger = pino({ enabled: false }),
   now?: () => Date,
+  loadImages?: Parameters<typeof createJolanda>[0]['loadImages'],
+  reminders?: ReminderStore,
 ) =>
   createJolanda({
     store,
@@ -92,9 +105,155 @@ const createCore = (
     protectIdentifier: (value) => `protected:${value}`,
     createId: () => 'conversation',
     ...(now ? { now } : {}),
+    ...(loadImages ? { loadImages } : {}),
+    ...(reminders ? { reminders } : {}),
   });
 
 describe('Jolanda core', () => {
+  const imageAttachment = {
+    url: 'https://cdn.discordapp.com/attachments/1/2/private.png?hm=secret',
+    size: 1000,
+    source: 'latest_message' as const,
+  };
+  const promptImage = {
+    source: 'latest_message' as const,
+    dataUrl: 'data:image/jpeg;base64,PRIVATE',
+  };
+
+  it.each(['', 'hi', 'What is in this picture?'])(
+    'sends an image to the model even for an empty or social question: %s',
+    async (question) => {
+      const store = createStore();
+      const runner = {
+        run: vi
+          .fn<ModelRunner['run']>()
+          .mockResolvedValue({ content: 'A dog in a pink sweater.', usage }),
+      };
+      const loadImages = vi
+        .fn<NonNullable<Parameters<typeof createJolanda>[0]['loadImages']>>()
+        .mockImplementation(async () => {
+          expect(store.authorizeTurn).toHaveBeenCalled();
+          return [promptImage];
+        });
+      const core = createCore(store, runner, 2, pino({ enabled: false }), undefined, loadImages);
+      const outcome = await core.handleTurn(
+        { ...createRequest(vi.fn(async () => [])), question, images: [imageAttachment] },
+        createSink(),
+      );
+      expect(outcome.status).toBe('completed');
+      expect(runner.run.mock.calls[0]?.[0]).toMatchObject({
+        model: 'luna',
+        messages: expect.arrayContaining([
+          {
+            role: 'user',
+            content: expect.arrayContaining([
+              { type: 'image_url', image_url: { url: promptImage.dataUrl } },
+            ]),
+          },
+        ]),
+      });
+      expect(store.authorizeTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reservationMicrodollars: costEnvelopeMicrodollars({
+            model: 'luna',
+            reasoning: 'medium',
+            maximumPromptCharacters: 32000,
+            imageCount: 1,
+          }),
+        }),
+      );
+      const stored = JSON.stringify(vi.mocked(store.appendTurn).mock.calls);
+      expect(stored).toContain('attached_images');
+      expect(stored).not.toContain('base64');
+      expect(stored).not.toContain('secret');
+      expect(stored).not.toContain('discordapp');
+    },
+  );
+
+  it('uses and accounts for the vision fallback without changing the server settings', async () => {
+    const store = createStore();
+    vi.mocked(store.getSettings).mockResolvedValue({
+      guildId: 'guild',
+      model: 'deepseek-v4-flash',
+      reasoning: 'high',
+      contextLimitMessages: 0,
+      locale: 'en' as const,
+      updatedAt: new Date(),
+    });
+    const runner = {
+      run: vi.fn<ModelRunner['run']>().mockResolvedValue({ content: 'A dog.', usage }),
+    };
+    const loadImages = vi
+      .fn<NonNullable<Parameters<typeof createJolanda>[0]['loadImages']>>()
+      .mockResolvedValue([promptImage]);
+    const sink = createSink();
+    await createCore(store, runner, 2, pino({ enabled: false }), undefined, loadImages).handleTurn(
+      { ...createRequest(vi.fn(async () => [])), images: [imageAttachment] },
+      sink,
+    );
+    expect(runner.run.mock.calls[0]?.[0]).toMatchObject({
+      model: 'glm-5.3-flash',
+      reasoning: 'high',
+    });
+    expect(store.updateSettings).not.toHaveBeenCalled();
+    expect(store.authorizeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationMicrodollars: costEnvelopeMicrodollars({
+          model: 'glm-5.3-flash',
+          reasoning: 'high',
+          maximumPromptCharacters: 32000,
+          imageCount: 1,
+        }),
+      }),
+    );
+    expect(vi.mocked(sink.finish).mock.calls[0]?.[0]).toContain('Image model:** GLM 5.3 Flash');
+  });
+
+  it('rejects oversized image batches before reserving spend or loading images', async () => {
+    const store = createStore();
+    const runner = { run: vi.fn() };
+    const loadImages = vi.fn();
+    const outcome = await createCore(
+      store,
+      runner,
+      2,
+      pino({ enabled: false }),
+      undefined,
+      loadImages,
+    ).handleTurn(
+      {
+        ...createRequest(vi.fn(async () => [])),
+        images: Array.from({ length: imageLimits.count + 1 }, () => imageAttachment),
+      },
+      createSink(),
+    );
+    expect(outcome).toEqual({ status: 'rejected', reason: 'image_limit' });
+    expect(store.authorizeTurn).not.toHaveBeenCalled();
+    expect(loadImages).not.toHaveBeenCalled();
+  });
+
+  it('releases the reservation after image download failure without claiming the model saw it', async () => {
+    const store = createStore();
+    const runner = { run: vi.fn() };
+    const loadImages = vi.fn().mockRejectedValue(new ImageInputError('image_unavailable'));
+    const sink = createSink();
+    const outcome = await createCore(
+      store,
+      runner,
+      2,
+      pino({ enabled: false }),
+      undefined,
+      loadImages,
+    ).handleTurn({ ...createRequest(vi.fn(async () => [])), images: [imageAttachment] }, sink);
+    expect(outcome).toEqual({ status: 'rejected', reason: 'image_unavailable' });
+    expect(store.failRequest).toHaveBeenCalledWith('request', 'before_inference');
+    expect(store.settleRequest).not.toHaveBeenCalled();
+    expect(runner.run).not.toHaveBeenCalled();
+    expect(sink.prepare).not.toHaveBeenCalled();
+    expect(sink.fail).not.toHaveBeenCalled();
+    expect(store.appendTurn).not.toHaveBeenCalled();
+  });
+
   it('marks a length-truncated answer instead of presenting it as complete', async () => {
     const store = createStore();
     const modelRunner: ModelRunner = {
@@ -137,6 +296,7 @@ describe('Jolanda core', () => {
         model: 'luna',
         reasoning: 'medium',
         contextLimitMessages: 5,
+        locale: 'en' as const,
         updatedAt: new Date(),
       });
       const modelRunner: ModelRunner = { run: vi.fn() };
@@ -260,6 +420,7 @@ describe('Jolanda core', () => {
       model: 'luna',
       reasoning: 'medium',
       contextLimitMessages: 20,
+      locale: 'en' as const,
       updatedAt: new Date(),
     });
     const loadAmbientContext = vi.fn(async () => [
@@ -290,6 +451,7 @@ describe('Jolanda core', () => {
       model: 'deepseek-v4-flash',
       reasoning: 'high',
       contextLimitMessages: 1,
+      locale: 'en' as const,
       updatedAt: new Date(),
     });
     const loadAmbientContext = vi.fn(async () => [
@@ -379,6 +541,50 @@ describe('Jolanda core', () => {
     expect(JSON.stringify(vi.mocked(store.appendTurn).mock.calls)).not.toContain(
       'late private summary',
     );
+  });
+
+  it('keeps the retry reason visible through provider activity, then replaces it with the answer', async () => {
+    vi.useFakeTimers();
+    try {
+      const store = createStore();
+      const sink = createSink();
+      const modelRunner: ModelRunner = {
+        run: vi.fn(async (_request, onDelta, onProgress) => {
+          await onProgress?.({ type: 'reasoning_summary', delta: 'Stale reasoning' });
+          await onProgress?.({
+            type: 'retry',
+            attempt: 2,
+            maximumAttempts: 5,
+            delayMs: 1_000,
+            reason: '502 Bad Gateway — upstream provider failed',
+          });
+          expect(sink.update).toHaveBeenLastCalledWith(
+            '⚠️ OpenRouter is shitting itself again.\nReason: 502 Bad Gateway — upstream provider failed\nRetrying in 1s · attempt 2/5 · 00:00',
+            [],
+            expect.any(AbortSignal),
+          );
+          await onProgress?.({ type: 'activity' });
+          await vi.advanceTimersByTimeAsync(2_000);
+          expect(sink.update).toHaveBeenLastCalledWith(
+            '⚠️ OpenRouter is shitting itself again.\nReason: 502 Bad Gateway — upstream provider failed\nRetrying · attempt 2/5 · 00:02',
+            [],
+            expect.any(AbortSignal),
+          );
+          await onDelta('Recovered answer');
+          expect(vi.mocked(sink.update).mock.calls.at(-1)?.[0]).not.toContain('shitting');
+          return { content: 'Recovered answer', usage };
+        }),
+      };
+      await createCore(store, modelRunner).handleTurn(createRequest(vi.fn(async () => [])), sink);
+      expect(sink.finish).toHaveBeenCalledWith(
+        modelOnlyDisplay('Recovered answer'),
+        [],
+        expect.any(AbortSignal),
+      );
+      expect(JSON.stringify(vi.mocked(store.appendTurn).mock.calls)).not.toContain('shitting');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('updates elapsed time and distinguishes provider silence from a live stream', async () => {
@@ -541,7 +747,7 @@ describe('Jolanda core', () => {
     },
   );
 
-  it('shows the conservative charged cost when provider usage is missing', async () => {
+  it('labels missing usage without charging the server budget', async () => {
     const store = createStore();
     const sink = createSink();
     const modelRunner: ModelRunner = { run: vi.fn(async () => ({ content: 'Answer' })) };
@@ -551,10 +757,10 @@ describe('Jolanda core', () => {
     const settlement = vi.mocked(store.settleRequest).mock.calls[0]?.[0];
     const displayed = vi.mocked(sink.finish).mock.calls[0]?.[0];
     expect(settlement).toBeDefined();
+    expect(settlement?.usage.costMicrodollars).toBe(0);
     expect(displayed).toContain(
-      `💵 **Response cost:** ${formatUsd(settlement?.usage.costMicrodollars ?? 0)}`,
+      '💵 **Response cost:** Unknown (not counted toward the server budget)',
     );
-    expect(displayed).toContain('conservative charge because provider usage was not reported');
   });
 
   it('shows a reported zero-cost model response without implying missing usage', async () => {
@@ -650,6 +856,7 @@ describe('Jolanda core', () => {
       model: 'luna',
       reasoning: 'medium',
       contextLimitMessages: 5,
+      locale: 'en' as const,
       updatedAt: new Date(),
     });
     const loadAmbientContext = vi.fn(async () => []);
@@ -706,6 +913,7 @@ describe('Jolanda core', () => {
       model: 'luna',
       reasoning: 'medium',
       contextLimitMessages: 20,
+      locale: 'en' as const,
       updatedAt: new Date(),
     });
     vi.mocked(store.authorizeTurn).mockResolvedValue({ ok: false, reason: 'rate_limited' });
@@ -891,6 +1099,7 @@ describe('Jolanda core', () => {
       model: 'luna',
       reasoning: 'medium',
       contextLimitMessages: 1,
+      locale: 'en' as const,
       updatedAt: new Date(),
     });
     const sink = createSink();
@@ -955,7 +1164,7 @@ describe('Jolanda core', () => {
     }
   });
 
-  it('charges the full envelope when inference usage is unavailable', async () => {
+  it('does not charge when inference usage is unavailable', async () => {
     const store = createStore();
     const modelRunner: ModelRunner = {
       run: vi.fn(async () => ({ content: 'Answer without usage' })),
@@ -975,10 +1184,10 @@ describe('Jolanda core', () => {
       }),
     );
     const settlement = vi.mocked(store.settleRequest).mock.calls[0]?.[0];
-    expect(settlement?.usage.costMicrodollars).toBeGreaterThan(100_000);
+    expect(settlement?.usage.costMicrodollars).toBe(0);
   });
 
-  it('settles conservatively and notifies Discord when inference fails', async () => {
+  it('releases the reservation and notifies Discord when inference fails', async () => {
     const store = createStore();
     const sink = createSink();
     const modelRunner: ModelRunner = {
@@ -991,10 +1200,21 @@ describe('Jolanda core', () => {
     );
 
     expect(outcome).toEqual({ status: 'failed' });
-    expect(store.settleRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'usage_missing' }),
-    );
+    expect(store.failRequest).toHaveBeenCalledWith('request', 'inference_failed');
+    expect(store.settleRequest).not.toHaveBeenCalled();
     expect(sink.fail).toHaveBeenCalledOnce();
+  });
+
+  it('does not charge reported usage for a model result with no answer', async () => {
+    const store = createStore();
+    const modelRunner: ModelRunner = { run: vi.fn(async () => ({ content: '', usage })) };
+    const outcome = await createCore(store, modelRunner).handleTurn(
+      createRequest(vi.fn(async () => [])),
+      createSink(),
+    );
+    expect(outcome).toEqual({ status: 'failed' });
+    expect(store.failRequest).toHaveBeenCalledWith('request', 'inference_failed');
+    expect(store.settleRequest).not.toHaveBeenCalled();
   });
 
   it('correlates a safe provider failure notice with the structured turn event', async () => {
@@ -1117,9 +1337,8 @@ describe('Jolanda core', () => {
     await core.shutdown();
 
     await expect(active).resolves.toEqual({ status: 'failed' });
-    expect(store.settleRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'usage_missing' }),
-    );
+    expect(store.failRequest).toHaveBeenCalledWith('request', 'inference_failed');
+    expect(store.settleRequest).not.toHaveBeenCalled();
     expect(sink.fail).not.toHaveBeenCalled();
     await expect(
       core.handleTurn(
@@ -1171,6 +1390,7 @@ describe('Jolanda core', () => {
       model: 'luna',
       reasoning: 'medium',
       contextLimitMessages: 1,
+      locale: 'en' as const,
       updatedAt: new Date(),
     });
     const loadAmbientContext = vi.fn(async () => new Promise<never>(() => undefined));
@@ -1230,9 +1450,9 @@ describe('Jolanda core', () => {
     }
   });
 
-  it('keeps shutdown failed when conservative settlement cannot be persisted', async () => {
+  it('keeps shutdown failed when a failed reservation cannot be released', async () => {
     const store = createStore();
-    vi.mocked(store.settleRequest).mockRejectedValue(new Error('Mongo unavailable'));
+    vi.mocked(store.failRequest).mockRejectedValue(new Error('Mongo unavailable'));
     const modelRunner: ModelRunner = {
       run: vi.fn(
         async (request: ModelRunRequest) =>
@@ -1250,6 +1470,69 @@ describe('Jolanda core', () => {
     await expect(core.shutdown()).rejects.toThrow('unsettled requests');
 
     await expect(active).resolves.toEqual({ status: 'failed' });
-    expect(store.settleRequest).toHaveBeenCalledTimes(4);
+    expect(store.failRequest).toHaveBeenCalledTimes(4);
   });
+});
+
+describe('conversational reminder commit', () => {
+  it.each(['saved', 'failure', 'limit', 'invalid'] as const)(
+    'only confirms durably saved drafts: %s',
+    async (outcome) => {
+      const date = new Date('2026-09-15T05:00:00Z');
+      const store = createStore(),
+        sink = createSink();
+      const create = vi.fn(async () => {
+        expect(store.authorizeTurn).toHaveBeenCalled();
+        expect(sink.finish).not.toHaveBeenCalled();
+        if (outcome === 'failure') throw new Error('database unavailable');
+        return outcome === 'limit'
+          ? ('limit_reached' as const)
+          : { id: 'abcd', text: 'Invoice', createdAt: date, dueAt: new Date(+date + 120_000) };
+      });
+      const reminders = { create } as unknown as ReminderStore;
+      const modelRunner: ModelRunner = {
+        run: vi.fn(async (request, onDelta) => {
+          expect(request.allowReminders).toBe(true);
+          await onDelta('I have saved it.');
+          return {
+            content: 'I have saved it.',
+            usage,
+            reminderDrafts: [
+              {
+                instant:
+                  outcome === 'invalid'
+                    ? date.toISOString()
+                    : new Date(+date + 120_000).toISOString(),
+                text: 'Invoice',
+              },
+            ],
+          };
+        }),
+      };
+      const core = createCore(
+        store,
+        modelRunner,
+        2,
+        pino({ enabled: false }),
+        () => date,
+        undefined,
+        reminders,
+      );
+      const result = await core.handleTurn(
+        createRequest(async () => []),
+        sink,
+      );
+      expect(JSON.stringify(vi.mocked(sink.update).mock.calls)).not.toContain('I have saved it.');
+      if (outcome === 'saved') {
+        expect(result.status).toBe('completed');
+        expect(vi.mocked(sink.finish).mock.calls[0]?.[0]).toContain('abcd');
+      } else {
+        expect(result.status).toBe('failed');
+        expect(sink.finish).not.toHaveBeenCalled();
+        expect(vi.mocked(sink.fail).mock.calls[0]?.[0]).toBe('');
+      }
+      expect(store.settleRequest).toHaveBeenCalled();
+      await core.shutdown();
+    },
+  );
 });

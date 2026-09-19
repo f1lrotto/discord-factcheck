@@ -54,16 +54,9 @@ export const createMongoAccounting = (
         if (!request) return;
         const reportedCost = settlement.usage?.costMicrodollars;
         const validUsage =
-          reportedCost === undefined || (Number.isSafeInteger(reportedCost) && reportedCost >= 0);
-        const usage = validUsage
-          ? settlement.usage
-          : {
-              costMicrodollars: request.reservationMicrodollars,
-              promptTokens: 0,
-              completionTokens: 0,
-              reasoningTokens: 0,
-              webSearchRequests: 0,
-            };
+          reportedCost !== undefined && Number.isSafeInteger(reportedCost) && reportedCost >= 0;
+        const usage =
+          settlement.status === 'completed' && validUsage ? settlement.usage : undefined;
         const costMicrodollars = usage?.costMicrodollars ?? 0;
         exceededReservation = costMicrodollars > request.reservationMicrodollars;
         for (const bucketId of [request.dailyBucketId, request.monthlyBucketId]) {
@@ -82,7 +75,8 @@ export const createMongoAccounting = (
           { _id: settlement.requestKey, status: 'processing' },
           {
             $set: {
-              status: validUsage ? settlement.status : 'usage_missing',
+              status:
+                settlement.status === 'failed' || validUsage ? settlement.status : 'usage_missing',
               ...(usage ? { usage } : {}),
               ...(settlement.errorCode ? { errorCode: settlement.errorCode } : {}),
               settledAt: new Date(),
@@ -114,14 +108,8 @@ export const createMongoAccounting = (
       .limit(recoveryBatchSize)) {
       await settleByKey({
         requestKey: request._id,
-        status: 'usage_missing',
-        usage: {
-          costMicrodollars: request.reservationMicrodollars,
-          promptTokens: 0,
-          completionTokens: 0,
-          reasoningTokens: 0,
-          webSearchRequests: 0,
-        },
+        status: 'failed',
+        errorCode: 'lease_expired',
       });
       recoveredReservations += 1;
     }
@@ -332,11 +320,143 @@ export const createMongoAccounting = (
     };
   };
 
+  /**
+   * Reads two windows that are not interchangeable.
+   *
+   * `trend` comes from the guild's daily budget buckets, which are retained for about 120
+   * days, so it can show weeks of history. `members` is derived from per-request documents,
+   * which expire with the transcript TTL (seven days by default). The caller must label the
+   * two windows separately; presenting them as one makes the totals look inconsistent when
+   * they are simply measuring different spans.
+   */
+  const getUsageSummary: JolandaStore['getUsageSummary'] = async (guildId, options) => {
+    const guildKey = context.protectIdentifier(guildId);
+    // The two windows are independent by design: bucket retention and transcript retention
+    // are different spans, so the member window is not clamped to the trend window.
+    const bounded = (value: number) =>
+      Number.isFinite(value) ? Math.max(1, Math.min(120, Math.trunc(value))) : 14;
+    const trendDays = bounded(options.trendDays);
+    const memberWindowDays = Math.min(
+      bounded(options.memberWindowDays),
+      input.transcriptTtlMs / 86_400_000,
+    );
+    const dayKey = (offset: number) =>
+      new Date(+options.now - offset * 24 * 60 * 60_000).toISOString().slice(0, 10);
+    const earliestTrendDay = dayKey(trendDays - 1);
+    const memberCutoff = new Date(+options.now - memberWindowDays * 24 * 60 * 60_000);
+
+    const [buckets, requests] = await Promise.all([
+      context.collections.budgetBuckets
+        .find(
+          {
+            guildKey,
+            period: 'day',
+            periodKey: { $gte: earliestTrendDay, $lte: dayKey(0) },
+            expiresAt: { $gt: options.now },
+          },
+          mongoOperationOptions,
+        )
+        .sort({ periodKey: 1 })
+        .toArray(),
+      context.collections.requests
+        .aggregate<{
+          _id: { userKey: string; day: string };
+          requests: number;
+          costMicrodollars: number;
+          failures: number;
+        }>(
+          [
+            {
+              $match: {
+                guildKey,
+                createdAt: { $gte: memberCutoff, $lte: options.now },
+                expiresAt: { $gt: options.now },
+              },
+            },
+            {
+              $group: {
+                _id: {
+                  userKey: '$userKey',
+                  day: {
+                    $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'UTC' },
+                  },
+                },
+                requests: { $sum: 1 },
+                costMicrodollars: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ['$status', 'completed'] },
+                      { $ifNull: ['$usage.costMicrodollars', 0] },
+                      0,
+                    ],
+                  },
+                },
+                failures: {
+                  $sum: { $cond: [{ $in: ['$status', ['failed', 'usage_missing']] }, 1, 0] },
+                },
+              },
+            },
+          ],
+          mongoOperationOptions,
+        )
+        .toArray(),
+    ]);
+
+    const spendByDay = new Map(
+      buckets.map((bucket) => [bucket.periodKey, bucket.usedMicrodollars]),
+    );
+    const requestsByDay = new Map<string, number>();
+    const byMember = new Map<
+      string,
+      { requests: number; costMicrodollars: number; failures: number }
+    >();
+    for (const request of requests) {
+      const day = request._id.day;
+      requestsByDay.set(day, (requestsByDay.get(day) ?? 0) + request.requests);
+      const member = byMember.get(request._id.userKey) ?? {
+        requests: 0,
+        costMicrodollars: 0,
+        failures: 0,
+      };
+      // Only settled, reported usage is counted, matching how the budget is charged.
+      member.requests += request.requests;
+      member.costMicrodollars += request.costMicrodollars;
+      member.failures += request.failures;
+      byMember.set(request._id.userKey, member);
+    }
+
+    // Oldest first, with silent gaps filled so a sparkline reads as a real timeline.
+    const trend = Array.from({ length: trendDays }, (_unused, offset) => {
+      const date = dayKey(trendDays - 1 - offset);
+      return {
+        date,
+        costMicrodollars: spendByDay.get(date) ?? 0,
+        requests: requestsByDay.get(date) ?? 0,
+      };
+    });
+
+    return {
+      trendDays,
+      memberWindowDays,
+      trend,
+      members: [...byMember.entries()]
+        .map(([userKey, totals]) => ({ userKey, ...totals }))
+        .sort(
+          (left, right) =>
+            right.costMicrodollars - left.costMicrodollars ||
+            right.requests - left.requests ||
+            left.userKey.localeCompare(right.userKey),
+        ),
+      totalCostMicrodollars: trend.reduce((total, day) => total + day.costMicrodollars, 0),
+    };
+  };
+
   return {
     authorizeTurn,
     settleRequest,
     failRequest,
     getBudgetSummary,
+    getUsageSummary,
     recoverExpiredRequests,
     startRecovery,
     stopRecovery,

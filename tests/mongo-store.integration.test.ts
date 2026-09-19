@@ -202,7 +202,7 @@ describe('Mongo store integration', () => {
     expect(budget.dailyReservedMicrodollars).toBe(400_000);
   });
 
-  it('replaces reservations with exact or conservative usage', async () => {
+  it('charges reported successful usage and releases unreported reservations', async () => {
     const store = await createStore();
     await authorize(store, 'exact');
     await authorize(store, 'missing', { userId: 'other' });
@@ -215,9 +215,37 @@ describe('Mongo store integration', () => {
     });
 
     const budget = await store.getBudgetSummary('raw-guild-id', new Date());
-    expect(budget.dailyUsedMicrodollars).toBe(350_000);
+    expect(budget.dailyUsedMicrodollars).toBe(150_000);
     expect(budget.dailyReservedMicrodollars).toBe(0);
-    expect(budget.monthlyUsedMicrodollars).toBe(350_000);
+    expect(budget.monthlyUsedMicrodollars).toBe(150_000);
+  });
+
+  it('releases failed inference exactly once and immediately allows another request', async () => {
+    const store = await createStore({ dailyLimitMicrodollars: 200_000 });
+    expect(await authorize(store, 'failed-inference')).toEqual({ ok: true });
+    await Promise.all([
+      store.failRequest('failed-inference', 'inference_failed'),
+      store.failRequest('failed-inference', 'inference_failed'),
+    ]);
+    await expect(store.getBudgetSummary('raw-guild-id', new Date())).resolves.toMatchObject({
+      dailyUsedMicrodollars: 0,
+      dailyReservedMicrodollars: 0,
+      monthlyUsedMicrodollars: 0,
+      monthlyReservedMicrodollars: 0,
+    });
+    expect(await authorize(store, 'successful-retry', { userId: 'other' })).toEqual({ ok: true });
+    await store.settleRequest({
+      requestId: 'successful-retry',
+      status: 'completed',
+      usage: usage(150_000),
+    });
+    await store.failRequest('successful-retry', 'late_failure');
+    await expect(store.getBudgetSummary('raw-guild-id', new Date())).resolves.toMatchObject({
+      dailyUsedMicrodollars: 150_000,
+      dailyReservedMicrodollars: 0,
+      monthlyUsedMicrodollars: 150_000,
+      monthlyReservedMicrodollars: 0,
+    });
   });
 
   it('settles concurrent duplicate callbacks exactly once without a negative reservation', async () => {
@@ -243,7 +271,7 @@ describe('Mongo store integration', () => {
     });
   });
 
-  it('charges the reservation when direct settlement receives a non-finite cost', async () => {
+  it('releases the reservation when direct settlement receives a non-finite cost', async () => {
     const store = await createStore();
     await authorize(store, 'invalid-cost');
 
@@ -254,9 +282,9 @@ describe('Mongo store integration', () => {
     });
 
     await expect(store.getBudgetSummary('raw-guild-id', new Date())).resolves.toMatchObject({
-      dailyUsedMicrodollars: 200_000,
+      dailyUsedMicrodollars: 0,
       dailyReservedMicrodollars: 0,
-      monthlyUsedMicrodollars: 200_000,
+      monthlyUsedMicrodollars: 0,
       monthlyReservedMicrodollars: 0,
     });
   });
@@ -277,7 +305,7 @@ describe('Mongo store integration', () => {
     ]);
     const budget = await replacement.getBudgetSummary('raw-guild-id', new Date());
 
-    expect([120_000, 200_000]).toContain(budget.dailyUsedMicrodollars);
+    expect([120_000, 0]).toContain(budget.dailyUsedMicrodollars);
     expect(budget.dailyReservedMicrodollars).toBe(0);
     expect(budget.monthlyUsedMicrodollars).toBe(budget.dailyUsedMicrodollars);
     expect(budget.monthlyReservedMicrodollars).toBe(0);
@@ -546,7 +574,7 @@ describe('Mongo store integration', () => {
     const replacement = await createStore({ instanceId: 'new', requestLeaseMs: 60_000 });
     const budget = await replacement.getBudgetSummary('raw-guild-id', new Date());
 
-    expect(budget.dailyUsedMicrodollars).toBe(200_000);
+    expect(budget.dailyUsedMicrodollars).toBe(0);
     expect(budget.dailyReservedMicrodollars).toBe(200_000);
   });
 
@@ -561,7 +589,7 @@ describe('Mongo store integration', () => {
       .poll(async () => store.getBudgetSummary('raw-guild-id', staleTime), {
         timeout: 2_000,
       })
-      .toMatchObject({ dailyUsedMicrodollars: 200_000, dailyReservedMicrodollars: 0 });
+      .toMatchObject({ dailyUsedMicrodollars: 0, dailyReservedMicrodollars: 0 });
   });
 
   it('recovers at most 100 stale reservations per sweep', async () => {
@@ -581,7 +609,7 @@ describe('Mongo store integration', () => {
 
     const second = await createStore({ requestLeaseMs: 60_000 });
     await expect(second.getBudgetSummary('raw-guild-id', staleTime)).resolves.toMatchObject({
-      dailyUsedMicrodollars: 100,
+      dailyUsedMicrodollars: 0,
       dailyReservedMicrodollars: 1,
     });
     await second.close();
@@ -589,7 +617,7 @@ describe('Mongo store integration', () => {
 
     const third = await createStore({ requestLeaseMs: 60_000 });
     await expect(third.getBudgetSummary('raw-guild-id', staleTime)).resolves.toMatchObject({
-      dailyUsedMicrodollars: 101,
+      dailyUsedMicrodollars: 0,
       dailyReservedMicrodollars: 0,
     });
   }, 60_000);
@@ -614,5 +642,83 @@ describe('Mongo store integration', () => {
         channelId: 'raw-channel-id',
       }),
     ).resolves.toBeNull();
+  });
+
+  it('reports usage across two retention windows without exposing raw identifiers', async () => {
+    const store = await createStore();
+    const now = new Date('2026-09-15T12:00:00Z');
+    const yesterday = new Date('2026-09-14T06:00:00Z');
+    const settle = async (requestId: string, cost: number) =>
+      store.settleRequest({ requestId, usage: usage(cost), status: 'completed' });
+
+    // Two members today, one of them also yesterday, plus one failed turn.
+    expect(await authorize(store, 'r-1', { userId: 'member-a', now })).toEqual({ ok: true });
+    await settle('r-1', 4_000);
+    expect(await authorize(store, 'r-2', { userId: 'member-b', now })).toEqual({ ok: true });
+    await settle('r-2', 1_500);
+    expect(await authorize(store, 'r-3', { userId: 'member-a', now: yesterday })).toEqual({
+      ok: true,
+    });
+    await settle('r-3', 2_500);
+    expect(await authorize(store, 'r-4', { userId: 'member-b', now })).toEqual({ ok: true });
+    await store.failRequest('r-4', 'synthetic');
+
+    const summary = await store.getUsageSummary('raw-guild-id', {
+      now,
+      trendDays: 3,
+      memberWindowDays: 7,
+    });
+
+    expect(summary.trendDays).toBe(3);
+    expect(summary.memberWindowDays).toBe(7);
+    // Oldest first, with silent days present rather than omitted.
+    expect(summary.trend.map((day) => day.date)).toEqual([
+      '2026-09-13',
+      '2026-09-14',
+      '2026-09-15',
+    ]);
+    expect(summary.trend[0]).toMatchObject({ costMicrodollars: 0, requests: 0 });
+    expect(summary.trend[1]).toMatchObject({ costMicrodollars: 2_500, requests: 1 });
+    expect(summary.trend[2]).toMatchObject({ costMicrodollars: 5_500, requests: 3 });
+    expect(summary.totalCostMicrodollars).toBe(8_000);
+
+    // Members are ordered by spend and keyed by pseudonym, never by Discord identifier.
+    expect(summary.members).toHaveLength(2);
+    expect(summary.members[0]).toMatchObject({
+      userKey: protectIdentifier('member-a'),
+      requests: 2,
+      costMicrodollars: 6_500,
+      failures: 0,
+    });
+    expect(summary.members[1]).toMatchObject({
+      userKey: protectIdentifier('member-b'),
+      requests: 2,
+      costMicrodollars: 1_500,
+      failures: 1,
+    });
+    const serialized = JSON.stringify(summary);
+    for (const raw of ['member-a', 'member-b', 'raw-guild-id'])
+      expect(serialized).not.toContain(raw);
+
+    // A member window shorter than the data excludes the older turn.
+    const narrow = await store.getUsageSummary('raw-guild-id', {
+      now,
+      trendDays: 3,
+      memberWindowDays: 1,
+    });
+    expect(narrow.memberWindowDays).toBe(1);
+    expect(
+      narrow.members.find((member) => member.userKey === protectIdentifier('member-a'))?.requests,
+    ).toBe(1);
+
+    // Another guild shares neither trend nor members.
+    const other = await store.getUsageSummary('different-guild', {
+      now,
+      trendDays: 3,
+      memberWindowDays: 7,
+    });
+    expect(other.members).toEqual([]);
+    expect(other.totalCostMicrodollars).toBe(0);
+    expect(other.trend).toHaveLength(3);
   });
 });

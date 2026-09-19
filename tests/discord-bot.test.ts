@@ -22,6 +22,7 @@ const settings: GuildSettings = {
   model: 'luna',
   reasoning: 'medium',
   contextLimitMessages: 0,
+  locale: 'en' as const,
   updatedAt: new Date(),
 };
 
@@ -33,6 +34,13 @@ const createStore = (): JolandaStore => ({
     void guildId;
     return { ...settings, ...patch };
   }),
+  getUsageSummary: vi.fn(async () => ({
+    trendDays: 14,
+    memberWindowDays: 7,
+    trend: [],
+    members: [],
+    totalCostMicrodollars: 0,
+  })),
   getBudgetSummary: vi.fn(async () => ({
     dailyUsedMicrodollars: 0,
     dailyReservedMicrodollars: 0,
@@ -208,6 +216,76 @@ const createInteraction = (input: {
 };
 
 describe('Discord adapter', () => {
+  it('passes only attachments from the tagged message and its explicit reply to the core', async () => {
+    const photo = {
+      url: 'https://cdn.discordapp.com/attachments/1/2/dog.png?hm=secret',
+      size: 1000,
+      name: 'dog.png',
+      contentType: 'image/png',
+    };
+    const handleTurn = vi
+      .fn<Jolanda['handleTurn']>()
+      .mockResolvedValue({ status: 'completed', conversationId: 'conversation' });
+    const { client } = createBot({ jolanda: { handleTurn, shutdown: vi.fn() } });
+    const original = createMessage({
+      content: '',
+      author: { id: 'original-author', bot: false },
+      attachments: new Collection([['original', photo]]),
+    });
+    const current = createMessage({
+      content: '<@bot> Compare these photos',
+      attachments: new Collection([
+        ['current', { ...photo, url: photo.url.replace('dog', 'cat') }],
+        ['pdf', { ...photo, name: 'document.pdf', contentType: 'application/pdf' }],
+      ]),
+      reference: { messageId: 'original' },
+      fetchReference: vi.fn().mockResolvedValue(original.message),
+    });
+    client.emitter.emit(Events.MessageCreate, current.message);
+    await vi.waitFor(() => expect(handleTurn).toHaveBeenCalledOnce());
+    expect(handleTurn.mock.calls[0]?.[0]).toMatchObject({
+      question: 'Compare these photos',
+      images: [
+        { url: photo.url.replace('dog', 'cat'), size: 1000, source: 'latest_message' },
+        { url: photo.url, size: 1000, source: 'replied_message' },
+      ],
+    });
+    expect(current.historyFetch).not.toHaveBeenCalled();
+  });
+
+  it('admits an image-only mention and displays actionable image errors', async () => {
+    const handleTurn = vi
+      .fn<Jolanda['handleTurn']>()
+      .mockResolvedValue({ status: 'rejected', reason: 'image_unavailable' });
+    const { client } = createBot({ jolanda: { handleTurn, shutdown: vi.fn() } });
+    const current = createMessage({
+      content: '<@bot>',
+      attachments: new Collection([
+        [
+          'photo',
+          {
+            url: 'https://cdn.discordapp.com/attachments/1/2/photo.png',
+            size: 1000,
+            name: 'photo.png',
+            contentType: 'image/png',
+          },
+        ],
+      ]),
+    });
+    client.emitter.emit(Events.MessageCreate, current.message);
+    await vi.waitFor(() => expect(current.reply).toHaveBeenCalledOnce());
+    expect(handleTurn.mock.calls[0]?.[0]).toMatchObject({
+      question: '',
+      images: expect.any(Array),
+    });
+    expect(current.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('upload it again'),
+        allowedMentions: { parse: [], repliedUser: false },
+      }),
+    );
+  });
+
   it('routes a mention, strips it, and renders a bounded mention-safe response', async () => {
     const handleTurn = vi.fn<Jolanda['handleTurn']>(async (request, sink) => {
       await sink.prepare();
@@ -641,6 +719,8 @@ describe('Discord adapter', () => {
       },
       options: { getSubcommand: () => 'context-limit' },
       reply,
+      deferReply: vi.fn(),
+      editReply: reply,
       followUp: vi.fn(),
     };
 
@@ -806,7 +886,7 @@ describe('Discord adapter', () => {
 
     client.emitter.emit(Events.MessageCreate, failing.message);
     await vi.waitFor(() => expect(failing.reply).toHaveBeenCalledOnce());
-    expect(String(failing.reply.mock.calls[0]?.[0].content)).toContain('temporarily unavailable');
+    expect(String(failing.reply.mock.calls[0]?.[0].content)).toContain('momentálne nedostupná');
   });
 
   it('silently ignores an unrelated human reply when link storage is unavailable', async () => {

@@ -42,6 +42,7 @@ const legacyStore = () =>
       model: 'luna',
       reasoning: 'medium',
       contextLimitMessages: 0,
+      locale: 'en',
     })),
     getBudgetSummary: vi.fn(async () => ({
       dailyUsedMicrodollars: 0,
@@ -185,7 +186,12 @@ describe('news command definitions and authorization', () => {
       expect(group.type).toBe(ApplicationCommandOptionType.SubcommandGroup);
       if (group.type !== ApplicationCommandOptionType.SubcommandGroup)
         throw new Error('Missing group');
-      expect(group.options!.map((option) => option.name)).toEqual(['feed', 'disable', 'status']);
+      expect(group.options!.map((option) => option.name)).toEqual([
+        'feed',
+        'disable',
+        'status',
+        ...(feed === 'daily' ? ['run'] : []),
+      ]);
       expect(group.options![0]!.options![0]).toMatchObject({
         name: 'channel',
         type: ApplicationCommandOptionType.Channel,
@@ -205,21 +211,18 @@ describe('news command definitions and authorization', () => {
       expect.arrayContaining(['privacy', 'settings', 'reels', 'model', 'context-limit']),
     );
   });
-  it.each(['feed', 'disable', 'status'])(
-    'requires Manage Server for %s without accessing stores',
+  it.each(['feed', 'disable', 'status', 'run'])(
+    'requires Manage Server for %s while using the guild language',
     async (action) => {
       const f = fixture();
       const i = interaction({ action, manage: false });
       await f.handler(i.value);
-      expect(i.raw.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          flags: MessageFlags.Ephemeral,
-          content: expect.stringContaining('Manage Server'),
-        }),
+      expect(i.raw.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Manage Server') }),
       );
       expect(f.store.configure).not.toHaveBeenCalled();
       expect(f.store.getSource).not.toHaveBeenCalled();
-      expect(i.raw.deferReply).not.toHaveBeenCalled();
+      expect(i.raw.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     },
   );
   it('configures selected channel B from invocation A even when invocation permissions deny access', async () => {
@@ -370,7 +373,12 @@ describe('news status and independent configuration', () => {
     expect(i.text()).toContain('held to avoid duplicate');
     expect(i.text()).toContain('Source backoff');
     expect(f.legacy.getBudgetSummary).not.toHaveBeenCalled();
-    expect(f.legacy.getSettings).not.toHaveBeenCalled();
+    // Status resolves its language from guild settings, so prove it degrades instead of
+    // failing when that store is unavailable.
+    vi.mocked(f.legacy.getSettings).mockRejectedValueOnce(new Error('settings outage'));
+    const degraded = interaction({ group: 'continuous', action: 'status' });
+    await f.handler(degraded.value);
+    expect(degraded.text()).toContain('Denník N');
   });
   it('distinguishes unconfigured, missing edition, source outage, and a stored edition from delivery', async () => {
     const f = fixture({ now: at('18:30:00') });
@@ -442,7 +450,7 @@ describe('news status and independent configuration', () => {
     f.subscriptions.get('100:continuous')!.pausedReason = 'decryption-failed';
     f.store.getDestination.mockResolvedValue(null);
     await f.handler(i.value);
-    expect(i.text()).toContain('decryption-failed');
+    expect(i.text()).toContain('decryption failed');
   });
   it('adds a concise news summary to existing settings', async () => {
     const f = fixture();
@@ -664,6 +672,7 @@ describe('news command persistence through Mongo restart', () => {
       return store;
     };
     let store = await open();
+    await store.updateSettings(guildId, { locale: 'en' });
     const publisher = createNewsDiscordPublisher({
       client: { isReady: () => true, user: { id: '300' } },
       token: 'fake-token',

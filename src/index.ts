@@ -1,3 +1,5 @@
+import { createBriefingRuntime } from './briefing/index.js';
+import { createReminderRuntime } from './reminder-runtime.js';
 import { randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -38,6 +40,7 @@ export const main = async () => {
     instanceId,
     protectIdentifier,
     logger,
+    secret: config.DATA_PROTECTION_SECRET,
     news: { secret: config.DATA_PROTECTION_SECRET },
   });
 
@@ -48,6 +51,7 @@ export const main = async () => {
     ...(config.OPENROUTER_APP_URL ? { appUrl: config.OPENROUTER_APP_URL } : {}),
   });
   const jolanda = createJolanda({
+    reminders: store.reminders!,
     store,
     modelRunner,
     logger,
@@ -86,8 +90,13 @@ export const main = async () => {
     maximumBytes: config.INSTAGRAM_REELS_MAX_BYTES,
     jobMs: config.INSTAGRAM_REELS_JOB_TIMEOUT_MS,
     transport: createReelDiscordTransport(config.DISCORD_TOKEN),
+    resolveLocale: async (guildId) => (await store.getSettings(guildId)).locale,
   });
   const discord = createDiscordBot({
+    briefingStore: store.briefing!,
+    briefingMaximumCities: config.BRIEFING_MAX_CITIES,
+    reminderStore: store.reminders!,
+    timeZone: config.JOLANDA_TIME_ZONE,
     newsStore: store.news!,
     newsEnabled: config.NEWS_ENABLED,
     reels,
@@ -97,6 +106,8 @@ export const main = async () => {
     maximumContextMessages: config.MAX_CONTEXT_MESSAGES,
     promptsPerMinute: config.PROMPTS_PER_MINUTE,
     transcriptTtlDays: config.TRANSCRIPT_TTL_DAYS,
+    dailyLimitMicrodollars: config.dailySpendLimitMicrodollars,
+    monthlyLimitMicrodollars: config.monthlySpendLimitMicrodollars,
     protectIdentifier,
     jolanda,
     store,
@@ -108,11 +119,25 @@ export const main = async () => {
     enabled: config.NEWS_ENABLED,
     logger,
   });
+  const reminders = createReminderRuntime({
+    store: store.reminders!,
+    publisher: discord.reminderPublisher!,
+    logger,
+  });
+  const briefing = createBriefingRuntime({
+    store: store.briefing!,
+    publisher: discord.briefingPublisher!,
+    reminders: store.reminders!,
+    locale: async (guildId) => (await store.getSettings(guildId)).locale,
+    logger,
+  });
   const lifecycle = createLifecycle({
     stopTurns: async () => {
       discord.stopAccepting();
       const stopped = await Promise.allSettled([
         news.shutdown(),
+        reminders.shutdown(),
+        briefing.shutdown(),
         jolanda.shutdown(),
         reels.shutdown(),
       ]);
@@ -149,7 +174,7 @@ export const main = async () => {
   try {
     await discord.start();
     // A signal during login may already have drained and closed every dependency.
-    if (!stopping) await news.start();
+    if (!stopping) await Promise.all([news.start(), reminders.start(), briefing.start()]);
   } catch (error) {
     await shutdown('login_failure');
     throw error;

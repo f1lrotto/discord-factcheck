@@ -15,9 +15,19 @@ small production service even when it is used by only one server.
   isolated research stage. Replies, conversation history, and explicitly requested context can
   therefore influence a model-generated public search query.
 - Spend is authorized transactionally against a worst-case model/search envelope before inference.
+  Server budgets count only valid reported usage from successful generations. Failed attempts,
+  cancellations, expired leases, and unreported usage release reservations without a charge.
 - AI/media identifiers and news lookup/receipt keys are HMAC-pseudonymized before persistence or
   structured logging. News also keeps authenticated-encrypted routing identifiers for scheduled delivery.
 - Conversation text remains plaintext in MongoDB until its configured expiry so reply chains work.
+- Photo attachments from the current or explicitly replied-to message are downloaded only after
+  admission and spend reservation. Downloads accept HTTPS Discord attachment hosts only, reject
+  redirects, and have byte/time limits. Decoding has a 40-megapixel limit; images are resized and
+  re-encoded without metadata in memory. Image bytes and signed attachment URLs are not stored or
+  logged, and only inline image data is sent to OpenRouter. Textual descriptions and source markers
+  remain in the conversation transcript. Image text is untrusted context and can influence public
+  research just like message text. DeepSeek image turns use the ZDR-compatible GLM vision route;
+  Luna retains its existing provider retention policy.
 - Model output cannot create mentions or embeds, is length-bounded, and has private, credentialed,
   query-bearing, and fragment-bearing links removed. Only exact URLs supplied by bounded public
   research are allowlisted as citations.
@@ -138,6 +148,11 @@ inherited credentials, and cannot fetch remote media. Output writing stops above
 cap; oversized, empty, incompatible, audio-losing, or duration-changing results are rejected.
 The 240-second overall pre-upload budget fits within the processing lease. Final attachments
 remain capped at the configured upload limit (20 MiB by default).
+Instagram image posts use the canonical `/p/<shortcode>/embed/captioned/` page with public DNS
+pinning, a 2 MiB response cap, and the extraction deadline. No redirects or account cookies are
+allowed. The embedded JSON must match the requested shortcode and contain only still images;
+mixed video carousels are rejected in full. Tracking and selected-slide parameters are discarded.
+Instagram and TikTok share photo transfer, byte limits, signature checks, and cleanup.
 TikTok photo pages use a separate public-DNS-pinned HTTPS fetch with a 2 MiB cap and the extraction
 deadline. Redirects must remain on a supported TikTok post with the same ID. Photo metadata selects
 only allowlisted JPEG/PNG/WebP CDN URLs; downloaded file signatures are checked without decoding.
@@ -155,7 +170,7 @@ Discord before closing MongoDB. Successful sends followed by receipt errors and 
 not trigger another upload or failure notice. Expected failures use fixed templates with numeric sizes and finite event fields;
 logs and Mongo contain no raw Discord IDs, signed CDN URLs, subprocess diagnostics or media bytes.
 
-The public video identifier leaves the host for Instagram/Meta or TikTok; the temporary video is copied to
+The public post identifier leaves the host for Instagram/Meta or TikTok; temporary videos and photos are copied to
 Discord. Discord retention governs that copy, including after source deletion. Moderators must remove
 copies through Discord. No login fallback, browser cookies, video splitting, merging or historical scan
 is supported. Keep deployment availability off until Railway-network retrieval and desktop/mobile
@@ -201,3 +216,39 @@ News Discord requests use bounded native HTTPS fetches, no automatic retries, ex
 and timestamp cooldowns. They share the bot token's quota with AI/media. Payloads contain bounded,
 escaped source text and allowlisted source/image URLs. Logs use finite outcomes and hashed scopes,
 without raw routing IDs, tokens, source bodies, or upstream error bodies.
+
+## Scheduled personal features
+
+Reminder destination encryption uses a separate `jolanda/reminders/v1` key namespace; briefing
+routing uses `jolanda/briefing/v1`. Both derive from `DATA_PROTECTION_SECRET` and authenticate the
+record key. Identifiers used for guild, owner, channel, leases and reminder lookup are HMAC keys;
+public reminder handles are random. Reminder text and configured city names/coordinates are
+plaintext. Reminder records expire seven days after their due date; delivery receipts for briefings
+last seven days. TTL expiry is enforced in eligibility queries; MongoDB physical deletion can lag.
+Terminal reminders erase encrypted routing; briefing disable erases routing and fences unsent work.
+
+Reminders are owner-scoped for listing/cancellation and guild-scoped for the 20-active limit,
+enforced by a partial unique index even across concurrent replicas. Due selection, claiming and
+begin-send are atomic. Expired claimed work is recoverable; expired sending work becomes uncertain
+and is never automatically retried. Nonces offer Discord's additional short-term deduplication;
+they are not an exactly-once guarantee. The only allowed user mention is the reminder owner.
+Briefing messages suppress all mentions and only include agenda text from their destination channel.
+
+The model reminder function has no database, network, Discord IDs or mutable external state.
+It returns a validated absolute-time draft; the authorized application turn persists it before
+showing a final confirmation. One reminder per turn avoids partial multi-draft commits. Retrieved
+pages and quoted context are not authorization to create reminders. Ordinary conversational creation
+uses normal model limits/accounting; structured reminder commands and briefings do not use a model.
+
+Two HTTPS hosts are added: `geocoding-api.open-meteo.com/v1/search` receives city names when an
+administrator configures a city; `api.open-meteo.com/v1/forecast` receives only city coordinates,
+time zone and forecast parameters. Neither receives Discord identifiers or reminder text.
+The shared transport checks DNS answers at socket lookup, rejects non-public addresses and
+redirects, validates JSON content type, and bounds headers, bytes and deadlines. Calendar data is
+bundled offline, with source provenance in `src/briefing/namedays.ts` and `calendar.ts`.
+
+Usage breakdowns require Manage Server and match only existing Discord member-cache IDs against
+stored pseudonyms. No member-list fetch or privileged intent is introduced. Request aggregation
+filters both the reporting window and logical expiry; long-lived daily budget totals are labelled
+separately from short-lived member request records. Guild language affects application copy only,
+not model prompts, clock snapshots or persistence keys.

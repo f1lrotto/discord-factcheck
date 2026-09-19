@@ -37,6 +37,8 @@ vi.mock('../../src/mongo-store.js', async (original) => {
       const initialize = store.initialize;
       store.initialize = async () => {
         await initialize();
+        // This suite asserts the English catalog; the deployment default is Slovak.
+        await store.updateSettings('100', { locale: 'en' });
         h.events.push('mongo initialized');
       };
       const close = store.close;

@@ -10,6 +10,15 @@ the same conversation. She answers in the language the user writes in.
 - `@Jolanda +context Fact-check the discussion above` opts into the server-approved context window
   for that interaction only; `+context=10` requests a smaller explicit number.
 - Mentioning Jolanda in a reply includes that explicitly replied-to message.
+- Attach photos to a tagged message (for example, `@Jolanda čo je na tomto obrázku?`), or tag her
+  while replying to a photo. Up to four images across those two messages are supported: JPEG, PNG,
+  WebP, or GIF, each up to 8 MiB and 40 megapixels. GIFs use the first frame. An image-only mention
+  asks for a description. Ambient channel history remains text-only; image links/embeds and videos
+  are not treated as photo attachments.
+- GLM 5.3 Flash and Luna handle images directly. When DeepSeek is selected, image-bearing turns
+  use GLM 5.3 Flash and show an **Image model** note; the server setting remains unchanged.
+- Follow-ups retain the conversation text, including earlier descriptions, but not image data.
+  To inspect a photo again, reattach it or tag Jolanda while replying to its original message.
 - Replying to any chunk of Jolanda's answer continues the conversation without another mention.
 - A conversation is private to its creator, channel, and guild and ends after 10 Jolanda replies.
 - Ambient context defaults to `0` on every interaction. When explicitly requested, it includes only
@@ -23,16 +32,17 @@ the same conversation. She answers in the language the user writes in.
   previews are disabled.
 - Every model-generated final answer has a trusted source-basis footer. It says when no public web
   research ran, renders bounded OpenRouter source links once in the footer when available, or
-  reports missing usage/source metadata instead of guessing. The footer also shows the total cost
-  of that response at microdollar precision; when usage is missing, it labels the conservative
-  reservation charged by the accounting system. Model-authored URLs that
+  reports missing usage/source metadata instead of guessing. The footer shows the reported cost
+  of successful generations at microdollar precision; missing usage is labeled unknown and does
+  not consume the server budget. Failed attempts are excluded from budget accounting. Model-authored URLs that
   do not match a structured citation stay non-clickable, but their readable Markdown labels remain.
   Local greetings are not labeled as model answers.
 - Model responses use a compact Discord Markdown subset: normal-sized emphasis, lists, quotes, and
   code are allowed, while headings and other expansive document-style formatting are prohibited.
   A renderer-side clamp converts any model-generated Markdown heading into ordinary bold text.
 
-There are intentionally no per-message model or reasoning overrides. Every interaction inherits
+There are intentionally no user-specified per-message model or reasoning overrides. Apart from
+the image fallback above, every interaction inherits
 the server-scoped settings.
 
 `/jolanda privacy` is available to every member. The following commands require **Manage Server**:
@@ -71,6 +81,16 @@ derived from structured usage/citation metadata; the canonical turn event record
 basis category and source count, while stored conversation text keeps the answer without the UI
 footer.
 
+Transient OpenRouter failures get up to five attempts per generation, with 1, 2, 4, and 8 second
+delays. The placeholder shows the retry reason and attempt count. Retries stop after answer text
+has been streamed or the turn is cancelled; credential, billing, and rejected-request errors are
+not retried. Invalid or empty answers retain a single retry because they can consume a full token
+budget. Provider error bodies stay private: the displayed reason uses fixed labels and numeric
+status codes. A 502 is reported as an upstream failure, rather than missing provider availability.
+If Z.AI finishes without answer text, that generation's retry excludes the `z-ai` provider while
+keeping the same model and privacy requirements. Empty-answer failures are named explicitly;
+an empty response alone is not treated as proof of content filtering.
+
 ## Local setup
 
 Requirements: Node.js 22+, pnpm 11+, a Discord application, an OpenRouter API key, and MongoDB Atlas.
@@ -107,8 +127,10 @@ cancelled only by shutdown or an upstream caller.
 Before inference, Jolanda computes a conservative reservation from the chosen model, reasoning,
 prompt ceiling, completion ceiling across tool rounds, provider price ceilings, and search/fetch
 allowances. MongoDB
-reserves that amount transactionally. Exact request usage replaces it when OpenRouter reports
-usage; otherwise the full reservation is charged. Configuration fails when a budget cannot cover one
+reserves that amount transactionally. Reported successful usage replaces it. Failed attempts,
+cancelled or expired requests, and missing or invalid usage release the reservation without a
+budget charge. Retries retain the reported usage of successful generations only. These server
+counters intentionally exclude failures even if OpenRouter charges for them. Configuration fails when a budget cannot cover one
 maximum-cost turn. Money is stored as integer microdollars.
 
 OpenRouter currently rejects `provider.max_price` when a server tool is present. Assistant generations
@@ -123,6 +145,13 @@ provider behavior can change, so review the ceilings in `src/models.ts` before u
 - Context is opt-in and disabled by default. Transcript retention defaults to seven days.
 - Context explicitly requested for a turn becomes part of the stored conversation transcript until
   that transcript expires.
+- Photo attachments are fetched only from Discord attachment hosts, with redirects disabled and
+  download, byte, and decoded-pixel limits. After admission and spend reservation, they are resized
+  to at most 1600 pixels per side and re-encoded as JPEG without metadata. Only inline image data
+  reaches OpenRouter; attachment URLs and filenames are not sent. Images are processed in memory
+  and are not written to transcripts, logs, or disk. Transcripts retain source markers and the
+  assistant's textual answer, which may describe private image content. Image-token allowances
+  cover each possible model/tool round, and actual provider usage settles the request.
 - Guild, channel, member, Discord-message, request, and interaction IDs are HMAC-pseudonymized before
   MongoDB persistence or application logging. Structured Discord mentions, message links, custom
   emoji IDs, and standalone snowflakes inside transcript text are replaced with generic labels.
@@ -178,7 +207,7 @@ require a paid networking feature; otherwise Atlas must allow changing egress ad
 Atlas access-list rule is unavoidable, compensate with a long unique password, strict database
 permissions, TLS, and provider/database usage alerts.
 
-## Automatic Reels (Instagram and TikTok)
+## Automatic media reposts (Instagram and TikTok)
 
 Automatic reposting is disabled by default. Set `INSTAGRAM_REELS_ENABLED=true` in the deployment,
 then use `/jolanda reels enabled:true` in one test channel. Manage Server is required. Supported
@@ -189,13 +218,13 @@ the deployment switch disables both platforms in all channels without deleting t
 TikTok uses the same switch, channel setting, limits, and binaries; the existing `INSTAGRAM_*`
 environment names are retained for compatibility.
 
-A new human message containing a direct public Instagram `/reel/` or `/reels/` link, a TikTok
+A new human message containing a direct public Instagram `/reel/`, `/reels/`, or `/p/` link, a TikTok
 `/@creator/video/123` or `/@creator/photo/123` link, or a TikTok `vm.tiktok.com`, `vt.tiktok.com`, or `tiktok.com/t/` share
 link triggers one media job. Videos produce one MP4 reply with the canonical source link. Code, spoilers,
 and angle-bracket links do not trigger it. Only the first supported link is processed, even in
 messages mixing both platforms. TikTok share redirects are validated before extraction; successful
 reposts link to the canonical post. The original message is preserved. Threads, edits,
-backfill, Instagram `/p/`, `/share/`, stories, TikTok profiles, live streams,
+backfill, Instagram `/share/`, stories, TikTok profiles, live streams,
 and account-only media are unsupported. Busy and rate-limited
 local admissions are skipped silently; nothing is queued. AI questions still run independently,
 and replies to media messages only start AI work with an explicit content mention. A repost does
@@ -207,13 +236,13 @@ up to three distinct compatible source versions, preferring a version that alrea
 downloads stream to disk with a separate 100 MiB cap per attempt; smaller alternatives are tried
 when a source exceeds the upload limit. At most two source files are retained at once.
 
-TikTok photo posts attach original JPEG, PNG, or WebP images in their original order, without
+Instagram image posts/carousels and TikTok photo posts attach original JPEG, PNG, or WebP images in their original order, without
 re-encoding or soundtrack audio. Up to 35 photos share one aggregate upload-size cap (20 MiB by
 default). Albums exceeding that cap or photo count are rejected in full. All photos download before
 publishing, then send in batches of up to ten per reply, with numbered ranges and distinct nonces.
 The bot checks the source and channel setting again before every batch. If a later batch fails or
 the source disappears, earlier batches remain; the album is not automatically replayed. Photo
-metadata comes from a bounded public TikTok page request; it uses no account or extraction service.
+metadata comes from bounded public page requests (Instagram embeds or TikTok pages); it uses no account or extraction service. Instagram slide-selection and tracking parameters are discarded: the whole carousel is reposted. Single-image Instagram posts are supported too. Instagram `/p/` posts containing videos or mixed photo/video carousels are rejected in full; existing `/reel/` video support is unchanged. Private, login-gated, or embed-disabled posts may be unavailable.
 
 If no downloaded video version fits, FFmpeg compresses the smallest retained source to H.264/AAC MP4.
 Two-pass encoding targets 95% of the configured upload cap, with one lower-bitrate retry if needed.
@@ -248,7 +277,7 @@ ffmpeg and ffprobe are available on PATH (or via their environment overrides); t
 skipped when the tools are absent. They check output size, duration, audio, resolution, frame rate,
 and cleanup without contacting Instagram, TikTok, or Discord.
 
-Public video identifiers are sent to Instagram/Meta or TikTok according to the source link. Videos and photos exist temporarily in an owned private
+Public post identifiers are sent to Instagram/Meta or TikTok according to the source link. Videos and photos exist temporarily in an owned private
 scratch directory and are removed after upload or failure; startup removes only stale job
 directories within that dedicated root. Uploaded copies follow Discord message retention, not
 Mongo transcript TTL. Deleting a source post or original Discord link does not delete an
@@ -300,7 +329,7 @@ without a 20-minute gap between messages. Continuous embeds suppress push notifi
 mention anyone; delivery respects Discord rate limits. Activation establishes a baseline, and
 unsent stories expire after the two-hour recovery window.
 There is no daily quota. Aktuality's own daily edition is collected at **20:00 Europe/Bratislava**
-(CET/CEST), with one **21:00** fallback only if no fresh edition was collected. A missing edition is
+(CET/CEST), with retries at **21:00, 21:20 and 21:40** if no fresh edition was collected. A missing edition is
 skipped; no replacement digest is generated. Daily delivery is one message and stops at 22:00.
 Its optional role mention requires explicit configuration and destination permission validation.
 
@@ -312,3 +341,101 @@ acceptance is held as uncertain instead of automatically retried.
 See [news operations](NEWS_OPERATIONS.md) for the kill switch, preview commands, recovery,
 retention, and controlled rollout; [acceptance evidence](NEWS_ACCEPTANCE.md) records what was
 locally tested, checked against publishers, live verified, or deployed.
+
+## Language, usage, reminders, and morning briefings
+
+New and existing guilds default to Slovak for application messages. Administrators can use
+`/jolanda language locale:en` or `locale:sk`. Model answers and local greetings still follow the
+member's input language; the guild language never enters the model prompt. Source-basis footers,
+errors, command replies and scheduled-message furniture use the guild language. Publisher article
+text is preserved. Discord does not offer a Slovak client locale, so slash descriptions use Slovak
+as their base and native English localizations.
+
+`/jolanda usage` requires **Manage Server**. It shows a 14-day UTC spend trend, today's/monthly
+committed budgets, and member totals for `TRANSCRIPT_TTL_DAYS` (7 days by default). Daily spend
+buckets last 120 days; request records last only the configured transcript retention. These windows
+are independent. Only cached Discord members are resolved; unresolved/overflow rows become
+“others”. No privileged member intent or model breakdown is used. Usage-missing turns are counted
+with failures and have no reported spend.
+
+### Reminders
+
+- `/jolanda remind in:2h text:take the laundry out`
+- `/jolanda remind at:2026-09-16 09:00 text:send the invoice`
+- `/jolanda reminders list`
+- `/jolanda reminders cancel id:abcd`
+
+Ordinary members can manage their own reminders. Times use `JOLANDA_TIME_ZONE`; ambiguous or
+nonexistent DST wall times are rejected. Limits: 20 active reminders per member per guild,
+1 minute to 365 days ahead, and 280 text characters. Delivery is to the original server text or
+announcement channel and may mention only the owner. Slash commands incur no model cost.
+
+Conversational creation uses one ordinary authorized model turn, with one reminder per turn.
+`create_reminder` remains a synchronous, network-free draft validator. The application saves the
+draft before displaying the final answer and appends a receipt with the real ID. Model answer text
+is held until this commit boundary when reminders are available; progress messages still appear.
+A failed commit follows the failure-notice path and displays no uncommitted confirmation.
+
+Claims and send boundaries are atomic and lease-fenced across replicas. A worker that crashes
+**before** the send boundary can be retried. A crash **after** a Discord POST may have started is
+ambiguous: the reminder is marked `uncertain` and is not automatically resent. `/reminders list`
+shows that status. Discord cannot guarantee exactly-once delivery across an ambiguous network
+failure; check the channel before deliberately recreating an uncertain reminder. Confirmed
+rejections retry after a cooldown. Destination identifiers are encrypted, text is plaintext, and
+records expire seven days after the due date (Mongo TTL deletion is asynchronous).
+
+### Manual runs
+
+Administrators with Manage Server can use `/jolanda briefing run` for a fresh briefing or
+`/jolanda daily run` to fetch and send the latest daily edition from the last 48 hours.
+Both send a new message to the configured channel and leave the automatic schedule unchanged.
+Manual daily news does not ping the notification role. Configure and enable the feed first.
+A successful command confirms durable queuing, not delivery; the worker picks it up on its next
+30-second tick. Manual runs have a ten-minute cooldown and delivery window, reuse the existing
+leases and uncertain-on-ambiguous-send handling, and honor source backoff. No database deletion
+is needed, and disabling or rerouting a feed fences queued news from the old configuration.
+
+### Morning briefing
+
+Configure a channel with `/jolanda briefing feed` to enable delivery; no environment switch is needed.
+`BRIEFING_MAX_CITIES` defaults to 5 and accepts 1–5. Administrator commands:
+
+- `/jolanda briefing feed channel:#morning`
+- `/jolanda briefing city action:add name:Bratislava`
+- `/jolanda briefing city action:remove name:Bratislava`
+- `/jolanda briefing time hour:6`
+- `/jolanda briefing status`
+- `/jolanda briefing disable`
+
+Discord allows only one subcommand-group level, hence `city action:add` rather than a nested
+`city add`. The geocoder's first match is shown with its country code in the confirmation.
+Delivery uses Europe/Bratislava, at 06:00 by default, with a 07:00 retry and an 08:00 deadline.
+The hour override accepts 5–21, with fallback/deadline one/two hours later. One durable daily
+record prevents repeat sends after successful or ambiguous delivery, including after rerouting.
+Disabling removes encrypted routing and cancels unsent work; already-started sends may complete.
+
+Each city gets an Open-Meteo `best_match` forecast: temperatures, apparent maximum, rain,
+wind/gusts, UV, sunrise/sunset, daylight and the change from yesterday.
+Temperatures every two hours from 06:00 through 24:00
+use each city's local time; 24:00 is the following midnight. Missing hourly readings show `—`,
+and an unavailable hourly section does not suppress the daily forecast. Weather failure for one
+city leaves the other sections available. Temporary weather failures get one short retry within
+the briefing deadline; outcome and attempt count are logged without city coordinates or Discord
+identifiers. Calendar data is offline. Agenda entries are read-only
+and include only reminders created in the briefing's own channel. Failed agenda reads are labelled.
+Briefings use no model calls and no mentions. Calendar availability does not bypass Discord,
+MongoDB, permission or network failures; delivery itself can still fail.
+
+The name-day table follows the Ministry of Culture's
+[official 2025 calendar](https://www.culture.gov.sk/storage/2020/03/Oficialne-kalendarium_2025.pdf).
+Holiday rules were checked against
+[Act 241/1993](https://www.slov-lex.sk/ezbierky/pravne-predpisy/SK/ZZ/1993/241/) on 2026-09-15.
+State holidays and other holidays are distinct from days off: **8 May and 15 September are
+working days in 2026 only**; 1 September, 28 October and 17 November also have explicit exceptions.
+Review the table when the law changes. Bratislava events remain deferred.
+
+Open-Meteo receives city names at configuration time via `geocoding-api.open-meteo.com` and city
+coordinates for forecasts via `api.open-meteo.com`, with no Discord identifiers. Forecast data is
+attributed to Open-Meteo (CC BY 4.0). Check its service terms if this personal bot becomes commercial.
+Run `pnpm test:briefing-smoke Bratislava` for a live forecast rendered as JSON without sending to
+Discord. Run `pnpm format && pnpm check && pnpm build` for local validation.

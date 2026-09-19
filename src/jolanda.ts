@@ -1,3 +1,5 @@
+import { checkReminderInstant, type ReminderStore } from './reminders.js';
+import { formatDateTime } from './i18n/format.js';
 import { randomUUID } from 'node:crypto';
 import type { Logger } from 'pino';
 import { createClockSnapshot } from './clock.js';
@@ -22,7 +24,9 @@ import {
   sanitizeAssistantOutput,
   sanitizeStreamingAssistantOutput,
 } from './security.js';
-import { getModel, type GuildSettings } from './models.js';
+import { getModel, resolveImageModel, type GuildSettings } from './models.js';
+import { messages, type Messages } from './i18n/index.js';
+import { createImageLoader, ImageInputError, validateImageAttachments } from './discord-images.js';
 import type {
   Conversation,
   JolandaStore,
@@ -35,19 +39,12 @@ import type {
   Usage,
 } from './types.js';
 
-const truncationNotice = '⚠️ *The model hit its output limit, so this answer is cut short.*';
+type ProgressStage = 'answering' | 'finalizing';
 
-const progressStageMessages = {
-  answering: '🧠 Working through the question…',
-  finalizing: '📦 Finalizing the response…',
-} as const;
-
-const waitingStageMessages = {
-  answering: '🧠 Waiting for OpenRouter…',
-  finalizing: '📦 Finalizing the response…',
-} as const;
-
-type ProgressStage = keyof typeof progressStageMessages;
+const stageMessages = (copy: Messages, waiting: boolean): Record<ProgressStage, string> =>
+  waiting
+    ? { answering: copy.progress.waitingAnswering, finalizing: copy.progress.waitingFinalizing }
+    : { answering: copy.progress.answering, finalizing: copy.progress.finalizing };
 type SourceBasis = 'local' | 'model_only' | 'web_sources' | 'web_without_sources' | 'unreported';
 type TurnPlan =
   | { route: 'local'; reason: 'greeting' | 'thanks'; content: string }
@@ -119,6 +116,7 @@ const sourceBasis = (
 };
 
 const responseFooter = (
+  copy: Messages,
   basis: SourceBasis,
   sourceCitations: readonly SourceCitation[],
   usage: Usage,
@@ -126,53 +124,43 @@ const responseFooter = (
 ) => {
   if (basis === 'local') return '';
   const sourceLines = (() => {
-    if (basis === 'model_only') return ['🧠 **Source basis:** No public web research was used.'];
-    if (basis === 'web_without_sources')
-      return [
-        '🌐 **Source basis:** Public web research was used, but OpenRouter returned no usable source links.',
-      ];
-    if (basis === 'unreported')
-      return [
-        '⚠️ **Source basis:** OpenRouter did not report whether public web research was used.',
-      ];
+    if (basis === 'model_only') return [copy.answer.basisModelOnly];
+    if (basis === 'web_without_sources') return [copy.answer.basisWebWithoutSources];
+    if (basis === 'unreported') return [copy.answer.basisUnreported];
 
     const maximumSourceListCharacters = 3_000;
     const links = sourceCitations.reduce<string[]>((lines, citation, index) => {
-      const line = `- ${sourceCitationMarkdown(citation, index + 1)}`;
+      const line = `- ${sourceCitationMarkdown(citation, index + 1, copy.answer.sourceLabel)}`;
       return [...lines, line].join('\n').length <= maximumSourceListCharacters
         ? [...lines, line]
         : lines;
     }, []);
     const omitted = sourceCitations.length - links.length;
     return [
-      '🌐 **Source basis:** Public web research was used.',
+      copy.answer.basisWebSources,
       ...links,
-      ...(omitted
-        ? [`- ${omitted} additional source link${omitted === 1 ? '' : 's'} omitted`]
-        : []),
+      ...(omitted ? [copy.answer.omittedSources(omitted)] : []),
     ];
   })();
-  const unreported = usageReported
-    ? ''
-    : ' (conservative charge because provider usage was not reported)';
   return [
     ...sourceLines,
-    `💵 **Response cost:** ${formatUsd(usage.costMicrodollars)}${unreported}`,
+    usageReported ? copy.answer.cost(formatUsd(usage.costMicrodollars)) : copy.answer.costUnknown,
   ].join('\n');
 };
 
 const answerWithFooter = (
+  copy: Messages,
   content: string,
   basis: SourceBasis,
   sourceCitations: readonly SourceCitation[],
   usage: Usage,
   usageReported: boolean,
 ) => {
-  const footer = responseFooter(basis, sourceCitations, usage, usageReported);
+  const footer = responseFooter(copy, basis, sourceCitations, usage, usageReported);
   if (!footer) return content;
   const suffix = `\n\n---\n${footer}`;
   if (content.length + suffix.length <= maximumResponseCharacters) return `${content}${suffix}`;
-  const truncation = '\n\n[…answer shortened to include response details]';
+  const truncation = copy.answer.footerTruncation;
   const retained = Math.max(0, maximumResponseCharacters - suffix.length - truncation.length);
   return `${content.slice(0, retained).trimEnd()}${truncation}${suffix}`;
 };
@@ -229,6 +217,7 @@ const waitForDiscordOperation = <Value>(
   });
 
 export const createJolanda = (dependencies: {
+  reminders?: ReminderStore;
   store: JolandaStore;
   modelRunner: ModelRunner;
   logger: Logger;
@@ -241,10 +230,12 @@ export const createJolanda = (dependencies: {
   now?: () => Date;
   createId?: () => string;
   createLockToken?: () => string;
+  loadImages?: ReturnType<typeof createImageLoader>;
 }) => {
   const now = dependencies.now ?? (() => new Date());
   const createId = dependencies.createId ?? randomUUID;
   const createLockToken = dependencies.createLockToken ?? randomUUID;
+  const loadImages = dependencies.loadImages ?? createImageLoader();
   const gate = createConcurrencyGate(dependencies.maximumConcurrentTurns);
   const controllers = new Set<AbortController>();
   const activeTurns = new Set<Promise<TurnOutcome>>();
@@ -290,7 +281,11 @@ export const createJolanda = (dependencies: {
     signal: AbortSignal,
   ): Promise<TurnOutcome> => {
     const startedAt = Date.now();
-    const question = request.question.trim();
+    const images = request.images ?? [];
+    const remindersAvailable =
+      Boolean(dependencies.reminders) && request.remindersSupported !== false;
+    const question =
+      request.question.trim() || (images.length ? 'Describe the attached images.' : '');
     if (!question) return { status: 'rejected', reason: 'empty_question' };
     signal.throwIfAborted();
 
@@ -324,7 +319,10 @@ export const createJolanda = (dependencies: {
     try {
       signal.throwIfAborted();
       const clock = createClockSnapshot(now(), dependencies.timeZone);
-      const settings = await dependencies.store.getSettings(request.guildId);
+      validateImageAttachments(images);
+      const requestedSettings = await dependencies.store.getSettings(request.guildId);
+      const settings = resolveImageModel(requestedSettings, images.length > 0);
+      const copy = messages(settings.locale);
       modelContext = {
         model: settings.model,
         reasoning: settings.reasoning,
@@ -337,7 +335,9 @@ export const createJolanda = (dependencies: {
       );
       if (!context.ok) return { status: 'rejected', reason: 'context_limit' };
       requestedContextMessages = context.limit;
-      const selectedPlan = planTurn(question);
+      const selectedPlan = images.length
+        ? ({ route: 'assistant', reason: 'model_decides' } as const)
+        : planTurn(question);
       turnPlan = selectedPlan;
       reservationMicrodollars =
         selectedPlan.route === 'local'
@@ -346,6 +346,7 @@ export const createJolanda = (dependencies: {
               model: settings.model,
               reasoning: settings.reasoning,
               maximumPromptCharacters: dependencies.maximumPromptCharacters,
+              imageCount: images.length,
             });
       const authorization = await dependencies.store.authorizeTurn({
         requestId: request.id,
@@ -357,6 +358,9 @@ export const createJolanda = (dependencies: {
       });
       if (!authorization.ok) return { status: 'rejected', reason: authorization.reason };
       authorized = true;
+
+      // Admission and spend reservation happen before downloading or decoding any images.
+      const promptImages = images.length ? await loadImages(images, signal) : [];
 
       const ambientMessages =
         selectedPlan.route === 'local' || requestedContextMessages === 0
@@ -383,6 +387,7 @@ export const createJolanda = (dependencies: {
         ambientMessages: uniqueAmbientMessages,
         ...(referencedMessage ? { referencedMessage } : {}),
         maximumCharacters: Math.floor(dependencies.maximumPromptCharacters * 0.6),
+        images: promptImages,
       });
 
       await waitForDiscordOperation(
@@ -398,6 +403,7 @@ export const createJolanda = (dependencies: {
         const progressStartedAt = Date.now();
         let progressStage: ProgressStage = 'answering';
         let lastProviderActivityAt: number | null = null;
+        let retry: (Extract<ModelProgress, { type: 'retry' }> & { startsAt: number }) | undefined;
         let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
         let heartbeatUpdatePending = false;
 
@@ -408,6 +414,7 @@ export const createJolanda = (dependencies: {
         stopActiveProgress = stopProgressHeartbeat;
         markActiveProgressFinalizing = () => {
           progressStage = 'finalizing';
+          retry = undefined;
           lastProviderActivityAt = Date.now();
           reasoningSummary = '';
         };
@@ -420,22 +427,31 @@ export const createJolanda = (dependencies: {
           const elapsed = progressDuration(updateAt - progressStartedAt);
           const sanitizedSummary = sanitizeAssistantOutput(reasoningSummary);
           const sanitizedPartial = sanitizeStreamingAssistantOutput(
-            partialContent,
+            remindersAvailable ? '' : partialContent,
             allowedSourceUrls,
           );
           const quietSuffix = providerIsQuiet
-            ? ` · no activity for ${progressDuration(quietForMs)}`
+            ? copy.progress.noActivityFor(progressDuration(quietForMs))
             : '';
-          const stageMessage = providerIsQuiet
-            ? waitingStageMessages[progressStage]
-            : progressStageMessages[progressStage];
-          const content = sanitizedPartial
-            ? `${sanitizedPartial}\n\n${stageMessage} · ${elapsed}${quietSuffix}`
-            : sanitizedSummary
-              ? `🧠 **Current approach**\n${sanitizedSummary}\n\n⏱ ${elapsed}${
-                  providerIsQuiet ? ' · waiting for OpenRouter' : ''
-                }${quietSuffix}`
-              : `${stageMessage} · ${elapsed}${quietSuffix}`;
+          const stageMessage = stageMessages(copy, providerIsQuiet)[progressStage];
+          const retryWaitSeconds = retry
+            ? Math.max(0, Math.ceil((retry.startsAt - updateAt) / 1_000))
+            : 0;
+          const content = retry
+            ? copy.progress.retry({
+                reason: sanitizeAssistantOutput(retry.reason),
+                waitSeconds: retryWaitSeconds,
+                attempt: retry.attempt,
+                maximum: retry.maximumAttempts,
+                elapsed,
+              })
+            : sanitizedPartial
+              ? `${sanitizedPartial}\n\n${stageMessage} · ${elapsed}${quietSuffix}`
+              : sanitizedSummary
+                ? `${copy.progress.currentApproach}\n${sanitizedSummary}\n\n⏱ ${elapsed}${
+                    providerIsQuiet ? copy.progress.waitingForOpenRouter : ''
+                  }${quietSuffix}`
+                : `${stageMessage} · ${elapsed}${quietSuffix}`;
           await waitForDiscordOperation(
             (operationSignal) =>
               sink.update(content, sanitizedPartial ? allowedSourceUrls : [], operationSignal),
@@ -469,13 +485,17 @@ export const createJolanda = (dependencies: {
               currentUserContent,
               maximumCharacters: dependencies.maximumPromptCharacters,
               clock,
+              images: promptImages,
             }),
             model: settings.model,
             reasoning: settings.reasoning,
             clock,
+            locale: settings.locale,
+            allowReminders: remindersAvailable,
             signal,
           },
           async (delta, sourceUrls = []) => {
+            retry = undefined;
             partialContent += delta;
             allowedSourceUrls = sourceUrls;
             lastProviderActivityAt = Date.now();
@@ -486,7 +506,7 @@ export const createJolanda = (dependencies: {
             )
               return;
             lastStreamUpdateAt = updateAt;
-            await renderProgress();
+            if (!remindersAvailable) await renderProgress();
           },
           async (progress: ModelProgress) => {
             if (progress.type === 'activity') {
@@ -494,10 +514,16 @@ export const createJolanda = (dependencies: {
               return;
             }
             if (partialContent) return;
-            if (progress.type === 'stage') {
+            if (progress.type === 'retry') {
+              retry = { ...progress, startsAt: Date.now() + progress.delayMs };
+              reasoningSummary = '';
+              lastProviderActivityAt = Date.now();
+            } else if (progress.type === 'stage') {
+              retry = undefined;
               progressStage = progress.stage;
               reasoningSummary = '';
             } else {
+              retry = undefined;
               lastProviderActivityAt = Date.now();
               reasoningSummary = `${reasoningSummary}${progress.delta}`.slice(
                 -maximumReasoningSummaryCharacters,
@@ -523,25 +549,58 @@ export const createJolanda = (dependencies: {
       // and cost line included. Say so instead of implying the thought was finished.
       const assistantContent =
         result.truncated && sanitizedAnswer
-          ? `${sanitizedAnswer}\n\n${truncationNotice}`
+          ? `${sanitizedAnswer}\n\n${copy.answer.truncationNotice}`
           : sanitizedAnswer;
       partialContent = assistantContent;
       const basis = sourceBasis(selectedPlan.route, result, allowedSourceUrls);
-      const usage = result.usage ?? emptyUsage(reservationMicrodollars);
-      const displayedContent = answerWithFooter(
-        assistantContent,
-        basis,
-        sourceCitations,
-        usage,
-        Boolean(result.usage),
-      );
+      const usage = result.usage ?? emptyUsage(0);
+      const imageModelNotice =
+        settings.model !== requestedSettings.model
+          ? copy.answer.imageModel(getModel(settings.model).label)
+          : '';
+      let displayedContent =
+        answerWithFooter(
+          copy,
+          assistantContent,
+          basis,
+          sourceCitations,
+          usage,
+          Boolean(result.usage),
+        ) + imageModelNotice;
+      if (!assistantContent) throw new Error('OpenRouter returned an empty response');
       await dependencies.store.settleRequest({
         requestId: request.id,
         usage,
         status: result.usage ? 'completed' : 'usage_missing',
       });
       settled = true;
-      if (!assistantContent) throw new Error('OpenRouter returned an empty response');
+      if (result.reminderDrafts?.length) {
+        // Clear any uncommitted model assertion before a possible failure notice.
+        partialContent = '';
+        if (!remindersAvailable || !dependencies.reminders || result.reminderDrafts.length !== 1)
+          throw new Error('Reminder storage unavailable or multiple drafts');
+        for (const draft of result.reminderDrafts) {
+          const checked = checkReminderInstant({
+            dueAt: new Date(draft.instant),
+            text: draft.text,
+            now: now(),
+          });
+          if (!checked.ok) throw new Error('Invalid reminder draft');
+          signal.throwIfAborted();
+          const saved = await dependencies.reminders.create({
+            destination: {
+              guildId: request.guildId,
+              channelId: request.channelId,
+              userId: request.userId,
+            },
+            text: checked.text,
+            dueAt: checked.dueAt,
+            now: now(),
+          });
+          if (saved === 'limit_reached') throw new Error('Reminder limit reached');
+          displayedContent += `\n\n${copy.reminders.created({ id: saved.id, dueAt: formatDateTime(settings.locale, saved.dueAt, dependencies.timeZone) })}`;
+        }
+      }
 
       stopActiveProgress();
       const assistantMessageIds = await waitForDiscordOperation(
@@ -583,6 +642,8 @@ export const createJolanda = (dependencies: {
         channelKey: dependencies.protectIdentifier(request.channelId),
         userKey: dependencies.protectIdentifier(request.userId),
         model: settings.model,
+        requestedModel: requestedSettings.model,
+        imageCount: promptImages.length,
         reasoning: settings.reasoning,
         zdrEnforced: getModel(settings.model).supportsZdr,
         inferenceRoute: selectedPlan.route,
@@ -620,6 +681,8 @@ export const createJolanda = (dependencies: {
         channelKey: dependencies.protectIdentifier(request.channelId),
         userKey: dependencies.protectIdentifier(request.userId),
         ...modelContext,
+        imageCount: images.length,
+        ...(error instanceof ImageInputError ? { imageFailure: error.reason } : {}),
         ...(turnPlan ? { inferenceRoute: turnPlan.route, inferenceReason: turnPlan.reason } : {}),
         requestedContextMessages,
         contextMessages,
@@ -630,19 +693,16 @@ export const createJolanda = (dependencies: {
       });
 
       if (authorized && !settled) {
-        const settleConservatively = modelStarted
-          ? () =>
-              dependencies.store.settleRequest({
-                requestId: request.id,
-                usage: emptyUsage(reservationMicrodollars),
-                status: 'usage_missing',
-              })
-          : () => dependencies.store.failRequest(request.id, 'before_inference');
+        const releaseFailedRequest = () =>
+          dependencies.store.failRequest(
+            request.id,
+            modelStarted ? 'inference_failed' : 'before_inference',
+          );
         try {
-          await settleConservatively();
+          await releaseFailedRequest();
           pendingSettlements.delete(request.id);
         } catch (settlementError) {
-          pendingSettlements.set(request.id, settleConservatively);
+          pendingSettlements.set(request.id, releaseFailedRequest);
           dependencies.logger.error({
             event: 'turn_settlement_failed',
             error: safeError(settlementError),
@@ -651,11 +711,14 @@ export const createJolanda = (dependencies: {
         }
       }
 
+      if (error instanceof ImageInputError && !signal.aborted)
+        return { status: 'rejected', reason: error.reason };
+
       if (!signal.aborted)
         await waitForDiscordOperation(
           (operationSignal) =>
             sink.fail(
-              partialContent,
+              remindersAvailable ? '' : partialContent,
               allowedSourceUrls,
               {
                 category: providerFailure?.category ?? 'unknown',

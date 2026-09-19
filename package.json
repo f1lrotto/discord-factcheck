@@ -15,7 +15,8 @@
     "test:coverage": "vitest run --coverage",
     "test:live": "node scripts/require-openrouter-live-key.mjs && OPENROUTER_LIVE_TESTS=true vitest run tests/openrouter.live.test.ts",
     "test:release-live": "node scripts/require-openrouter-live-key.mjs && OPENROUTER_LIVE_TESTS=true OPENROUTER_LIVE_WEB_TESTS=true OPENROUTER_LIVE_REDTEAM_TESTS=true OPENROUTER_LIVE_REASONING_TESTS=true vitest run tests/openrouter.live.test.ts",
-    "test:reels-smoke": "pnpm build && node scripts/reels-smoke.mjs"
+    "test:reels-smoke": "pnpm build && node scripts/reels-smoke.mjs",
+    "test:briefing-smoke": "pnpm build && node scripts/briefing-smoke.mjs"
   },
   "keywords": [
     "discord",
@@ -36,6 +37,7 @@
     "linkify-it": "^6.1.0",
     "mongodb": "^7.5.0",
     "pino": "^10.3.1",
+    "sharp": "^0.35.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

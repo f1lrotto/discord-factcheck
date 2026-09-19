@@ -6,14 +6,32 @@ import {
   modelProfiles,
   modelSupportsReasoning,
   modelSupportsZdr,
+  resolveImageModel,
 } from '../src/models.js';
 
 describe('model catalog', () => {
+  it('keeps vision models and text turns on their selected profile', () => {
+    const base = { ...defaultGuildSettings, guildId: 'guild', updatedAt: new Date() };
+    expect(resolveImageModel(base, true)).toBe(base);
+    const luna = { ...base, model: 'luna', reasoning: 'medium' } as const;
+    expect(resolveImageModel(luna, true)).toBe(luna);
+    const deepseek = { ...base, model: 'deepseek-v4-flash' } as const;
+    expect(resolveImageModel(deepseek, false)).toBe(deepseek);
+    expect(resolveImageModel(deepseek, true)).toMatchObject({
+      model: 'glm-5.3-flash',
+      reasoning: 'high',
+    });
+    expect(resolveImageModel({ ...deepseek, reasoning: 'medium' }, true)).toMatchObject({
+      model: 'glm-5.3-flash',
+      reasoning: 'max',
+    });
+  });
   it('uses a ZDR-compatible model and zero ambient context by default', () => {
     expect(defaultGuildSettings).toEqual({
       model: 'glm-5.3-flash',
       reasoning: 'high',
       contextLimitMessages: 0,
+      locale: 'sk',
     });
     expect(modelSupportsZdr(defaultGuildSettings.model)).toBe(true);
   });

@@ -1,4 +1,4 @@
-import type { Client, Message } from 'discord.js';
+import { ChannelType, type Client, type Message } from 'discord.js';
 import type { Logger } from 'pino';
 import type { Jolanda } from './jolanda.js';
 import {
@@ -8,31 +8,12 @@ import {
 } from './limits.js';
 import { createResponseSink, safeMentions, safeMessageFlags } from './discord-response.js';
 import { minimizeDiscordContent, parseJolandaPrompt, stripJolandaMention } from './discord-text.js';
+import { messages } from './i18n/index.js';
+import { conversationReplyLimit } from './limits.js';
 import { safeError } from './security.js';
-import type { JolandaStore, TurnOutcome } from './types.js';
-
-const rejectionMessages = (promptsPerMinute: number) =>
-  ({
-    empty_question: 'Please include a question when you tag me or reply to me.',
-    expired_conversation: 'That conversation has expired. Tag me in a new message to start again.',
-    conversation_busy: 'I am already answering in that conversation. Please wait for it to finish.',
-    conversation_limit:
-      'This conversation reached its limit of 10 Jolanda replies. Tag me to start a new one.',
-    conversation_owner:
-      'Only the person who started that conversation can continue it. Tag me in a new message to start your own.',
-    context_limit:
-      'That context request exceeds this server’s per-interaction limit. Use a smaller +context value or ask an administrator to change /jolanda context-limit.',
-    server_busy: 'Jolanda is at her concurrency limit. Please try again after an answer finishes.',
-    shutting_down: 'Jolanda is restarting. Please try again in a moment.',
-    duplicate: '',
-    rate_limited: `You can send at most ${promptsPerMinute} prompts in a rolling minute. Please wait a moment.`,
-    daily_budget:
-      'Jolanda has reached the server’s daily spending limit. Please try again tomorrow.',
-    monthly_budget: 'Jolanda has reached the server’s monthly spending limit.',
-  }) satisfies Record<
-    Exclude<TurnOutcome, { status: 'completed' } | { status: 'failed' }>['reason'],
-    string
-  >;
+import type { JolandaStore } from './types.js';
+import { collectImageAttachments } from './discord-images.js';
+import { imageLimits } from './image-limits.js';
 
 const withDeadline = <Value>(
   operation: Promise<Value>,
@@ -111,11 +92,14 @@ export const createMessageHandler = (input: {
     if (!explicitlyMentioned && !referencesJolanda) return;
     if (!promptGate.tryAcquire(userKey)) return;
 
+    // Read settings only once the message is known to be for Jolanda, so ordinary channel
+    // traffic never costs a settings lookup.
+    const copy = messages((await input.store.getSettings(message.guildId)).locale);
     const parsedPrompt = parseJolandaPrompt(stripJolandaMention(message.content, botUser.id));
     if (!parsedPrompt.ok) {
       await withDeadline(
         message.reply({
-          content: 'Use `+context` or `+context=N` at the beginning of your question.',
+          content: copy.commands.contextSyntax,
           allowedMentions: safeMentions,
           flags: safeMessageFlags,
         }),
@@ -145,6 +129,10 @@ export const createMessageHandler = (input: {
 
     if (!explicitlyMentioned && !referencesJolanda) return;
     const question = minimizeDiscordContent(parsedPrompt.question);
+    const images = [
+      ...collectImageAttachments(message.attachments?.values() ?? [], 'latest_message'),
+      ...collectImageAttachments(referencedMessage?.attachments?.values() ?? [], 'replied_message'),
+    ];
     const outcome = await input.jolanda.handleTurn(
       {
         id: message.id,
@@ -152,6 +140,10 @@ export const createMessageHandler = (input: {
         channelId: message.channelId,
         userId: message.author.id,
         question,
+        remindersSupported: [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(
+          message.channel.type,
+        ),
+        ...(images.length ? { images } : {}),
         ...(parsedPrompt.ambientContext ? { ambientContext: parsedPrompt.ambientContext } : {}),
         ...(replyMessageId
           ? {
@@ -185,6 +177,7 @@ export const createMessageHandler = (input: {
         source: message,
         logger: input.logger,
         protectIdentifier: input.protectIdentifier,
+        locale: copy.locale,
       }),
     );
 
@@ -192,7 +185,11 @@ export const createMessageHandler = (input: {
     try {
       await withDeadline(
         message.reply({
-          content: rejectionMessages(input.promptsPerMinute)[outcome.reason],
+          content: copy.rejections(
+            input.promptsPerMinute,
+            imageLimits.count,
+            conversationReplyLimit,
+          )[outcome.reason],
           allowedMentions: safeMentions,
           flags: safeMessageFlags,
         }),

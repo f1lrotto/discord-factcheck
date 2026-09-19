@@ -4,6 +4,7 @@ import {
   UnsupportedReasoningError,
   type GuildSettings,
 } from './models.js';
+import { isLocale } from './i18n/index.js';
 import { mongoOperationOptions, type MongoContext } from './mongo-context.js';
 import { isDuplicateKey } from './mongo-helpers.js';
 import type { GuildSettingsDocument } from './mongo-schema.js';
@@ -17,6 +18,7 @@ const fromDocument = (guildId: string, document: GuildSettingsDocument | null) =
     document?.contextLimitMessages ??
     document?.contextMessages ??
     defaultGuildSettings.contextLimitMessages,
+  locale: document?.locale ?? defaultGuildSettings.locale,
   updatedAt: document?.updatedAt ?? new Date(0),
 });
 
@@ -38,6 +40,7 @@ export const createMongoSettings = (context: MongoContext) => {
             model: defaultGuildSettings.model,
             reasoning: defaultGuildSettings.reasoning,
             contextLimitMessages: defaultGuildSettings.contextLimitMessages,
+            locale: defaultGuildSettings.locale,
             updatedAt: new Date(0),
           },
         },
@@ -70,11 +73,14 @@ export const createMongoSettings = (context: MongoContext) => {
           defaultGuildSettings.contextLimitMessages;
         if (!Number.isSafeInteger(contextLimitMessages) || contextLimitMessages < 0)
           throw new Error('Context limit must be a non-negative safe integer');
+        const locale = patch.locale ?? current.locale ?? defaultGuildSettings.locale;
+        if (!isLocale(locale)) throw new Error('Unsupported locale');
         const updated: GuildSettingsDocument = {
           _id: guildKey,
           model,
           reasoning,
           contextLimitMessages,
+          locale,
           updatedAt: new Date(),
         };
         await context.collections.guildSettings.replaceOne({ _id: guildKey }, updated, { session });

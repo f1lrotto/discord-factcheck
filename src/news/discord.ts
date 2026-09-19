@@ -1,3 +1,5 @@
+import type { Locale } from '../i18n/index.js';
+import type { RESTPostAPIChannelMessageJSONBody } from 'discord.js';
 import { createHash } from 'node:crypto';
 import { ChannelType, PermissionFlagsBits, PermissionsBitField, Routes } from 'discord.js';
 import { z } from 'zod';
@@ -228,6 +230,7 @@ export const createNewsDiscordPublisher = ({
   timeoutMs = 10_000,
   clock = () => new Date(),
   makeRequest = fetch,
+  resolveLocale = async () => 'sk',
 }: {
   client: { isReady: () => boolean; user: { id: string } | null };
   token: string;
@@ -236,6 +239,7 @@ export const createNewsDiscordPublisher = ({
   // Injected fetches must honor AbortSignal and settle after cancellation cleanup, as native
   // fetch does. An adapter that never settles cannot provide both bounded work and drainage.
   makeRequest?: typeof fetch;
+  resolveLocale?: (guildId: string) => Promise<Locale>;
 }) => {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000)
     throw new Error('Invalid news Discord timeout');
@@ -292,55 +296,77 @@ export const createNewsDiscordPublisher = ({
         return false;
       }
     },
-    publish: async ({ destination, content, nonce, signal: callerSignal }) => {
-      let sending = false;
-      let confirmedRejection: NewsPublishResult | undefined;
-      const rememberRejection = (result: NewsPublishResult) => {
-        confirmedRejection = result;
-      };
+    publish: async ({ content, ...call }) => {
       try {
-        return await bounded(
-          timeoutMs,
-          [callerSignal, lifetime.signal],
-          async (signal): Promise<NewsPublishResult> => {
-            if (!ready() || !nonce) return { outcome: 'rejected' };
-            const payload = renderNews(
-              content,
-              content.kind === 'edition' ? destination.notifyRoleId : undefined,
-            );
-            if (!(await validate(destination, signal, rememberRejection)))
-              return { outcome: 'destination-unavailable' };
-            signal.throwIfAborted();
-            if (!ready()) return { outcome: 'rejected' };
-            const stableNonce = createHash('sha256')
-              .update(`jolanda-news:${nonce}`)
-              .digest('hex')
-              .slice(0, 25);
-            sending = true;
-            const raw = await request(
-              'POST',
-              Routes.channelMessages(destination.channelId),
-              signal,
-              { ...payload, nonce: stableNonce, enforce_nonce: true },
-              rememberRejection,
-            );
-            const receipt = receiptSchema.safeParse(raw);
-            if (
-              !receipt.success ||
-              receipt.data.channel_id !== destination.channelId ||
-              (receipt.data.nonce !== undefined && String(receipt.data.nonce) !== stableNonce)
-            )
-              return { outcome: 'uncertain' };
-            return { outcome: 'sent', messageId: receipt.data.id };
-          },
-        );
-      } catch (error) {
-        return confirmedRejection ?? rejection(error, sending);
+        return await publishPayload({
+          ...call,
+          payload: renderNews(
+            content,
+            content.kind === 'edition' ? call.destination.notifyRoleId : undefined,
+            await resolveLocale(call.destination.guildId),
+          ),
+        });
+      } catch {
+        return { outcome: 'rejected' };
       }
     },
   };
+  const publishPayload = async ({
+    destination,
+    payload,
+    nonce,
+    signal: callerSignal,
+  }: {
+    destination: NewsDestination;
+    payload: RESTPostAPIChannelMessageJSONBody;
+    nonce: string;
+    signal: AbortSignal;
+  }) => {
+    let sending = false;
+    let confirmedRejection: NewsPublishResult | undefined;
+    const rememberRejection = (result: NewsPublishResult) => {
+      confirmedRejection = result;
+    };
+    try {
+      return await bounded(
+        timeoutMs,
+        [callerSignal, lifetime.signal],
+        async (signal): Promise<NewsPublishResult> => {
+          if (!ready() || !nonce) return { outcome: 'rejected' };
+          if (!(await validate(destination, signal, rememberRejection)))
+            return { outcome: 'destination-unavailable' };
+          signal.throwIfAborted();
+          if (!ready()) return { outcome: 'rejected' };
+          const stableNonce = createHash('sha256')
+            .update(`jolanda-news:${nonce}`)
+            .digest('hex')
+            .slice(0, 25);
+          sending = true;
+          const raw = await request(
+            'POST',
+            Routes.channelMessages(destination.channelId),
+            signal,
+            { ...payload, nonce: stableNonce, enforce_nonce: true },
+            rememberRejection,
+          );
+          const receipt = receiptSchema.safeParse(raw);
+          if (
+            !receipt.success ||
+            receipt.data.channel_id !== destination.channelId ||
+            (receipt.data.nonce !== undefined && String(receipt.data.nonce) !== stableNonce)
+          )
+            return { outcome: 'uncertain' };
+          return { outcome: 'sent', messageId: receipt.data.id };
+        },
+      );
+    } catch (error) {
+      return confirmedRejection ?? rejection(error, sending);
+    }
+  };
+
   return {
     ...publisher,
+    publishPayload,
     close: () => {
       // Initiate cancellation; callers drain active publish/validate operations before teardown.
       lifetime.abort();

@@ -1,3 +1,5 @@
+import type { BriefingSubscription, BriefingDelivery } from './briefing/types.js';
+import type { ReminderDocument } from './mongo-reminders.js';
 import type {
   NewsSubscriptionDocument,
   NewsSourceDocument,
@@ -9,13 +11,19 @@ import type {
 import type { ReelSettingDocument, ReelDeliveryDocument } from './mongo-reels.js';
 import type { Collection, Db } from 'mongodb';
 import type { GuildSettings } from './models.js';
+import type { Locale } from './i18n/plural.js';
 import { mongoOperationOptions } from './mongo-context.js';
 import type { ConversationTurn, Usage } from './types.js';
 
-export type GuildSettingsDocument = Omit<GuildSettings, 'guildId' | 'contextLimitMessages'> & {
+export type GuildSettingsDocument = Omit<
+  GuildSettings,
+  'guildId' | 'contextLimitMessages' | 'locale'
+> & {
   _id: string;
   contextLimitMessages?: number;
   contextMessages?: number;
+  // Optional so documents written before localization read as the default locale.
+  locale?: Locale;
 };
 
 export type StoredConversationTurn = ConversationTurn & { requestKey: string };
@@ -81,6 +89,9 @@ export type RequestDocument = {
 };
 
 export type Collections = {
+  briefingSubscriptions: Collection<BriefingSubscription>;
+  briefingDeliveries: Collection<BriefingDelivery>;
+  reminders: Collection<ReminderDocument>;
   newsSubscriptions: Collection<NewsSubscriptionDocument>;
   newsSources: Collection<NewsSourceDocument>;
   newsSourcePayloads: Collection<NewsSourcePayloadDocument>;
@@ -99,6 +110,9 @@ export type Collections = {
 };
 
 export const getCollections = (database: Db): Collections => ({
+  briefingSubscriptions: database.collection<BriefingSubscription>('briefing_subscriptions'),
+  briefingDeliveries: database.collection<BriefingDelivery>('briefing_deliveries'),
+  reminders: database.collection<ReminderDocument>('reminders'),
   newsSubscriptions: database.collection<NewsSubscriptionDocument>('news_subscriptions'),
   newsSources: database.collection<NewsSourceDocument>('news_sources'),
   newsSourcePayloads: database.collection<NewsSourcePayloadDocument>('news_source_payloads'),
@@ -118,6 +132,32 @@ export const getCollections = (database: Db): Collections => ({
 
 export const createIndexes = async (collections: Collections) => {
   await Promise.all([
+    collections.budgetBuckets.createIndex(
+      { guildKey: 1, period: 1, periodKey: 1 },
+      mongoOperationOptions,
+    ),
+    collections.briefingDeliveries.createIndex(
+      { expiresAt: 1 },
+      { expireAfterSeconds: 0, ...mongoOperationOptions },
+    ),
+    collections.reminders.createIndex(
+      { expiresAt: 1 },
+      { expireAfterSeconds: 0, ...mongoOperationOptions },
+    ),
+    collections.reminders.createIndex({ status: 1, dueAt: 1 }, mongoOperationOptions),
+    collections.reminders.createIndex(
+      { ownerKey: 1, publicId: 1 },
+      { unique: true, ...mongoOperationOptions },
+    ),
+    collections.reminders.createIndex(
+      { ownerKey: 1, slot: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { status: { $in: ['pending', 'claimed', 'sending'] } },
+        ...mongoOperationOptions,
+      },
+    ),
+
     collections.newsSourcePayloads.createIndex(
       { retainedUntil: 1 },
       { expireAfterSeconds: 0, ...mongoOperationOptions },

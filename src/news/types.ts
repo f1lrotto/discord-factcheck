@@ -1,3 +1,5 @@
+import type { ManualRunResult } from '../scheduling/manual.js';
+
 export type NewsFeed = 'continuous' | 'daily';
 export type NewsSourceId = 'dennikn' | 'aktuality';
 export type NewsClock = () => Date;
@@ -58,6 +60,7 @@ export type NewsSource = {
   collect: (input: {
     now: Date;
     cache: NewsSourceCache;
+    latest?: boolean;
     signal: AbortSignal;
   }) => Promise<NewsSourceResult>;
 };
@@ -121,6 +124,7 @@ export type NewsPublicationStatus =
   'pending' | 'claimed' | 'sending' | 'sent' | 'uncertain' | 'cancelled' | 'expired';
 
 export type NewsPublicationDraft = {
+  manual?: boolean;
   key: string;
   subscriptionKey: string;
   configurationRevision: number;
@@ -173,10 +177,19 @@ export type NewsPublicationClaim = { publication: NewsPublication; lease: NewsLe
 
 // These are atomic operations, not a CRUD facade. Adapters own injected clocks and lease durations.
 export type NewsStore = NewsSubscriptionStore & {
+  queueManualEdition: (input: {
+    guildId: string;
+    requestId: string;
+    revision: number;
+    edition: NewsEdition;
+  }) => Promise<ManualRunResult>;
   getSource: (source: NewsSourceId) => Promise<NewsSourceState>;
   // Atomically consume a daily slot when claiming, so a crash never repeats that attempt.
   // Continuous claims honor persisted cadence/backoff; neither mode overlaps an active lease.
-  claimPoll: (source: NewsSourceId) => Promise<NewsPollClaim | null>;
+  claimPoll: (
+    source: NewsSourceId,
+    options?: { manual?: boolean },
+  ) => Promise<NewsPollClaim | null>;
   // Fence by owner AND unexpired lease; persist observations/edition with schedule state.
   commitPoll: (claim: NewsPollClaim, result: NewsSourceResult) => Promise<boolean>;
   // Repeatable from durable observations, including after a crash immediately following commitPoll.

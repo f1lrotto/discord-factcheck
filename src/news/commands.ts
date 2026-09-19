@@ -1,7 +1,10 @@
+import { createAktualitySource } from './sources/aktuality.js';
 import { ChannelType, type ChatInputCommandInteraction } from 'discord.js';
 import type { Logger } from 'pino';
 import { zonedDateTime } from '../clock.js';
 import { safeMentions } from '../discord-response.js';
+import { defaultLocale, messages, type Locale } from '../i18n/index.js';
+import type { NewsPausedReason, NewsStatusFacts } from '../i18n/shapes.js';
 import { NewsDecryptionError } from './cipher.js';
 import { dailyCollectionSlot, dailySchedule, newsLocalDate, newsPolicy } from './policy.js';
 import type { NewsClock, NewsFeed, NewsPublisher, NewsSourceState, NewsStore } from './types.js';
@@ -11,28 +14,12 @@ export type NewsCommandServices = {
   publisher: Pick<NewsPublisher, 'validateDestination'>;
   enabled: boolean;
   clock?: NewsClock;
+  source?: ReturnType<typeof createAktualitySource>;
 };
 const feeds = ['continuous', 'daily'] as const;
-const label = { continuous: 'Continuous · Denník N', daily: 'Daily · Aktuality.sk' };
 const localTime = (date: Date) => {
   const local = zonedDateTime(date, newsPolicy.timeZone);
   return `${local.localDateTime.replace('T', ' ')} (UTC${local.utcOffset}, Europe/Bratislava)`;
-};
-const outcomeLabel = (source: NewsSourceState) => {
-  const outcomes = {
-    stories: 'Stories collected',
-    edition: 'Editorial edition collected',
-    unchanged: 'Source unchanged',
-    empty: 'No items or edition found',
-    stale: 'No fresh edition found',
-    malformed: 'Source parser failed',
-    'access-denied': 'Publisher denied access',
-    'rate-limited': 'Publisher rate limit',
-    unavailable: 'Publisher unavailable',
-    timeout: 'Source request timed out',
-    cancelled: 'Collection cancelled',
-  };
-  return source.lastOutcome ? outcomes[source.lastOutcome] : 'Not collected yet';
 };
 
 const nextCollection = (feed: NewsFeed, source: NewsSourceState, now: Date) => {
@@ -47,7 +34,11 @@ const nextCollection = (feed: NewsFeed, source: NewsSourceState, now: Date) => {
   if (feed === 'continuous') return earliest;
   const day = dailySchedule(earliest);
   const state = source.daily ?? { attemptedSlots: [] };
-  const candidates = [new Date(Math.max(+earliest, +day.primaryAt)), day.fallbackAt];
+  const candidates = [
+    new Date(Math.max(+earliest, +day.primaryAt)),
+    day.fallbackAt,
+    ...[1, 2].map((retry) => new Date(+day.fallbackAt + retry * newsPolicy.continuousIntervalMs)),
+  ];
   for (const candidate of candidates) {
     if (candidate >= earliest && dailyCollectionSlot(candidate, state, source.backoffUntil))
       return candidate;
@@ -115,15 +106,27 @@ export const createNewsCommands = (input: {
       input.logger.warn({ event: 'news_guild_reconciliation_unavailable' });
     }
   };
-  const summary = async (guildId: string) => {
-    if (!news) return 'News: **unavailable in this deployment**';
+  const summary = async (guildId: string, locale: Locale = defaultLocale) => {
+    const copy = messages(locale);
+    if (!news) return copy.news.unavailableDeployment;
     const subscriptions = await Promise.all(
       feeds.map((feed) => news.store.getSubscription({ guildId, feed })),
     );
-    return `News deployment: **${news.enabled ? 'available' : 'disabled'}** · ${feeds.map((feed, index) => `${feed}: ${subscriptions[index]?.enabled ? (subscriptions[index]?.pausedReason ? 'paused' : 'enabled') : 'off'}`).join(' · ')}. Use /jolanda continuous status or /jolanda daily status for details.`;
+    return copy.news.summary({
+      available: news.enabled,
+      feeds: feeds.map((feed, index) => ({
+        feed,
+        state: subscriptions[index]?.enabled
+          ? subscriptions[index]?.pausedReason
+            ? copy.news.summaryState.paused
+            : copy.news.summaryState.enabled
+          : copy.news.summaryState.off,
+      })),
+    });
   };
-  const status = async (guildId: string, feed: NewsFeed) => {
-    if (!news) return 'News is unavailable in this deployment.';
+  const status = async (guildId: string, feed: NewsFeed, locale: Locale = defaultLocale) => {
+    const copy = messages(locale);
+    if (!news) return copy.news.unavailable;
     const now = (news.clock ?? (() => new Date()))();
     const [subscription, source] = await Promise.all([
       news.store.getSubscription({ guildId, feed }),
@@ -149,55 +152,119 @@ export const createNewsCommands = (input: {
         destinationProblem = true;
       }
     }
-    const paused =
-      subscription?.pausedReason || (destinationProblem ? 'destination-unavailable' : undefined);
+    const paused: NewsPausedReason =
+      subscription?.pausedReason ??
+      (destinationProblem
+        ? 'destination-unavailable'
+        : !news.enabled
+          ? 'deployment-disabled'
+          : !subscription?.enabled
+            ? 'feed-disabled'
+            : null);
+    const activePause =
+      subscription?.pausedReason ?? (destinationProblem ? 'destination-unavailable' : null);
     const edition = source.daily?.collectedEdition;
-    return [
-      `**${label[feed]} news**`,
-      `Deployment switch: **${news.enabled ? 'enabled' : 'disabled'}**`,
-      `Configuration: **${!subscription ? 'not configured' : subscription.enabled ? 'enabled' : 'disabled'}**`,
-      `Destination: ${destination ? `<#${destination.channelId}>` : destinationProblem ? 'unavailable; configure the feed again' : 'none'}`,
-      `Notifications: ${feed === 'continuous' ? 'silent; no mentions' : destination?.notifyRoleId ? `normal channel behavior; explicit role <@&${destination.notifyRoleId}>` : 'normal channel behavior; no role ping'}`,
-      `Delivery paused: **${paused ?? (!news.enabled ? 'deployment disabled' : !subscription?.enabled ? 'feed disabled' : 'no')}**`,
-      `Next collection: ${news.enabled && subscription?.enabled && !paused ? localTime(nextCollection(feed, source, now)) : 'not scheduled for this subscription'}`,
-      `Last source outcome: **${outcomeLabel(source)}**`,
-      `Last successful collection: ${source.lastSuccessAt ? localTime(source.lastSuccessAt) : 'never'}`,
-      ...(source.backoffUntil && source.backoffUntil > now
-        ? [`Source backoff until: ${localTime(source.backoffUntil)}`]
-        : []),
-      ...(feed === 'daily'
-        ? [
-            `Stored edition: ${edition ? `${newsLocalDate(edition.publishedAt) === newsLocalDate(now) ? 'current day' : 'older day'} · ${localTime(edition.publishedAt)} (collected, not a delivery receipt)` : 'none; no fresh edition is stored'}`,
-          ]
-        : []),
-      `Pending deliveries: **${counts.pending}** · Uncertain deliveries: **${counts.uncertain}**`,
-      ...(counts.uncertain ? ['Uncertain deliveries are held to avoid duplicate messages.'] : []),
-    ].join('\n');
+    const facts: NewsStatusFacts = {
+      feed,
+      deploymentEnabled: news.enabled,
+      configuration: !subscription ? 'missing' : subscription.enabled ? 'enabled' : 'disabled',
+      destination: destination
+        ? { kind: 'channel', channelId: destination.channelId }
+        : destinationProblem
+          ? { kind: 'unavailable' }
+          : { kind: 'none' },
+      ...(destination?.notifyRoleId ? { notifyRoleId: destination.notifyRoleId } : {}),
+      paused,
+      nextCollectionAt:
+        news.enabled && subscription?.enabled && !activePause
+          ? localTime(nextCollection(feed, source, now))
+          : null,
+      ...(source.lastOutcome ? { lastOutcome: source.lastOutcome } : {}),
+      lastSuccessAt: source.lastSuccessAt ? localTime(source.lastSuccessAt) : null,
+      backoffUntil:
+        source.backoffUntil && source.backoffUntil > now ? localTime(source.backoffUntil) : null,
+      storedEdition:
+        feed === 'daily' && edition
+          ? {
+              current: newsLocalDate(edition.publishedAt) === newsLocalDate(now),
+              collectedAt: localTime(edition.publishedAt),
+            }
+          : null,
+      pending: counts.pending,
+      uncertain: counts.uncertain,
+    };
+    return copy.news.statusLines(facts).join('\n');
   };
-  const handle = async (interaction: ChatInputCommandInteraction, feed: NewsFeed) => {
+  const handle = async (
+    interaction: ChatInputCommandInteraction,
+    feed: NewsFeed,
+    locale: Locale = defaultLocale,
+  ) => {
+    const copy = messages(locale);
     const edit = (content: string) =>
       interaction.editReply({ content, allowedMentions: safeMentions });
     const action = interaction.options.getSubcommand();
-    if (!['feed', 'disable', 'status'].includes(action)) {
-      await edit('Unknown news command.');
+    if (!['feed', 'disable', 'status', ...(feed === 'daily' ? ['run'] : [])].includes(action)) {
+      await edit(copy.news.unknownCommand);
       return;
     }
     if (!news) {
-      await edit('News is unavailable in this deployment.');
+      await edit(copy.news.unavailable);
       return;
     }
     const guildId = interaction.guildId!;
     if (action === 'status') {
-      await edit(await status(guildId, feed));
+      await edit(await status(guildId, feed, locale));
       return;
     }
     await serialized(guildId, async () => {
+      if (action === 'run') {
+        if (!news.enabled) {
+          await edit(copy.news.unavailable);
+          return;
+        }
+        const subscription = await news.store.getSubscription({ guildId, feed });
+        if (!subscription?.enabled || subscription.pausedReason) {
+          await edit(copy.manualRun.unconfigured);
+          return;
+        }
+        const claim = await news.store.claimPoll('aktuality', { manual: true });
+        if (!claim) {
+          await edit(copy.manualRun.busy);
+          return;
+        }
+        const state = await news.store.getSource('aktuality');
+        const now = (news.clock ?? (() => new Date()))();
+        const result = await (news.source ?? createAktualitySource())
+          .collect({
+            now,
+            cache: state.cache,
+            latest: true,
+            signal: AbortSignal.timeout(40_000),
+          })
+          .catch(() => ({ outcome: 'unavailable' as const }));
+        if (!(await news.store.commitPoll(claim, result))) {
+          await edit(copy.manualRun.busy);
+          return;
+        }
+        if (result.outcome !== 'edition') {
+          await edit(copy.manualRun.unavailable);
+          return;
+        }
+        const queued = await news.store.queueManualEdition({
+          guildId,
+          requestId: interaction.id,
+          revision: subscription.revision,
+          edition: result.edition,
+        });
+        log('news_manual_run', guildId, feed);
+        await edit(copy.manualRun[queued]);
+        return;
+      }
       if (action === 'disable') {
         await news.store.disable({ guildId, feed });
         log('news_feed_disabled', guildId, feed);
-        await edit(
-          `${label[feed]} feed disabled. Stored routing has been removed; already sent messages remain in Discord.`,
-        );
+        await edit(copy.news.feedDisabled(feed));
         return;
       }
       const channel = interaction.options.getChannel('channel', true);
@@ -210,9 +277,7 @@ export const createNewsCommands = (input: {
         ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type) ||
         role?.id === guildId
       ) {
-        await edit(
-          'Choose a text or announcement channel in this server and an optional role other than @everyone.',
-        );
+        await edit(copy.news.invalidDestination);
         return;
       }
       const destination = {
@@ -221,15 +286,18 @@ export const createNewsCommands = (input: {
         ...(role ? { notifyRoleId: role.id } : {}),
       };
       if (!(await news.publisher.validateDestination(destination))) {
-        await edit(
-          'I could not validate that destination. I need View Channel, Send Messages and Embed Links there. An optional notification role must still exist and be mentionable, or I need Mention Everyone in that channel.',
-        );
+        await edit(copy.news.validationFailed);
         return;
       }
       await news.store.configure({ feed, destination });
       log('news_feed_configured', guildId, feed);
       await edit(
-        `${label[feed]} feed enabled in <#${channel.id}>.${feed === 'continuous' ? ' Posts are silent and do not mention anyone.' : role ? ` Daily editions may notify <@&${role.id}> once; member notification settings still apply.` : ' Daily editions use normal channel notifications without a role ping.'}${news.enabled ? '' : ' Collection and delivery remain disabled while the deployment switch is off.'}`,
+        copy.news.feedConfigured({
+          feed,
+          channelId: channel.id,
+          ...(role ? { notifyRoleId: role.id } : {}),
+          deploymentEnabled: news.enabled,
+        }),
       );
     });
   };

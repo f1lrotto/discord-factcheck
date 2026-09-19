@@ -152,10 +152,12 @@ describe('durable news source coordination and outbox', () => {
       await a.news.commitPoll(primary!, { outcome: 'edition', edition: edition(), cache: {} }),
     ).toBe(false);
     instant = at('19:30:00');
-    expect(await a.news.claimPoll('aktuality')).toBeNull();
+    const lateRetry = await a.news.claimPoll('aktuality');
+    expect(lateRetry?.slot?.dueAt).toEqual(at('19:20:00'));
+    expect(await b.news.claimPoll('aktuality')).toBeNull();
     instant = at('20:00:00');
     expect(await b.news.claimPoll('aktuality')).toBeNull();
-    expect((await b.news.getSource('aktuality')).daily?.attemptedSlots).toHaveLength(2);
+    expect((await b.news.getSource('aktuality')).daily?.attemptedSlots).toHaveLength(3);
   });
 
   it('persists publisher backoff and good validators without committing failed parse cache', async () => {

@@ -5,6 +5,7 @@ import {
   createConcurrencyGate,
   createSlidingWindowGate,
   maximumCostEnvelopeMicrodollars,
+  maximumAnswerRequests,
   openRouterStreamStartTimeoutMs,
   requestLeaseMs,
   webFetchMaxContentTokens,
@@ -13,6 +14,7 @@ import {
   webSearchResultCharacters,
 } from '../src/limits.js';
 import { modelCatalog } from '../src/models.js';
+import { imageLimits } from '../src/image-limits.js';
 
 describe('cost and concurrency limits', () => {
   it('allows ten minutes for OpenRouter to start streaming', () => {
@@ -58,7 +60,30 @@ describe('cost and concurrency limits', () => {
       expect(details.webSearchMicrodollars).toBeGreaterThanOrEqual(5_000);
       return details.totalMicrodollars;
     });
-    expect(maximum).toBe(Math.max(...totals));
+    expect(maximum).toBeGreaterThanOrEqual(Math.max(...totals));
+    expect(maximum).toBe(
+      costEnvelopeMicrodollars({
+        model: 'luna',
+        reasoning: 'max',
+        maximumPromptCharacters: 32_000,
+        imageCount: imageLimits.count,
+      }),
+    );
+  });
+
+  it('reserves image tokens on every possible model round without consuming the text budget', () => {
+    const configuration = {
+      model: 'glm-5.3-flash',
+      reasoning: 'high',
+      maximumPromptCharacters: 32_000,
+    } as const;
+    const text = costEnvelopeDetails(configuration);
+    const vision = costEnvelopeDetails({ ...configuration, imageCount: 2 });
+    expect(vision.maximumInputCharacters).toBe(text.maximumInputCharacters);
+    expect(vision.maximumInputTokens - text.maximumInputTokens).toBe(
+      2 * imageLimits.tokensPerImage * maximumAnswerRequests,
+    );
+    expect(vision.totalMicrodollars).toBeGreaterThan(text.totalMicrodollars);
   });
 
   it('never admits more concurrent work than configured', () => {

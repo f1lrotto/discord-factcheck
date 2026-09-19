@@ -16,9 +16,12 @@ import {
   maximumToolArgumentCharacters,
   maximumToolCallsPerRequest,
   openRouterStreamStartTimeoutMs,
+  openRouterMaximumAttempts,
+  openRouterRetryBaseDelayMs,
 } from './limits.js';
 import {
   ModelFailure,
+  modelRetryReason,
   type ModelFailureCategory,
   type ModelFailureDiagnostic,
   type ModelMalformedReason,
@@ -219,15 +222,11 @@ const failureCategory = (
   )
     return 'payment_required';
   if (effectiveStatus === 400 || effectiveStatus === 403) return 'request_rejected';
-  if (
-    effectiveStatus === 404 ||
-    effectiveStatus === 502 ||
-    effectiveStatus === 503 ||
-    effectiveStatus === 529
-  )
+  if (effectiveStatus === 404 || effectiveStatus === 503 || effectiveStatus === 529)
     return 'provider_unavailable';
   if (
     effectiveStatus === 500 ||
+    effectiveStatus === 502 ||
     normalizedCode === 'provider_error' ||
     normalizedCode === 'upstream_error'
   )
@@ -328,7 +327,8 @@ const withToolContext = (messages: ChatMessage[]) => {
 
 const unavailableToolResult = JSON.stringify({ ok: false, error: 'tool_unavailable' });
 
-type CompletionInput = Pick<ModelRunRequest, 'model' | 'reasoning' | 'signal'> & {
+type CompletionInput = Pick<ModelRunRequest, 'model' | 'reasoning' | 'locale' | 'signal'> & {
+  ignoredProviders?: string[];
   messages: ChatMessage[];
   maximumCompletionTokens: number;
   maximumOutputCharacters: number;
@@ -336,10 +336,32 @@ type CompletionInput = Pick<ModelRunRequest, 'model' | 'reasoning' | 'signal'> &
   stage: ModelFailureStage;
 };
 
+const waitForRetry = (delayMs: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      reject(
+        new ModelFailure({
+          category: 'cancelled',
+          stage: 'answer',
+          elapsedMs: 0,
+          providerQuietMs: 0,
+        }),
+      );
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort);
+      resolve();
+    }, delayMs);
+    if (signal?.aborted) abort();
+    else signal?.addEventListener('abort', abort, { once: true });
+  });
+
 export const createOpenRouter = (input: {
   apiKey: string;
   appUrl?: string;
   logger: Logger;
+  waitForRetry?: typeof waitForRetry;
 }): ModelRunner => {
   const complete = async (
     request: CompletionInput,
@@ -450,6 +472,7 @@ export const createOpenRouter = (input: {
               }
             : {}),
           provider: {
+            ...(request.ignoredProviders?.length ? { ignore: request.ignoredProviders } : {}),
             data_collection: 'deny',
             ...(model.supportsZdr ? { zdr: true } : {}),
             require_parameters: true,
@@ -737,14 +760,17 @@ export const createOpenRouter = (input: {
     };
   };
 
-  // Transient provider glitches (a malformed stream, a provider-side error) used to end the
-  // whole turn. Retry once, but only while nothing has been shown to the user, so a retry can
-  // never duplicate text that is already on screen.
+  // Retry transient failures only before any answer text has reached Discord.
   const retryableFailure = (error: unknown) =>
     error instanceof ModelFailure &&
-    ['malformed_response', 'provider_failure', 'provider_unavailable'].includes(
-      error.diagnostic.category,
-    );
+    [
+      'malformed_response',
+      'provider_failure',
+      'provider_unavailable',
+      'rate_limited',
+      'network_failure',
+      'timeout',
+    ].includes(error.diagnostic.category);
 
   const completeWithRetry = async (
     request: CompletionInput,
@@ -752,19 +778,56 @@ export const createOpenRouter = (input: {
     onReasoningSummary: (delta: string) => Promise<void>,
     onActivity: () => Promise<void>,
     canRetry: () => boolean,
+    onRetry: (progress: Extract<ModelProgress, { type: 'retry' }>) => Promise<void>,
   ) => {
-    try {
-      return await complete(request, onDelta, onReasoningSummary, onActivity);
-    } catch (error) {
-      if (!retryableFailure(error) || !canRetry() || request.signal?.aborted) throw error;
-      input.logger.info({
-        event: 'openrouter_completion_retry',
-        model: request.model,
-        reasoning: request.reasoning,
-        ...(error instanceof ModelFailure ? { providerFailure: error.diagnostic } : {}),
-      });
-      await onActivity();
-      return complete(request, onDelta, onReasoningSummary, onActivity);
+    const ignoredProviders = new Set(request.ignoredProviders);
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await complete(
+          { ...request, ignoredProviders: [...ignoredProviders] },
+          onDelta,
+          onReasoningSummary,
+          onActivity,
+        );
+      } catch (error) {
+        if (
+          !(error instanceof ModelFailure) ||
+          !retryableFailure(error) ||
+          !canRetry() ||
+          request.signal?.aborted
+        )
+          throw error;
+        // Malformed answers can consume a full generation budget; preserve their single retry.
+        const maximumAttempts =
+          error.diagnostic.category === 'malformed_response' ? 2 : openRouterMaximumAttempts;
+        if (attempt >= maximumAttempts) throw error;
+        // Z.AI can finish normally with reasoning but no answer text. Its verified routing
+        // slug is `z-ai`; skip that endpoint on this generation's retry, not globally.
+        if (
+          error.diagnostic.malformedReason === 'empty_answer' &&
+          error.diagnostic.provider === 'Z.AI'
+        )
+          ignoredProviders.add('z-ai');
+        const delayMs = openRouterRetryBaseDelayMs * 2 ** (attempt - 1);
+        input.logger.info({
+          event: 'openrouter_completion_retry',
+          model: request.model,
+          reasoning: request.reasoning,
+          nextAttempt: attempt + 1,
+          maximumAttempts,
+          delayMs,
+          ...(ignoredProviders.size ? { ignoredProviders: [...ignoredProviders] } : {}),
+          providerFailure: error.diagnostic,
+        });
+        await onRetry({
+          type: 'retry',
+          attempt: attempt + 1,
+          maximumAttempts,
+          delayMs,
+          reason: modelRetryReason(error.diagnostic, request.locale),
+        });
+        await (input.waitForRetry ?? waitForRetry)(delayMs, request.signal);
+      }
     }
   };
 
@@ -782,8 +845,10 @@ export const createOpenRouter = (input: {
       let finalDiagnostics: ModelStageDiagnostics | undefined;
       const toolRoundDiagnostics: ModelStageDiagnostics[] = [];
       const called: string[] = [];
+      const reminderDrafts: { instant: string; text: string }[] = [];
       const initialToolbox = createAssistantToolbox({
         clock: request.clock,
+        allowReminders: request.allowReminders ?? false,
         allowFunctions: true,
       });
       let streamedAnyDelta = false;
@@ -798,6 +863,7 @@ export const createOpenRouter = (input: {
             ? initialToolbox
             : createAssistantToolbox({
                 clock: request.clock,
+                allowReminders: request.allowReminders ?? false,
                 allowFunctions: round < maximumFunctionToolRounds,
               });
         const remainingCharacters = maximumResponseCharacters - content.length;
@@ -806,6 +872,7 @@ export const createOpenRouter = (input: {
           {
             model: request.model,
             reasoning: request.reasoning,
+            ...(request.locale ? { locale: request.locale } : {}),
             messages: activeMessages,
             maximumCompletionTokens: completionTokenBudget(request.model, request.reasoning),
             maximumOutputCharacters: remainingCharacters,
@@ -821,6 +888,8 @@ export const createOpenRouter = (input: {
           async (delta) => reportProgress({ type: 'reasoning_summary', delta }),
           async () => reportProgress({ type: 'activity' }),
           () => !streamedAnyDelta && !content,
+          // Failed attempts are excluded from the server budget; retain successful usage.
+          reportProgress,
         );
         const citationOffset = content.length;
         content += completion.content;
@@ -858,13 +927,42 @@ export const createOpenRouter = (input: {
           content: completion.content || null,
           tool_calls: modelToolCalls,
         });
-        for (const call of completion.toolCalls)
+        for (const call of completion.toolCalls) {
+          let result = toolbox.execute(call);
+          if (call.name === 'create_reminder') {
+            const parsed = z
+              .object({
+                ok: z.literal(true),
+                draft: z.object({ instant: z.string(), text: z.string() }),
+              })
+              .safeParse(JSON.parse(result));
+            if (
+              parsed.success &&
+              reminderDrafts.length &&
+              !reminderDrafts.some(
+                (draft) =>
+                  draft.instant === parsed.data.draft.instant &&
+                  draft.text === parsed.data.draft.text,
+              )
+            ) {
+              result = JSON.stringify({ ok: false, error: 'one_reminder_per_turn' });
+            } else if (
+              parsed.success &&
+              !reminderDrafts.some(
+                (draft) =>
+                  draft.instant === parsed.data.draft.instant &&
+                  draft.text === parsed.data.draft.text,
+              )
+            )
+              reminderDrafts.push(parsed.data.draft);
+          }
           activeMessages.push({
             role: 'tool',
             tool_call_id: call.id,
             name: call.name,
-            content: toolbox.execute(call),
+            content: result,
           });
+        }
         for (const call of completion.unavailableToolCalls)
           activeMessages.push({
             role: 'tool',
@@ -878,6 +976,7 @@ export const createOpenRouter = (input: {
       if (!finalDiagnostics) throw new Error('Function tool loop did not produce a final answer');
       return {
         content,
+        reminderDrafts,
         ...(generationId ? { generationId } : {}),
         ...(usageComplete && usage ? { usage } : {}),
         citationUrls: [...citationUrls],
@@ -895,6 +994,7 @@ export const createOpenRouter = (input: {
     const final = await answerRequest(request.messages);
     return {
       content: final.content,
+      ...(final.reminderDrafts.length ? { reminderDrafts: final.reminderDrafts } : {}),
       truncated: final.truncated,
       ...(final.generationId ? { generationId: final.generationId } : {}),
       ...(final.usage ? { usage: final.usage } : {}),

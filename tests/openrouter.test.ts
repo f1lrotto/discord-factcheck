@@ -7,6 +7,7 @@ import {
   maximumSseFrameCharacters,
   maximumSseReadBytes,
   openRouterStreamStartTimeoutMs,
+  openRouterMaximumAttempts,
 } from '../src/limits.js';
 import { ModelFailure } from '../src/model-failure.js';
 import {
@@ -19,15 +20,15 @@ import type { ModelProgress, ModelRunner, ModelRunRequest } from '../src/types.j
 const clock = createClockSnapshot(new Date('2026-08-25T12:00:00.000Z'), 'Europe/Bratislava');
 
 const createTestOpenRouter = (...input: Parameters<typeof createOpenRouterAdapter>) => {
-  const runner = createOpenRouterAdapter(...input);
+  const runner = createOpenRouterAdapter({ waitForRetry: async () => undefined, ...input[0] });
   const run = (
     request: Omit<ModelRunRequest, 'clock'>,
     onDelta: Parameters<ModelRunner['run']>[1],
     onProgress?: Parameters<ModelRunner['run']>[2],
   ) =>
     onProgress
-      ? runner.run({ ...request, clock }, onDelta, onProgress)
-      : runner.run({ ...request, clock }, onDelta);
+      ? runner.run({ locale: 'en', ...request, clock }, onDelta, onProgress)
+      : runner.run({ locale: 'en', ...request, clock }, onDelta);
   return { run };
 };
 
@@ -400,6 +401,44 @@ describe('OpenRouter adapter', () => {
     );
   });
 
+  it('preserves image content parts through tool rounds and accounts for provider image usage', async () => {
+    const streams = [
+      functionToolSse({
+        id: 'calculate_1',
+        name: 'calculate',
+        argumentFragments: ['{"expression":"2+2"}'],
+      }),
+      sse({ content: 'Four dogs.', cost: 0.002, promptTokens: 1500 }),
+    ];
+    const fetchMock = vi.fn(async () => response(streams.shift() ?? ''));
+    vi.stubGlobal('fetch', fetchMock);
+    const openRouter = createTestOpenRouter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    });
+    const message = {
+      role: 'user' as const,
+      content: [
+        { type: 'text' as const, text: 'Add the dogs in these images.' },
+        { type: 'image_url' as const, image_url: { url: 'data:image/jpeg;base64,IMAGE' } },
+      ],
+    };
+    const result = await openRouter.run(
+      { model: 'glm-5.3-flash', reasoning: 'high', messages: [message] },
+      async () => undefined,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const index of [0, 1]) {
+      expect(bodyAt(fetchMock, index).messages).toEqual(expect.arrayContaining([message]));
+      expect(bodyAt(fetchMock, index).provider).toMatchObject({
+        data_collection: 'deny',
+        zdr: true,
+        require_parameters: true,
+      });
+    }
+    expect(result.usage).toMatchObject({ promptTokens: 1510, costMicrodollars: 3000 });
+  });
+
   it('executes fragmented local function calls and returns their bounded result to the model', async () => {
     const streams = [
       functionToolSse({
@@ -702,6 +741,189 @@ describe('OpenRouter adapter', () => {
     expect(result.content).toBe('Recovered answer.');
   });
 
+  it.each([
+    ['Z.AI', 'stop', ['z-ai']],
+    ['Z.AI', 'length', undefined],
+    ['Other Provider', 'stop', undefined],
+  ] as const)(
+    'retries %s/%s without globally changing provider routing',
+    async (provider, finish, ignored) => {
+      const empty = [
+        `data: ${JSON.stringify({ id: 'gen-empty', choices: [{ delta: { content: '', reasoning: 'PRIVATE reasoning' }, finish_reason: finish }] })}\n\n`,
+        `data: ${JSON.stringify({ choices: [], usage: { cost: 0.00033425, prompt_tokens: 2065, completion_tokens: 49, completion_tokens_details: { reasoning_tokens: 49 } }, openrouter_metadata: { endpoints: { available: [{ provider, selected: true }] } } })}\n\n`,
+        'data: [DONE]\n\n',
+      ].join('');
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(response(empty))
+        .mockImplementation(async () =>
+          response(sse({ content: 'Recovered answer.', cost: 0.001 })),
+        );
+      vi.stubGlobal('fetch', fetchMock);
+      const onProgress = vi.fn(async (progress: ModelProgress) => void progress);
+      const onDelta = vi.fn(async () => undefined);
+      const openRouter = createTestOpenRouter({
+        apiKey: 'test-key',
+        logger: pino({ enabled: false }),
+      });
+      const request = {
+        model: 'glm-5.3-flash',
+        reasoning: 'max',
+        messages: [{ role: 'user', content: 'A historical question' }],
+      } satisfies Omit<ModelRunRequest, 'clock'>;
+
+      await expect(openRouter.run(request, onDelta, onProgress)).resolves.toMatchObject({
+        content: 'Recovered answer.',
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(bodyAt(fetchMock, 0).provider).not.toHaveProperty('ignore');
+      const second = bodyAt(fetchMock, 1);
+      expect(second.model).toBe('z-ai/glm-5.3-flash');
+      expect(second.provider).toMatchObject({
+        data_collection: 'deny',
+        zdr: true,
+        require_parameters: true,
+      });
+      if (ignored) expect(second.provider).toHaveProperty('ignore', [...ignored]);
+      else expect(second.provider).not.toHaveProperty('ignore');
+      expect(onDelta).toHaveBeenCalledOnce();
+      expect(JSON.stringify(onProgress.mock.calls)).not.toContain('PRIVATE');
+      if (finish === 'stop')
+        expect(onProgress).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'retry',
+            reason: 'The provider finished without returning any answer text',
+          }),
+        );
+
+      await openRouter.run(request, async () => undefined);
+      expect(bodyAt(fetchMock, 2).provider).not.toHaveProperty('ignore');
+    },
+  );
+
+  it.each([502, 503, 429])(
+    'recovers from four %i failures on the fifth attempt',
+    async (status) => {
+      const fetchMock = vi
+        .fn()
+        .mockImplementation(async () =>
+          response(JSON.stringify({ error: { code: status } }), status),
+        );
+      for (let attempt = 0; attempt < 4; attempt += 1)
+        fetchMock.mockImplementationOnce(async () =>
+          response(
+            JSON.stringify({ error: { code: status, message: 'private upstream response' } }),
+            status,
+          ),
+        );
+      fetchMock.mockImplementationOnce(async () =>
+        response(sse({ content: 'Recovered.', cost: 0.001 })),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const waitForRetry = vi.fn(async () => undefined);
+      const onProgress = vi.fn(async (progress: ModelProgress) => void progress);
+      const onDelta = vi.fn(async () => undefined);
+      const result = await createTestOpenRouter({
+        apiKey: 'test-key',
+        logger: pino({ enabled: false }),
+        waitForRetry,
+      }).run(
+        {
+          model: 'glm-5.3-flash',
+          reasoning: 'max',
+          messages: [{ role: 'user', content: 'Hello?' }],
+        },
+        onDelta,
+        onProgress,
+      );
+      expect(result.content).toBe('Recovered.');
+      expect(result.usage?.costMicrodollars).toBe(1_000);
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+      expect(waitForRetry.mock.calls).toEqual([
+        [1_000, undefined],
+        [2_000, undefined],
+        [4_000, undefined],
+        [8_000, undefined],
+      ]);
+      const retries = onProgress.mock.calls
+        .map(([progress]) => progress)
+        .filter((progress) => progress.type === 'retry');
+      expect(retries).toEqual(
+        [2, 3, 4, 5].map((attempt) =>
+          expect.objectContaining({
+            type: 'retry',
+            attempt,
+            maximumAttempts: 5,
+            reason: expect.stringContaining(String(status)),
+          }),
+        ),
+      );
+      expect(JSON.stringify(retries)).not.toContain('private upstream response');
+      expect(onDelta).toHaveBeenCalledOnce();
+      for (let attempt = 0; attempt < 5; attempt += 1)
+        expect(bodyAt(fetchMock, attempt).provider).toMatchObject({
+          data_collection: 'deny',
+          zdr: true,
+          require_parameters: true,
+        });
+    },
+  );
+
+  it.each([400, 401, 402, 403])('does not retry permanent HTTP %i failures', async (status) => {
+    const fetchMock = vi.fn(async () =>
+      response(JSON.stringify({ error: { code: status } }), status),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const waitForRetry = vi.fn(async () => undefined);
+    await expect(
+      createTestOpenRouter({
+        apiKey: 'test-key',
+        logger: pino({ enabled: false }),
+        waitForRetry,
+      }).run(
+        { model: 'luna', reasoning: 'medium', messages: [{ role: 'user', content: 'Hello?' }] },
+        async () => undefined,
+      ),
+    ).rejects.toBeInstanceOf(ModelFailure);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(waitForRetry).not.toHaveBeenCalled();
+  });
+
+  it('waits before retrying and cancels promptly during the backoff', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => response(JSON.stringify({ error: { code: 502 } }), 502));
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    const onProgress = vi.fn(async (progress: ModelProgress) => void progress);
+    const pending = createOpenRouterAdapter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    })
+      .run(
+        {
+          model: 'luna',
+          reasoning: 'medium',
+          messages: [{ role: 'user', content: 'Hello?' }],
+          clock,
+          signal: controller.signal,
+        },
+        async () => undefined,
+        onProgress,
+      )
+      .catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ type: 'retry', attempt: 2 }));
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    controller.abort();
+    await expect(pending).resolves.toMatchObject({ diagnostic: { category: 'cancelled' } });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('does not retry once partial text is already on screen', async () => {
     const streams = [
       [
@@ -827,6 +1049,8 @@ describe('OpenRouter adapter', () => {
     [402, 'payment_required'],
     [400, 'request_rejected'],
     [404, 'provider_unavailable'],
+    [502, 'provider_failure'],
+    [503, 'provider_unavailable'],
     [418, 'unknown'],
   ] as const)('classifies a bounded HTTP %i response as %s', async (status, category) => {
     vi.stubGlobal(
@@ -844,6 +1068,57 @@ describe('OpenRouter adapter', () => {
         async () => undefined,
       ),
     ).rejects.toMatchObject({ diagnostic: { category, stage: 'answer', status } });
+  });
+
+  it('reports repeated in-stream 502s on an image turn as upstream failures', async () => {
+    const fetchMock = vi.fn(async () =>
+      response(
+        `data: ${JSON.stringify({ id: 'gen-image', choices: [] })}\n\n` +
+          `data: ${JSON.stringify({
+            error: { code: 502, message: 'private upstream response' },
+            openrouter_metadata: { strategy: 'direct', attempt: 1 },
+          })}\n\n`,
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const openRouter = createTestOpenRouter({
+      apiKey: 'test-key',
+      logger: pino({ enabled: false }),
+    });
+    const onDelta = vi.fn(async () => undefined);
+    const error = await openRouter
+      .run(
+        {
+          model: 'glm-5.3-flash',
+          reasoning: 'max',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Describe this image.' },
+                { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,PRIVATE' } },
+              ],
+            },
+          ],
+        },
+        onDelta,
+      )
+      .catch((failure: unknown) => failure);
+
+    expect(error).toMatchObject({
+      diagnostic: {
+        category: 'provider_failure',
+        stage: 'answer',
+        code: 502,
+        generationId: 'gen-image',
+        routingStrategy: 'direct',
+        attempt: 1,
+      },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(openRouterMaximumAttempts);
+    expect(onDelta).not.toHaveBeenCalled();
+    expect(JSON.stringify(error)).not.toContain('private upstream response');
+    expect(JSON.stringify(error)).not.toContain('PRIVATE');
   });
 
   it('bounds non-streaming provider error bodies before classification', async () => {
@@ -1277,6 +1552,9 @@ describe('OpenRouter adapter', () => {
     expect(providerSignal?.aborted).toBe(false);
 
     await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(
+      openRouterStreamStartTimeoutMs * (openRouterMaximumAttempts - 1),
+    );
     await expect(result).resolves.toMatchObject({
       diagnostic: {
         category: 'timeout',
@@ -1403,5 +1681,39 @@ describe('OpenRouter adapter', () => {
     ).rejects.toMatchObject({
       diagnostic: { category: 'malformed_response', stage: 'answer' },
     });
+  });
+});
+
+describe('reminder draft collection', () => {
+  it('returns normalized drafts without any persistence inside the toolbox', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response(
+          functionToolSse({
+            id: 'reminder-call',
+            name: 'create_reminder',
+            argumentFragments: [
+              JSON.stringify({ instant: '2026-08-26T07:00:00Z', text: ' Invoice ' }),
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(response(sse({ content: 'Tomorrow at nine.', cost: 0.001 })));
+    vi.stubGlobal('fetch', fetch);
+    const runner = createTestOpenRouter({ apiKey: 'test', logger: pino({ enabled: false }) });
+    const result = await runner.run(
+      {
+        model: 'luna',
+        reasoning: 'medium',
+        allowReminders: true,
+        messages: [{ role: 'user', content: 'Remind me tomorrow at nine.' }],
+      },
+      async () => {},
+    );
+    expect(result.reminderDrafts).toEqual([
+      { instant: '2026-08-26T07:00:00.000Z', text: 'Invoice' },
+    ]);
+    expect(result.toolActivity?.called).toContain('create_reminder');
   });
 });

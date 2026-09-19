@@ -25,6 +25,7 @@ describe('Discord response renderer', () => {
       source,
       logger: pino({ enabled: false }),
       protectIdentifier: (value) => value,
+      locale: 'en',
     });
     await sink.prepare();
     const controller = new AbortController();
@@ -73,6 +74,7 @@ describe('Discord response renderer', () => {
       source,
       logger: pino({ enabled: false }),
       protectIdentifier: (value) => value,
+      locale: 'en',
     });
 
     const body = 'Veta o tuneli. '.repeat(150).trim();
@@ -97,6 +99,7 @@ describe('Discord response renderer', () => {
       source,
       logger: pino({ enabled: false }),
       protectIdentifier: (value) => value,
+      locale: 'en',
     });
 
     await sink.fail('', [], {
@@ -117,6 +120,56 @@ describe('Discord response renderer', () => {
     );
   });
 
+  it('names an empty answer without claiming that the provider filtered it', async () => {
+    const edit = vi.fn(async () => undefined);
+    const source = {
+      id: 'source',
+      reply: vi.fn(async () => ({ id: 'response', edit, delete: vi.fn() })),
+      channel: { isSendable: () => true, send: vi.fn() },
+    } as unknown as Message<true>;
+    const sink = createResponseSink({
+      source,
+      logger: pino({ enabled: false }),
+      protectIdentifier: (value) => value,
+      locale: 'en',
+    });
+    await sink.fail('', [], {
+      category: 'malformed_response',
+      malformedReason: 'empty_answer',
+      reference: 'EMPTY<script>',
+    });
+    expect(edit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content:
+          '⚠️ The model returned no answer text. Try a different model with `/model`, or ask again. Reference: `EMPTYscript`.',
+      }),
+    );
+  });
+
+  it('describes an upstream failure without claiming that no provider was available', async () => {
+    const edit = vi.fn(async () => undefined);
+    const source = {
+      id: 'source',
+      reply: vi.fn(async () => ({ id: 'response', edit, delete: vi.fn() })),
+      channel: { isSendable: () => true, send: vi.fn() },
+    } as unknown as Message<true>;
+    const sink = createResponseSink({
+      source,
+      logger: pino({ enabled: false }),
+      protectIdentifier: (value) => value,
+      locale: 'en',
+    });
+
+    await sink.fail('', [], { category: 'provider_failure', reference: 'REF502' });
+
+    expect(edit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content:
+          '⚠️ The model provider failed during answer generation. Please try again. Reference: `REF502`.',
+      }),
+    );
+  });
+
   it('renders a safe provider reason and correlation reference without raw metadata', async () => {
     const edit = vi.fn(async () => undefined);
     const responseMessage = { id: 'response', edit, delete: vi.fn() };
@@ -129,6 +182,7 @@ describe('Discord response renderer', () => {
       source,
       logger: pino({ enabled: false }),
       protectIdentifier: (value) => value,
+      locale: 'en',
     });
 
     await sink.fail('', [], {

@@ -6,6 +6,39 @@ const clock = createClockSnapshot(new Date('2026-08-25T12:00:00.000Z'), 'Europe/
 const trustedSystemPrompt = `${systemPrompt}\n\n${trustedClockContext(clock)}`;
 
 describe('prompt construction', () => {
+  it('keeps image bytes in content parts, with source markers in the text-only transcript', () => {
+    const images = [
+      { source: 'latest_message', dataUrl: 'data:image/jpeg;base64,LATEST' },
+      { source: 'replied_message', dataUrl: 'data:image/jpeg;base64,REPLIED' },
+    ] as const;
+    const currentUserContent = composeUserContent({
+      question: 'Compare these photos',
+      ambientMessages: [],
+      images,
+      maximumCharacters: 4000,
+    });
+    expect(JSON.parse(currentUserContent).attached_images).toEqual([
+      { image: 1, source: 'latest_message' },
+      { image: 2, source: 'replied_message' },
+    ]);
+    expect(currentUserContent).not.toContain('base64');
+    const messages = buildPromptMessages({
+      conversation: null,
+      currentUserContent,
+      images,
+      maximumCharacters: 8000,
+      clock,
+    });
+    expect(messages.at(-1)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: currentUserContent },
+        ...images.map(({ dataUrl }) => ({ type: 'image_url', image_url: { url: dataUrl } })),
+      ],
+    });
+    expect(systemPrompt).toContain('not the images themselves');
+  });
+
   it('marks channel context as untrusted and instructs multilingual replies', () => {
     expect(systemPrompt).toContain('language of the latest user question');
     expect(systemPrompt).toContain('Never claim that Jolanda lacks web-search capability');

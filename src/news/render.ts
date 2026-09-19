@@ -1,3 +1,4 @@
+import { messages, type Locale } from '../i18n/index.js';
 import { MessageFlags, type APIEmbed, type RESTPostAPIChannelMessageJSONBody } from 'discord.js';
 import type { NewsContent, NewsSourceId } from './types.js';
 
@@ -39,7 +40,7 @@ const publicUrl = (raw: string, source: NewsSourceId, image = false) => {
 };
 
 // Escape before budgeting, keeping each escaped character and Unicode code point intact.
-const text = (raw: string, limit: number) => {
+export const text = (raw: string, limit: number) => {
   const normalized = raw
     .replace(/<[^>]*>/g, '')
     .replace(/[\p{Cc}\p{Cf}]/gu, ' ')
@@ -60,12 +61,12 @@ const text = (raw: string, limit: number) => {
   return `${clipped}…`;
 };
 
-const dailyDescription = (content: Extract<NewsContent, { kind: 'edition' }>) => {
+const dailyDescription = (content: Extract<NewsContent, { kind: 'edition' }>, locale: Locale) => {
   const introduction = text(content.description ?? '', 650);
-  const omitted = 'Ďalšie správy nájdete v zdrojovom článku.';
+  const omitted = messages(locale).news.moreStories;
   let description = introduction;
   for (const section of content.sections) {
-    const title = text(section.title, 180) || 'Správa';
+    const title = text(section.title, 180) || messages(locale).news.story;
     const url = section.url && publicUrl(section.url, content.source);
     const headline = url ? `[${title}](${url})` : title;
     const excerpt = text(section.description ?? '', 240);
@@ -79,14 +80,16 @@ const dailyDescription = (content: Extract<NewsContent, { kind: 'edition' }>) =>
   return description;
 };
 
-export const renderNews = (content: NewsContent, notifyRoleId?: string) => {
+export const renderNews = (content: NewsContent, notifyRoleId?: string, locale: Locale = 'sk') => {
   const url = publicUrl(content.url, content.source);
   if (!url || !Number.isFinite(content.publishedAt.getTime()))
     throw new Error('Invalid normalized news metadata');
   if (notifyRoleId && !/^[1-9]\d{0,19}$/.test(notifyRoleId))
     throw new Error('Invalid news notification role');
   const description =
-    content.kind === 'edition' ? dailyDescription(content) : text(content.description ?? '', 4096);
+    content.kind === 'edition'
+      ? dailyDescription(content, locale)
+      : text(content.description ?? '', 4096);
   const tags = text(content.tags?.join(' · ') ?? '', 200);
   const image = content.image && publicUrl(content.image.url, content.source, true);
   const embed: APIEmbed = {

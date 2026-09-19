@@ -1,3 +1,5 @@
+import { createMongoBriefing } from './briefing/mongo.js';
+import { createMongoReminders } from './mongo-reminders.js';
 import { createMongoNews, type NewsMongoOptions } from './news/mongo.js';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 import type { Logger } from 'pino';
@@ -34,12 +36,18 @@ export const createMongoStore = (
     recoveryIntervalMs?: number;
     requestLeaseMs?: number;
     news?: NewsMongoOptions;
+    secret?: string;
   },
   dependencies: {
     client?: MongoClient;
     createAccounting?: typeof createMongoAccounting;
   } = {},
-): JolandaStore & { reels: ReelStore; news?: ReturnType<typeof createMongoNews> } => {
+): JolandaStore & {
+  reels: ReelStore;
+  briefing?: ReturnType<typeof createMongoBriefing>;
+  reminders?: ReturnType<typeof createMongoReminders>;
+  news?: ReturnType<typeof createMongoNews>;
+} => {
   const client = dependencies.client ?? new MongoClient(input.uri, mongoClientOptions);
   const database = client.db(input.databaseName);
   const context: MongoContext = {
@@ -80,6 +88,12 @@ export const createMongoStore = (
 
   return {
     reels: createMongoReels(context),
+    ...(input.secret
+      ? {
+          reminders: createMongoReminders(context, { secret: input.secret }),
+          briefing: createMongoBriefing(context, input.secret),
+        }
+      : {}),
     ...(news ? { news } : {}),
     initialize,
     close,
@@ -89,5 +103,6 @@ export const createMongoStore = (
     settleRequest: accounting.settleRequest,
     failRequest: accounting.failRequest,
     getBudgetSummary: accounting.getBudgetSummary,
+    getUsageSummary: accounting.getUsageSummary,
   };
 };

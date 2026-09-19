@@ -1,3 +1,4 @@
+import { manualRunWindowMs } from '../scheduling/manual.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { MongoServerError, type ClientSession } from 'mongodb';
 import { mongoOperationOptions, type MongoContext } from '../mongo-context.js';
@@ -9,6 +10,7 @@ import {
   dailyCollectionSlot,
   dailySchedule,
   isCurrentDailyEdition,
+  isRecentDailyEdition,
   nextContinuousCollectionAt,
   newsPolicy,
   observeStory,
@@ -31,6 +33,7 @@ import type {
 export type NewsSubscriptionDocument = Omit<NewsSubscriptionRecord, 'key'> & {
   _id: string;
   guildKey: string;
+  manualRunUntil?: Date;
 };
 export type NewsSourceDocument = NewsSourceState & { _id: NewsSourceState['source'] };
 export type NewsSourcePayloadDocument = {
@@ -88,6 +91,7 @@ const publicationView = (document: NewsPublicationDocument) => {
     status: document.status,
     attempts: document.attempts,
     nonce: document.nonce,
+    ...(document.manual ? { manual: true } : {}),
     ...(document.lease ? { lease: document.lease } : {}),
     ...(document.messageKey ? { messageKey: document.messageKey } : {}),
   } satisfies NewsPublication;
@@ -95,7 +99,10 @@ const publicationView = (document: NewsPublicationDocument) => {
 const duplicateKey = (error: unknown) => error instanceof MongoServerError && error.code === 11000;
 const dailyState = (source: NewsSourceState, instant: Date) => {
   const { date } = dailySchedule(instant);
-  const keys = ['primary', 'fallback'].map((kind) => JSON.stringify(['aktuality', date, kind]));
+  const keys = [
+    ...['primary', 'fallback'].map((kind) => JSON.stringify(['aktuality', date, kind])),
+    ...[1, 2].map((retry) => JSON.stringify(['aktuality', date, 'fallback', retry])),
+  ];
   const edition = source.daily?.collectedEdition;
   return {
     attemptedSlots: (source.daily?.attemptedSlots ?? []).filter((key) => keys.includes(key)),
@@ -392,7 +399,7 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
   };
   const getSource: NewsStore['getSource'] = (source) =>
     transaction(async (tx) => sourceView(await readSource(source, tx)));
-  const claimPoll: NewsStore['claimPoll'] = (source) =>
+  const claimPoll: NewsStore['claimPoll'] = (source, options) =>
     transaction(async (tx) => {
       const feed = source === 'dennikn' ? 'continuous' : 'daily';
       if (
@@ -406,21 +413,25 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
       const instant = now();
       if (
         (state.lease && state.lease.expiresAt > instant) ||
-        state.nextAttemptAt > instant ||
+        (!options?.manual && state.nextAttemptAt > instant) ||
         (state.backoffUntil && state.backoffUntil > instant)
       )
         return null;
       const daily = dailyState(state, instant);
       const slot =
-        source === 'aktuality' ? dailyCollectionSlot(instant, daily, state.backoffUntil) : null;
-      if (source === 'aktuality' && !slot) return null;
+        source === 'aktuality' && !options?.manual
+          ? dailyCollectionSlot(instant, daily, state.backoffUntil)
+          : null;
+      if (source === 'aktuality' && !slot && !options?.manual) return null;
       const lease = { owner: randomUUID(), expiresAt: new Date(+instant + leaseMs) };
       const updated: NewsSourceDocument = {
         ...state,
         lease,
-        nextAttemptAt: slot
-          ? slot.expiresAt
-          : nextContinuousCollectionAt(instant, state.backoffUntil),
+        nextAttemptAt: options?.manual
+          ? state.nextAttemptAt
+          : slot
+            ? slot.expiresAt
+            : nextContinuousCollectionAt(instant, state.backoffUntil),
         ...(slot
           ? { daily: { ...daily, attemptedSlots: [...daily.attemptedSlots, slot.key] } }
           : {}),
@@ -757,6 +768,46 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
     }).catch((error: unknown) => {
       if (!(error instanceof LostLease)) throw error;
     });
+  const queueManualEdition: NewsStore['queueManualEdition'] = (input) =>
+    transaction(async (tx) => {
+      const instant = now();
+      const subscription = await subscriptions.findOne(
+        {
+          _id: cipher.subscriptionKey(input.guildId, 'daily'),
+          enabled: true,
+          revision: input.revision,
+          pausedReason: { $exists: false },
+        },
+        dbOptions(tx),
+      );
+      if (!subscription || !isRecentDailyEdition(input.edition, instant)) return 'unconfigured';
+      const key = JSON.stringify([subscription._id, 'manual', cipher.messageKey(input.requestId)]);
+      if (await publications.findOne({ _id: key }, dbOptions(tx))) return 'queued';
+      if (subscription.manualRunUntil && subscription.manualRunUntil > instant) return 'busy';
+      const expiresAt = new Date(+instant + manualRunWindowMs);
+      await subscriptions.updateOne(
+        { _id: subscription._id },
+        { $set: { manualRunUntil: expiresAt } },
+        dbOptions(tx),
+      );
+      await publications.insertOne(
+        {
+          _id: key,
+          subscriptionKey: subscription._id,
+          configurationRevision: subscription.revision,
+          content: input.edition,
+          manual: true,
+          dueAt: instant,
+          expiresAt,
+          status: 'pending',
+          attempts: 0,
+          nonce: randomBytes(12).toString('hex'),
+          retainedUntil: new Date(+expiresAt + 30 * dayMs),
+        },
+        dbOptions(tx),
+      );
+      return 'queued';
+    });
   const getDeliveryCounts: NewsStore['getDeliveryCounts'] = (subscriptionKey) =>
     transaction(async (tx) => {
       await recover(tx);
@@ -772,6 +823,7 @@ export const createMongoNews = (context: MongoContext, options: NewsMongoOptions
     });
   return {
     initialize,
+    queueManualEdition,
     configure,
     disable,
     removeGuild,

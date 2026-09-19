@@ -79,16 +79,29 @@ export const uniqueSourceCitations = (
   return [...byUrl.values()];
 };
 
-const citationLabel = (citation: SourceCitation, sourceNumber: number) => {
+/** Formats the visible label. Injected so citations stay free of catalog imports. */
+export type SourceLabelFormatter = (sourceNumber: number, title?: string) => string;
+
+const defaultSourceLabel: SourceLabelFormatter = (sourceNumber, title) =>
+  title ? `Source ${sourceNumber}: ${title}` : `Source ${sourceNumber}`;
+
+const citationLabel = (
+  citation: SourceCitation,
+  sourceNumber: number,
+  formatLabel: SourceLabelFormatter,
+) => {
   const title = citation.title
     ?.replace(/[\\[\]()`*_~<>|@]/gu, '')
     .replace(/\s+/gu, ' ')
     .trim();
-  return title ? `Source ${sourceNumber}: ${title}` : `Source ${sourceNumber}`;
+  return formatLabel(sourceNumber, title || undefined);
 };
 
-export const sourceCitationMarkdown = (citation: SourceCitation, sourceNumber: number) =>
-  `[${citationLabel(citation, sourceNumber)}](${citation.url})`;
+export const sourceCitationMarkdown = (
+  citation: SourceCitation,
+  sourceNumber: number,
+  formatLabel: SourceLabelFormatter = defaultSourceLabel,
+) => `[${citationLabel(citation, sourceNumber, formatLabel)}](${citation.url})`;
 
 export const attachSourceCitations = (content: string, citations: readonly SourceCitation[]) => {
   const normalized = citations.flatMap((citation) => {

@@ -26,7 +26,16 @@ const setup = () => {
   const handler = createCommandHandler({
     transcriptTtlDays: 7,
     maximumContextMessages: 50,
-    store: {} as JolandaStore,
+    store: {
+      getSettings: async () => ({
+        guildId: 'guild',
+        model: 'glm-5.3-flash' as const,
+        reasoning: 'high' as const,
+        contextLimitMessages: 0,
+        locale: 'en' as const,
+        updatedAt: new Date(0),
+      }),
+    } as unknown as JolandaStore,
     reelStore: { setEnabled } as unknown as ReelStore,
     reelsEnabled: false,
     logger: pino({ enabled: false }),

@@ -4,6 +4,7 @@ import { ChannelType, MessageType, PermissionFlagsBits, type Message } from 'dis
 import type { Logger } from 'pino';
 import { createConcurrencyGate, createSlidingWindowGate } from './limits.js';
 import { safeMentions } from './discord-response.js';
+import { defaultLocale, messages, type Locale } from './i18n/index.js';
 import { parseRepostLinks } from './repost-links.js';
 import { reelLimits, ytDlpVersion } from './reel-limits.js';
 import {
@@ -29,29 +30,33 @@ const canPublish = (message: Message<true>) => {
   const member = message.guild.members.me;
   return Boolean(member && message.channel.permissionsFor(member)?.has(reelPermissions));
 };
-const failureCopy: Record<ReelFailure, string> = {
-  unavailable: 'I couldn’t access this Reel without an Instagram login.',
-  authentication_required: 'I couldn’t access this Reel without an Instagram login.',
-  too_large: 'Reel is too large.',
-  unsupported_media: 'I couldn’t retrieve a compatible video for this Reel.',
-  timeout: 'I couldn’t download this Reel right now.',
-  extractor_failed: 'I couldn’t download this Reel right now.',
-  rate_limited: 'I couldn’t download this Reel right now.',
-  photos_unavailable: 'I couldn’t retrieve the original photos for this TikTok.',
-  too_many_photos: `This TikTok has more than ${reelLimits.maximumPhotos} photos, which is my limit per post.`,
-  cancelled: '',
-};
-const formatBytes = (bytes: number) =>
+// Platform naming is a catalog parameter rather than an English word substitution, because
+// replacing "Reel" with "TikTok" inside a finished sentence does not survive translation.
+const formatBytes = (locale: Locale, bytes: number) =>
   bytes < 1024 * 1024
-    ? `${bytes.toLocaleString('en-US')} bytes`
+    ? messages(locale).reels.bytes(bytes.toLocaleString(locale === 'sk' ? 'sk-SK' : 'en-US'))
     : `${+(bytes / 1024 / 1024).toFixed(2)} MiB`;
-const tooLargeCopy = (maximumBytes: number, size?: ReelError['size'], discordRejected = false) => {
-  const measurement = size
-    ? `${size.atLeast ? 'at least ' : ''}${formatBytes(size.bytes)}`
-    : 'size unknown';
-  const limit = size?.downloadLimit ?? maximumBytes;
-  const label = size?.downloadLimit ? 'download limit' : discordRejected ? 'app limit' : 'limit';
-  return `Reel is too large${discordRejected ? ' for Discord' : ''}: ${measurement} (${label}: ${formatBytes(limit)}).`;
+const tooLargeCopy = (input: {
+  locale: Locale;
+  platform: string;
+  maximumBytes: number;
+  size?: ReelError['size'];
+  discordRejected?: boolean;
+}) => {
+  const copy = messages(input.locale).reels;
+  const rendered = input.size ? formatBytes(input.locale, input.size.bytes) : undefined;
+  const measurement = !rendered
+    ? copy.sizeUnknown
+    : input.size?.atLeast
+      ? copy.atLeast(rendered)
+      : rendered;
+  return copy.tooLarge({
+    platform: input.platform,
+    measurement,
+    limitLabel: input.size?.downloadLimit ? 'download' : input.discordRejected ? 'app' : 'plain',
+    limit: formatBytes(input.locale, input.size?.downloadLimit ?? input.maximumBytes),
+    discordRejected: Boolean(input.discordRejected),
+  });
 };
 const discordCode = (error: unknown) => {
   if (typeof error !== 'object' || !error) return undefined;
@@ -67,6 +72,7 @@ export const createDiscordReels = (input: {
   maximumBytes?: number;
   jobMs?: number;
   transport?: ReelDiscordTransport;
+  resolveLocale?: (guildId: string) => Promise<Locale>;
 }) => {
   const maximumBytes = input.maximumBytes ?? reelLimits.maximumBytes;
   const transport: ReelDiscordTransport = input.transport ?? {
@@ -85,11 +91,18 @@ export const createDiscordReels = (input: {
     message: Message<true>,
     reel: NonNullable<ReturnType<typeof parseRepostLinks>[0]>,
   ) => {
-    const label = reel.platform === 'tiktok' ? 'TikTok' : 'Instagram Reel';
-    const copy = (text: string) =>
+    const instagramPost =
+      reel.platform === 'instagram' && new URL(reel.url).pathname.startsWith('/p/');
+    const locale = await (input.resolveLocale?.(message.guildId) ?? Promise.resolve(defaultLocale));
+    const copy = messages(locale).reels;
+    const label =
       reel.platform === 'tiktok'
-        ? text.replaceAll('Reel', 'TikTok').replaceAll('an Instagram', 'a TikTok')
-        : text;
+        ? copy.platformLabel.tiktok
+        : instagramPost
+          ? copy.platformLabel.instagramPost
+          : copy.platformLabel.instagramReel;
+    const failureText = (failure: ReelFailure) =>
+      copy.failure({ failure, platform: label, maximumPhotos: reelLimits.maximumPhotos });
     const scope = { guildId: message.guildId, channelId: message.channelId };
     if (!(await input.store.getEnabled(scope)) || abort.signal.aborted) return;
     if (!canPublish(message)) {
@@ -150,7 +163,7 @@ export const createDiscordReels = (input: {
       }
       stage = 'upload';
       if (options.files && jobSignal.aborted) {
-        options = { content: copy(failureCopy.timeout) };
+        options = { content: failureText('timeout') };
         success = 'timeout';
       }
       const replyOptions = {
@@ -186,7 +199,11 @@ export const createDiscordReels = (input: {
             ...(files ? { files } : {}),
             ...(batches.length > 1
               ? {
-                  content: `${options.content} · Photos ${index * reelLimits.photosPerMessage + 1}–${index * reelLimits.photosPerMessage + files!.length} of ${options.files!.length}`,
+                  content: `${options.content} · ${copy.photosRange({
+                    from: index * reelLimits.photosPerMessage + 1,
+                    to: index * reelLimits.photosPerMessage + files!.length,
+                    total: options.files!.length,
+                  })}`,
                   nonce: createHash('sha256')
                     .update(`${replyOptions.nonce}:part:${index}`)
                     .digest('hex')
@@ -204,9 +221,13 @@ export const createDiscordReels = (input: {
             delivered = await transport.reply(current, {
               ...batchOptions,
               files: [],
-              content: copy(
-                tooLargeCopy(maximumBytes, bytes === undefined ? undefined : { bytes }, true),
-              ),
+              content: tooLargeCopy({
+                locale,
+                platform: label,
+                maximumBytes,
+                ...(bytes === undefined ? {} : { size: { bytes } }),
+                discordRejected: true,
+              }),
             });
             sentMessages++;
             success = 'too_large';
@@ -288,9 +309,14 @@ export const createDiscordReels = (input: {
           try {
             const content =
               outcome === 'too_large'
-                ? tooLargeCopy(maximumBytes, error instanceof ReelError ? error.size : undefined)
-                : failureCopy[outcome as ReelFailure];
-            await publish({ content: copy(content) }, outcome);
+                ? tooLargeCopy({
+                    locale,
+                    platform: label,
+                    maximumBytes,
+                    ...(error instanceof ReelError && error.size ? { size: error.size } : {}),
+                  })
+                : failureText(outcome as ReelFailure);
+            await publish({ content }, outcome);
           } catch {
             outcome = 'store_unavailable';
           }

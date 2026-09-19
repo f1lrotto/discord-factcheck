@@ -108,8 +108,8 @@ describe('Slovak daily collection windows', () => {
     const fallback = dailyCollectionSlot(at('21:30:00'), attempted)!;
     expect(fallback).toMatchObject({
       kind: 'fallback',
-      dueAt: at('21:00:00'),
-      expiresAt: at('22:00:00'),
+      dueAt: at('21:20:00'),
+      expiresAt: at('21:40:00'),
     });
     expect(dailyCollectionSlot(at('21:30:00'), state)).toEqual(fallback);
     expect(
@@ -120,6 +120,17 @@ describe('Slovak daily collection windows', () => {
     expect(dailyCollectionSlot(at('20:00:00', '2026-01-16'), attempted)?.key).not.toBe(primary.key);
   });
 
+  it('rechecks at 21:20 and 21:40 while preserving the deadline', () => {
+    const state: NewsDailyCollection = { attemptedSlots: [] };
+    for (const time of ['20:00:00', '21:00:00', '21:20:00', '21:40:00']) {
+      const slot = dailyCollectionSlot(at(time), state)!;
+      expect(slot).not.toBeNull();
+      state.attemptedSlots.push(slot.key);
+      expect(dailyCollectionSlot(at(time), state)).toBeNull();
+    }
+    expect(dailyCollectionSlot(at('21:59:59'), state)).toBeNull();
+    expect(dailyCollectionSlot(at('22:00:00'), state)).toBeNull();
+  });
   it('suppresses fallback for stored success independently of the delivery outcome', () => {
     const primary = dailyCollectionSlot(at('20:00:00'), { attemptedSlots: [] })!;
     const state = { attemptedSlots: [primary.key], collectedEdition: edition() };

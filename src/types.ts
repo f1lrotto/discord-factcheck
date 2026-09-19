@@ -6,6 +6,8 @@ import type {
 } from './model-failure.js';
 import type { SourceCitation } from './citations.js';
 import type { ClockSnapshot } from './clock.js';
+import type { ImageAttachment } from './discord-images.js';
+import type { Locale } from './i18n/plural.js';
 
 export type FunctionToolCall = {
   id: string;
@@ -14,9 +16,13 @@ export type FunctionToolCall = {
 };
 
 export type ChatMessage =
-  | { role: 'system' | 'user'; content: string }
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string | UserContentPart[] }
   | { role: 'assistant'; content: string | null; tool_calls?: FunctionToolCall[] }
   | { role: 'tool'; content: string; tool_call_id: string; name: string };
+
+export type UserContentPart =
+  { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 
 export type ContextMessage = {
   id: string;
@@ -32,11 +38,13 @@ export type AmbientContextRequest = {
 };
 
 export type TurnRequest = {
+  remindersSupported?: boolean;
   id: string;
   guildId: string;
   channelId: string;
   userId: string;
   question: string;
+  images?: ImageAttachment[];
   ambientContext?: AmbientContextRequest;
   referencedMessage?: ReferencedMessage;
   loadAmbientContext: (limit: number) => Promise<ContextMessage[]>;
@@ -73,6 +81,24 @@ export type BudgetSummary = {
   monthlyReservedMicrodollars: number;
 };
 
+/**
+ * Two windows with different retention, deliberately reported separately.
+ * `trend` comes from budget buckets, which live far longer than the per-request documents
+ * that `members` is derived from, so the two must never be presented as one window.
+ */
+export type UsageSummary = {
+  trendDays: number;
+  memberWindowDays: number;
+  trend: { date: string; costMicrodollars: number; requests: number }[];
+  members: {
+    userKey: string;
+    requests: number;
+    costMicrodollars: number;
+    failures: number;
+  }[];
+  totalCostMicrodollars: number;
+};
+
 export type AuthorizationResult =
   | { ok: true }
   | { ok: false; reason: 'duplicate' | 'rate_limited' | 'daily_budget' | 'monthly_budget' };
@@ -83,6 +109,9 @@ export type TurnOutcome =
       status: 'rejected';
       reason:
         | 'empty_question'
+        | 'image_limit'
+        | 'image_too_large'
+        | 'image_unavailable'
         | 'expired_conversation'
         | 'conversation_busy'
         | 'conversation_limit'
@@ -118,10 +147,13 @@ export type ResponseSink = {
 };
 
 export type ModelRunRequest = {
+  allowReminders?: boolean;
   messages: ChatMessage[];
   model: ModelId;
   reasoning: ReasoningEffort;
   clock: ClockSnapshot;
+  /** Renders retry notices only. It never reaches the prompt or the provider. */
+  locale?: Locale;
   signal?: AbortSignal;
 };
 
@@ -154,6 +186,7 @@ export type ToolActivity = {
 };
 
 export type ModelRunResult = {
+  reminderDrafts?: { instant: string; text: string }[];
   content: string;
   /** The provider stopped on `finish_reason: "length"`, so the answer is incomplete. */
   truncated?: boolean;
@@ -168,6 +201,7 @@ export type ModelRunResult = {
 export type ModelProgress =
   | { type: 'stage'; stage: 'answering' }
   | { type: 'reasoning_summary'; delta: string }
+  | { type: 'retry'; attempt: number; maximumAttempts: number; delayMs: number; reason: string }
   | { type: 'activity' };
 
 export type ModelRunner = {
@@ -202,9 +236,13 @@ export type JolandaStore = {
   getSettings: (guildId: string) => Promise<GuildSettings>;
   updateSettings: (
     guildId: string,
-    patch: Partial<Pick<GuildSettings, 'model' | 'reasoning' | 'contextLimitMessages'>>,
+    patch: Partial<Pick<GuildSettings, 'model' | 'reasoning' | 'contextLimitMessages' | 'locale'>>,
   ) => Promise<GuildSettings>;
   getBudgetSummary: (guildId: string, now: Date) => Promise<BudgetSummary>;
+  getUsageSummary: (
+    guildId: string,
+    options: { now: Date; trendDays: number; memberWindowDays: number },
+  ) => Promise<UsageSummary>;
   findConversationByMessage: (input: {
     messageId: string;
     guildId: string;

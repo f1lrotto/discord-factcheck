@@ -1,3 +1,5 @@
+import type { Locale } from './i18n/plural.js';
+
 export const reasoningEfforts = ['none', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 export type ReasoningEffort = (typeof reasoningEfforts)[number];
@@ -8,6 +10,7 @@ export type ModelDefinition = {
   label: string;
   openRouterId: string;
   supportsZdr: boolean;
+  supportsVision: boolean;
   defaultReasoning: ReasoningEffort;
   reasoningEfforts: readonly ReasoningEffort[];
   maxPromptPricePerMillion: number;
@@ -21,6 +24,7 @@ export const modelCatalog = {
     label: 'GPT-5.6 Luna',
     openRouterId: 'openai/gpt-5.6-luna',
     supportsZdr: false,
+    supportsVision: true,
     defaultReasoning: 'medium',
     reasoningEfforts,
     maxPromptPricePerMillion: 0.5,
@@ -32,6 +36,7 @@ export const modelCatalog = {
     label: 'DeepSeek V4 Flash',
     openRouterId: 'deepseek/deepseek-v4-flash-0731',
     supportsZdr: true,
+    supportsVision: false,
     defaultReasoning: 'high',
     reasoningEfforts: ['low', 'high', 'max'],
     maxPromptPricePerMillion: 0.25,
@@ -43,6 +48,7 @@ export const modelCatalog = {
     label: 'GLM 5.3 Flash',
     openRouterId: 'z-ai/glm-5.3-flash',
     supportsZdr: true,
+    supportsVision: true,
     defaultReasoning: 'max',
     reasoningEfforts: ['low', 'high', 'max'],
     maxPromptPricePerMillion: 0.15,
@@ -67,6 +73,9 @@ export const defaultGuildSettings = {
   model: 'glm-5.3-flash',
   reasoning: 'high',
   contextLimitMessages: 0,
+  // Slovak by default: this deployment's server speaks Slovak. Model answers are unaffected
+  // and keep following the language each question is written in.
+  locale: 'sk',
 } as const satisfies Omit<GuildSettings, 'guildId' | 'updatedAt'>;
 
 export type GuildSettings = {
@@ -74,10 +83,25 @@ export type GuildSettings = {
   model: ModelId;
   reasoning: ReasoningEffort;
   contextLimitMessages: number;
+  locale: Locale;
   updatedAt: Date;
 };
 
 export const getModel = (id: ModelId) => modelCatalog[id];
+
+// Keep the server's text model; only image-bearing turns need the vision fallback.
+export const resolveImageModel = (settings: GuildSettings, hasImages: boolean) =>
+  hasImages && !getModel(settings.model).supportsVision
+    ? {
+        ...settings,
+        model: 'glm-5.3-flash' as const,
+        reasoning: modelCatalog['glm-5.3-flash'].reasoningEfforts.some(
+          (effort) => effort === settings.reasoning,
+        )
+          ? settings.reasoning
+          : modelCatalog['glm-5.3-flash'].defaultReasoning,
+      }
+    : settings;
 
 export const modelProfiles = () =>
   Object.values(modelCatalog).flatMap((model) =>

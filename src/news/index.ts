@@ -147,7 +147,9 @@ export const createNewsRuntime = ({
           (signal) => {
             invoked = true;
             return publisher.publish({
-              destination,
+              destination: claim.publication.manual
+                ? { guildId: destination.guildId, channelId: destination.channelId }
+                : destination,
               content: claim.publication.content,
               nonce: claim.publication.nonce,
               signal,

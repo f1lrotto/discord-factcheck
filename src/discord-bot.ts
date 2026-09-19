@@ -1,3 +1,7 @@
+import type { BriefingStore } from './briefing/types.js';
+import type { ReminderStore, ReminderPublisher } from './reminders.js';
+import { text } from './news/render.js';
+import { formatDateTime } from './i18n/format.js';
 import {
   Client,
   ApplicationCommandType,
@@ -17,6 +21,7 @@ import {
   discordOperationTimeoutMs,
   maximumDiscordAdapterHandlers,
 } from './limits.js';
+import { defaultLocale, messages } from './i18n/index.js';
 import { safeError } from './security.js';
 import type { ReelStore } from './reel-types.js';
 import type { createDiscordReels } from './discord-reels.js';
@@ -26,6 +31,10 @@ import type { NewsPublisher, NewsStore } from './news/types.js';
 
 export const createDiscordBot = (input: {
   newsStore?: NewsStore;
+  briefingStore?: BriefingStore;
+  briefingMaximumCities?: number;
+  reminderStore?: ReminderStore;
+  timeZone?: string;
   newsEnabled?: boolean;
   newsPublisherOptions?: Pick<
     Parameters<typeof createNewsDiscordPublisher>[0],
@@ -39,6 +48,8 @@ export const createDiscordBot = (input: {
   maximumContextMessages: number;
   promptsPerMinute: number;
   transcriptTtlDays: number;
+  dailyLimitMicrodollars?: number;
+  monthlyLimitMicrodollars?: number;
   protectIdentifier: (identifier: string) => string;
   jolanda: Jolanda;
   store: JolandaStore;
@@ -56,12 +67,27 @@ export const createDiscordBot = (input: {
       ],
       rest: { timeout: discordOperationTimeoutMs },
     });
-  const ownedNewsPublisher = input.newsStore
-    ? createNewsDiscordPublisher({ ...input.newsPublisherOptions, client, token: input.token })
-    : undefined;
+  const ownedNewsPublisher =
+    input.newsStore || input.briefingStore || input.reminderStore
+      ? createNewsDiscordPublisher({
+          ...input.newsPublisherOptions,
+          client,
+          token: input.token,
+          resolveLocale: async (guildId) => (await input.store.getSettings(guildId)).locale,
+        })
+      : undefined;
   const newsPublisher: NewsPublisher | undefined = ownedNewsPublisher;
   const handleCommand = createCommandHandler({
     ...input,
+    ...(input.briefingStore && ownedNewsPublisher
+      ? {
+          briefing: {
+            store: input.briefingStore,
+            publisher: ownedNewsPublisher,
+            maximumCities: input.briefingMaximumCities ?? 5,
+          },
+        }
+      : {}),
     ...(input.newsStore && newsPublisher
       ? {
           news: {
@@ -116,13 +142,11 @@ export const createDiscordBot = (input: {
       error: safeError(error),
       interactionKey: input.protectIdentifier(interaction.id),
     });
-    const response = ephemeral('I could not save that setting. Please try again.');
+    const notice = messages(handleCommand.localeFor(interaction)).common.saveFailed;
+    const response = ephemeral(notice);
     try {
       if (interaction.deferred && !interaction.replied)
-        await interaction.editReply({
-          content: 'I could not save that setting. Please try again.',
-          allowedMentions: safeMentions,
-        });
+        await interaction.editReply({ content: notice, allowedMentions: safeMentions });
       else if (interaction.replied) await interaction.followUp(response);
       else await interaction.reply(response);
     } catch (replyError) {
@@ -154,7 +178,7 @@ export const createDiscordBot = (input: {
         });
         try {
           await message.reply({
-            content: 'Jolanda is temporarily unavailable. Please try again.',
+            content: messages(defaultLocale).common.temporarilyUnavailable,
             allowedMentions: safeMentions,
             flags: safeMessageFlags,
           });
@@ -254,5 +278,41 @@ export const createDiscordBot = (input: {
     ownedNewsPublisher?.close();
     return client.destroy();
   };
-  return { start, stopAccepting, drain, destroy, ...(newsPublisher ? { newsPublisher } : {}) };
+  const reminderPublisher: ReminderPublisher | undefined = ownedNewsPublisher
+    ? {
+        ready: ownedNewsPublisher.ready,
+        publish: async ({ destination, reminder, nonce, signal }) => {
+          const locale = await input.store
+            .getSettings(destination.guildId)
+            .then((settings) => settings.locale)
+            .catch(() => defaultLocale);
+          return ownedNewsPublisher.publishPayload({
+            destination,
+            nonce,
+            signal,
+            payload: {
+              content: messages(locale).reminders.deliver({
+                userId: destination.userId,
+                text: text(reminder.text, 600),
+                createdAt: formatDateTime(
+                  locale,
+                  reminder.createdAt,
+                  input.timeZone ?? 'Europe/Bratislava',
+                ),
+              }),
+              allowed_mentions: { parse: [], users: [destination.userId] },
+            },
+          });
+        },
+      }
+    : undefined;
+  return {
+    briefingPublisher: ownedNewsPublisher,
+    reminderPublisher,
+    start,
+    stopAccepting,
+    drain,
+    destroy,
+    ...(newsPublisher ? { newsPublisher } : {}),
+  };
 };

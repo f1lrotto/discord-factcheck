@@ -4,6 +4,7 @@ import {
   type ModelId,
   type ReasoningEffort,
 } from './models.js';
+import { imageLimits } from './image-limits.js';
 
 export const conversationReplyLimit = 10;
 export const discordMessageCharacters = 1_900;
@@ -12,6 +13,8 @@ export const maximumDiscordChunks = 6;
 export const maximumResponseCharacters =
   discordMessageCharacters * maximumDiscordChunks - '[…response truncated]'.length - 2;
 export const openRouterStreamStartTimeoutMs = 10 * 60_000;
+export const openRouterMaximumAttempts = 5;
+export const openRouterRetryBaseDelayMs = 1_000;
 export const discordOperationTimeoutMs = 15_000;
 export const mongoOperationTimeoutMs = 15_000;
 export const discordAdapterDrainTimeoutMs = 30_000;
@@ -39,6 +42,10 @@ export const maximumProviderErrorBytes = 64_000;
 export const maximumCitationAnnotations = 24;
 export const maximumCitationTitleCharacters = 200;
 export const messageLinkLookupsPerMinute = 10;
+export const usageTrendDays = 14;
+// One report must never scan an unbounded number of request documents.
+export const usageRequestScanLimit = 5_000;
+export const usageMemberRows = 10;
 
 const maximumTokensPerCharacter = 4;
 const requestProtocolOverheadCharacters = 8_000;
@@ -52,6 +59,7 @@ export const costEnvelopeDetails = (input: {
   model: ModelId;
   reasoning: ReasoningEffort;
   maximumPromptCharacters: number;
+  imageCount?: number;
 }) => {
   const model = modelCatalog[input.model];
   const functionLoopCharacters =
@@ -66,7 +74,9 @@ export const costEnvelopeDetails = (input: {
     requestProtocolOverheadCharacters +
     functionLoopCharacters;
   const inputTokens =
-    inputCharacters * maximumTokensPerCharacter + webFetchMaxUses * webFetchMaxContentTokens;
+    inputCharacters * maximumTokensPerCharacter +
+    webFetchMaxUses * webFetchMaxContentTokens +
+    (input.imageCount ?? 0) * imageLimits.tokensPerImage * maximumAnswerRequests;
   const outputTokens = completionTokenBudget(input.model, input.reasoning) * maximumAnswerRequests;
 
   const promptMicrodollars = tokenCost(inputTokens, model.maxPromptPricePerMillion);
@@ -98,6 +108,7 @@ export const maximumCostEnvelopeMicrodollars = (maximumPromptCharacters: number)
           model: model.id,
           reasoning,
           maximumPromptCharacters,
+          imageCount: model.supportsVision ? imageLimits.count : 0,
         }),
       ),
     ),

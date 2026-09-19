@@ -52,6 +52,7 @@ const setup = (enabled = true, maximumBytes?: number) => {
     downloader,
     logger,
     protectIdentifier: (raw) => createHash('sha256').update(raw).digest('hex'),
+    resolveLocale: async () => 'en',
   });
   const offer = (overrides: Record<string, unknown> = {}) =>
     reels.offer({ ...message, ...overrides } as unknown as Message);
@@ -157,22 +158,22 @@ describe('automatic Reel delivery', () => {
     {
       size: { bytes: 24 * 1024 * 1024 },
       maximumBytes: undefined,
-      expected: 'Reel is too large: 24 MiB (limit: 20 MiB).',
+      expected: 'Instagram Reel is too large: 24 MiB (limit: 20 MiB).',
     },
     {
       size: { bytes: 120 * 1024 * 1024, downloadLimit: 100 * 1024 * 1024 },
       maximumBytes: undefined,
-      expected: 'Reel is too large: 120 MiB (download limit: 100 MiB).',
+      expected: 'Instagram Reel is too large: 120 MiB (download limit: 100 MiB).',
     },
     {
       size: { bytes: 12 * 1024 * 1024, atLeast: true },
       maximumBytes: 9 * 1024 * 1024,
-      expected: 'Reel is too large: at least 12 MiB (limit: 9 MiB).',
+      expected: 'Instagram Reel is too large: at least 12 MiB (limit: 9 MiB).',
     },
     {
       size: undefined,
       maximumBytes: undefined,
-      expected: 'Reel is too large: size unknown (limit: 20 MiB).',
+      expected: 'Instagram Reel is too large: size unknown (limit: 20 MiB).',
     },
   ])(
     'reports file size and the configured limit: $expected',
@@ -220,7 +221,7 @@ describe('automatic Reel delivery', () => {
     expect(s.reply).toHaveBeenLastCalledWith(
       expect.objectContaining({
         files: [],
-        content: 'Reel is too large for Discord: 5 bytes (app limit: 20 MiB).',
+        content: 'Instagram Reel is too large for Discord: 5 bytes (app limit: 20 MiB).',
       }),
     );
     expect(s.store.transition).toHaveBeenLastCalledWith(
@@ -394,13 +395,15 @@ describe('TikTok under the Reels umbrella', () => {
     await vi.waitFor(() => expect(s.reply).toHaveBeenCalledOnce());
     await s.reels.shutdown();
     expect(s.reply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: 'I couldn’t access this TikTok without a TikTok login.' }),
+      expect.objectContaining({ content: 'I couldn’t access this TikTok without a login.' }),
     );
   });
 });
 
-describe('TikTok photo album delivery', () => {
-  const url = 'https://www.tiktok.com/@creator/photo/123';
+describe.each([
+  ['TikTok', 'https://www.tiktok.com/@creator/photo/123'],
+  ['Instagram post', 'https://www.instagram.com/p/DdTfQ2SjrBf/'],
+])('%s photo album delivery', (label, url) => {
   const photos = Array.from({ length: 18 }, (_, i) => ({
     path: `/photo-${i}`,
     name: `photo-${i}.jpg`,
@@ -430,14 +433,14 @@ describe('TikTok photo album delivery', () => {
     expect(s.reply).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        content: `TikTok · <${url}> · Photos 1–10 of 18`,
+        content: `${label} · <${url}> · Photos 1–10 of 18`,
         files: photos.slice(0, 10).map(({ path, name }) => ({ attachment: path, name })),
       }),
     );
     expect(s.reply).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        content: `TikTok · <${url}> · Photos 11–18 of 18`,
+        content: `${label} · <${url}> · Photos 11–18 of 18`,
         files: photos.slice(10).map(({ path, name }) => ({ attachment: path, name })),
       }),
     );

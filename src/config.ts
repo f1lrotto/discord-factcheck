@@ -7,6 +7,7 @@ import { timeZoneIsSupported } from './clock.js';
 const optionalUrl = z.preprocess((value) => (value === '' ? undefined : value), z.url().optional());
 
 const envSchema = z.object({
+  BRIEFING_MAX_CITIES: z.coerce.number().int().min(1).max(5).default(5),
   NEWS_ENABLED: z
     .enum(['true', 'false'])
     .default('true')

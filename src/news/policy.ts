@@ -1,4 +1,4 @@
-import { zonedDateTime } from '../clock.js';
+import { dailySlotSchedule, localDate } from '../scheduling/slots.js';
 import type {
   NewsDailyCollection,
   NewsDailySlot,
@@ -18,16 +18,19 @@ export const newsPolicy = {
   promotionAgeMs: 24 * 60 * 60_000,
 } as const;
 
-export const newsLocalDate = (instant: Date) =>
-  zonedDateTime(instant, newsPolicy.timeZone).localDateTime.slice(0, 10);
+export const newsLocalDate = (instant: Date) => localDate(instant, newsPolicy.timeZone);
 
-export const dailySchedule = (instant: Date) => {
-  const date = newsLocalDate(instant);
-  // Noon and evening share the offset, including both Slovak DST-transition dates.
-  const { utcOffset } = zonedDateTime(new Date(`${date}T12:00:00Z`), newsPolicy.timeZone);
-  const at = (hour: number) => new Date(`${date}T${hour}:00:00${utcOffset}`);
-  return { date, primaryAt: at(20), fallbackAt: at(21), deadline: at(22) };
-};
+export const dailySchedule = (instant: Date) =>
+  dailySlotSchedule({
+    instant,
+    timeZone: newsPolicy.timeZone,
+    primaryHour: 20,
+    fallbackHour: 21,
+    deadlineHour: 22,
+  });
+
+export const isRecentDailyEdition = (edition: NewsEdition, now: Date) =>
+  edition.publishedAt <= now && +now - +edition.publishedAt < 48 * 60 * 60_000;
 
 export const isCurrentDailyEdition = (edition: NewsEdition, now: Date) =>
   edition.publishedAt <= now && newsLocalDate(edition.publishedAt) === newsLocalDate(now);
@@ -46,14 +49,24 @@ export const dailyCollectionSlot = (
   )
     return null;
   const kind = now < fallbackAt ? 'primary' : 'fallback';
-  const key = JSON.stringify(['aktuality', date, kind]);
+  const retry =
+    kind === 'fallback' ? Math.floor((+now - +fallbackAt) / newsPolicy.continuousIntervalMs) : 0;
+  const key = JSON.stringify(['aktuality', date, kind, ...(retry ? [retry] : [])]);
   if (state.attemptedSlots.includes(key)) return null;
   return {
     key,
     date,
     kind,
-    dueAt: kind === 'primary' ? primaryAt : fallbackAt,
-    expiresAt: kind === 'primary' ? fallbackAt : deadline,
+    dueAt:
+      kind === 'primary'
+        ? primaryAt
+        : new Date(+fallbackAt + retry * newsPolicy.continuousIntervalMs),
+    expiresAt:
+      kind === 'primary'
+        ? fallbackAt
+        : new Date(
+            Math.min(+deadline, +fallbackAt + (retry + 1) * newsPolicy.continuousIntervalMs),
+          ),
   };
 };
 
@@ -191,9 +204,11 @@ export const canAdmitSend = (
   now < publication.expiresAt &&
   (publication.content.kind === 'edition'
     ? subscription.feed === 'daily' &&
-      isCurrentDailyEdition(publication.content, now) &&
-      now >= dailySchedule(now).primaryAt &&
-      now < dailySchedule(now).deadline
+      (publication.manual
+        ? isRecentDailyEdition(publication.content, now)
+        : isCurrentDailyEdition(publication.content, now) &&
+          now >= dailySchedule(now).primaryAt &&
+          now < dailySchedule(now).deadline)
     : subscription.feed === 'continuous');
 
 // Call only for confirmed rejection before acceptance; ambiguous results never enter this path.
@@ -201,7 +216,7 @@ export const safeRetryAt = (publication: NewsPublication, now: Date, delayMs: nu
   if (publication.status !== 'sending' || !Number.isFinite(delayMs) || delayMs < 0) return null;
   const retryAt = new Date(+now + delayMs);
   const deadline =
-    publication.content.kind === 'edition'
+    publication.content.kind === 'edition' && !publication.manual
       ? Math.min(+publication.expiresAt, +dailySchedule(publication.content.publishedAt).deadline)
       : +publication.expiresAt;
   return +retryAt < deadline ? retryAt : null;

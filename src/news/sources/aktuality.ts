@@ -1,5 +1,5 @@
 import { createNewsHttp, type NewsHttp } from '../http.js';
-import { isCurrentDailyEdition } from '../policy.js';
+import { isCurrentDailyEdition, isRecentDailyEdition } from '../policy.js';
 import type { NewsEdition, NewsSource, NewsSourceCache } from '../types.js';
 import { malformed, page, plainText, publishedDate, record, revision, safeUrl } from './parse.js';
 
@@ -150,7 +150,7 @@ export const parseAktualityEdition = (html: string, requestedUrl: string): NewsE
 
 export const createAktualitySource = (http: NewsHttp = createNewsHttp()): NewsSource => ({
   id: 'aktuality',
-  collect: async ({ now, cache, signal }) => {
+  collect: async ({ now, cache, signal, latest }) => {
     if (signal.aborted) return { outcome: 'cancelled' };
     const listing = await http({
       url: aktualityListingUrl,
@@ -201,7 +201,7 @@ export const createAktualitySource = (http: NewsHttp = createNewsHttp()): NewsSo
           edition,
         },
       };
-      return isCurrentDailyEdition(edition, now)
+      return (latest ? isRecentDailyEdition(edition, now) : isCurrentDailyEdition(edition, now))
         ? { outcome: 'edition', edition, cache: updated }
         : { outcome: 'stale', cache: updated };
     } catch {

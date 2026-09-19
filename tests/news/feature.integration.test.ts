@@ -163,6 +163,8 @@ describe('whole news journeys from native command configuration to durable deliv
         { client },
       );
       await store.initialize();
+      // Assertions in this suite are written against the English catalog.
+      await store.updateSettings('100', { locale: 'en' });
       const collections = getCollections(client.db(databaseName));
       const publisher = createNewsDiscordPublisher({
         client: { isReady: () => state.ready, user: { id: '300' } },
@@ -319,12 +321,8 @@ describe('whole news journeys from native command configuration to durable deliv
   it('enforces administration and selected-channel ownership before durable mutation', async () => {
     const h = await harness();
     const denied = await h.first.command('daily', { manage: false });
-    expect(denied.reply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flags: MessageFlags.Ephemeral,
-        content: expect.stringContaining('Manage Server'),
-      }),
-    );
+    expect(denied.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    expect(denied.text).toContain('Manage Server');
     expect(h.discordHttp).not.toHaveBeenCalled();
     await h.first.command('daily', { selectedGuild: '101', channel: '211' });
     expect(h.discordHttp).not.toHaveBeenCalled();
@@ -365,6 +363,7 @@ describe('whole news journeys from native command configuration to durable deliv
                 'aktuality',
                 '2026-09-14',
                 time === '19:30:00' ? 'fallback' : 'primary',
+                ...(time === '19:30:00' ? [1] : []),
               ]),
             ],
       );
@@ -402,7 +401,7 @@ describe('whole news journeys from native command configuration to durable deliv
   );
 
   it.each([true, false])(
-    'uses one fallback after stale primary, with fresh fallback=%s',
+    'retries late editions only while no fresh edition is stored, with fresh fallback=%s',
     async (freshFallback) => {
       const h = await harness();
       await h.first.command('daily');
@@ -419,14 +418,32 @@ describe('whole news journeys from native command configuration to durable deliv
       await restarted.runtime.tick();
       h.state.now = at('20:00:00');
       await restarted.runtime.tick();
-      expect(h.dailyRequests()).toBe(4);
+      expect(h.dailyRequests()).toBe(freshFallback ? 4 : 6);
       expect(h.published).toHaveLength(freshFallback ? 1 : 0);
       expect(
         (await restarted.store.news!.getSource('aktuality')).daily?.attemptedSlots,
-      ).toHaveLength(2);
+      ).toHaveLength(freshFallback ? 2 : 3);
     },
   );
 
+  it('collects an edition published after 21:00 and sends it once', async () => {
+    const h = await harness();
+    await h.first.command('daily');
+    h.state.daily = 'stale';
+    for (const time of ['18:00:00', '19:00:00']) {
+      h.state.now = at(time);
+      await h.first.runtime.tick();
+    }
+    h.state.daily = 'fresh';
+    h.state.now = at('19:20:00');
+    await h.first.runtime.tick();
+    expect(h.published).toHaveLength(1);
+    const requests = h.dailyRequests();
+    h.state.now = at('19:40:00');
+    await h.first.runtime.tick();
+    expect(h.published).toHaveLength(1);
+    expect(h.dailyRequests()).toBe(requests);
+  });
   it('does not reset a completed missing-primary slot when another guild joins at 20:30', async () => {
     const h = await harness();
     await h.first.command('daily');
@@ -572,7 +589,7 @@ describe('whole news journeys from native command configuration to durable deliv
     await h.first.runtime.tick();
     expect(h.published.map((post) => post.channel)).toEqual(['211']);
     expect((await h.first.command('daily', { action: 'status' })).text).toContain(
-      'destination-unavailable',
+      'destination unavailable',
     );
     const requests = h.discordHttp.mock.calls.length;
     await h.first.runtime.tick();
